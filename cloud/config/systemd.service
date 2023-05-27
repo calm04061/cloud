@@ -1,0 +1,13 @@
+[Unit]
+Description=CloudFS
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/etc/cloudfs/
+ExecStart=/usr/bin/cloudfs
+KillMode=process
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

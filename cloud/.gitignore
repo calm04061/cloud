@@ -1,0 +1,8 @@
+/target
+.idea
+*.iml
+Cargo.lock
+*.log
+token.json
+file.db
+.DS_Store

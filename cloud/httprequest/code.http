@@ -1,0 +1,10 @@
+GET http://127.0.0.1:8080/api/cloud/baidu/authorize/6
+
+###
+POST http://127.0.0.1:8080/api/cloud/meta
+Content-Type: application/json
+
+{
+  "name": "test",
+  "cloud_type": 2
+}

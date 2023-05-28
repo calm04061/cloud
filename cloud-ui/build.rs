@@ -4,7 +4,7 @@ fn main() -> std::io::Result<()> {
     NpmBuild::new("web")
         .install()?
         .run("build")?
-        .target("web/dist/bundle")
+        .target("web/dist")
         .change_detection()
         .to_resource_dir()
         .build().ok();

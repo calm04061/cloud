@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct DriveCapacity {
-    pub(crate) total_size: i64,
-    pub(crate) used_size: i64,
+    pub(crate) total_size: u64,
+    pub(crate) used_size: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

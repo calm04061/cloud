@@ -206,9 +206,9 @@ pub(crate) struct BaiduFileManagerResult {
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct BaiduQuota {
     errno: i32,
-    pub(crate) total: i64,
-    free: i64,
+    pub(crate) total: u64,
+    free: u64,
     request_id: i64,
     expire: bool,
-    pub(crate) used: i64,
+    pub(crate) used: u64,
 }

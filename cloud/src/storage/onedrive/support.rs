@@ -4,9 +4,9 @@ use crate::storage::storage::{Quota, User};
 impl From<OneDriveQuota> for Quota {
     fn from(one: OneDriveQuota) -> Self {
         Quota {
-            total: one.total as i64,
-            used: (one.total - one.remaining) as i64,
-            remaining: one.remaining as i64,
+            total: one.total,
+            used: one.used,
+            remaining: one.remaining,
         }
     }
 }

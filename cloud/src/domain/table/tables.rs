@@ -53,9 +53,9 @@ pub struct CloudMeta {
     pub status: i8,
     pub deleted: i8,
     pub cloud_type: i8,
-    pub total_quota: Option<i64>,
-    pub used_quota: Option<i64>,
-    pub remaining_quota: Option<i64>,
+    pub total_quota: Option<u64>,
+    pub used_quota: Option<u64>,
+    pub remaining_quota: Option<u64>,
     pub extra: Option<String>,
 }
 

@@ -112,7 +112,7 @@ async function deleteItem(item: any) {
 }
 
 function authItem(item: any) {
-  window.open("/api/authorize/storage/" + item.id, "newwindow",'toolbar=no,menubar=no,scrollbars=no, resizable=no,location=no, status=no')
+  window.location.href="/api/authorize/storage/" + item.id
 }
 
 function close() {

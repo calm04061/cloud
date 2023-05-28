@@ -55,11 +55,7 @@ pub async fn run_web(tx: mpsc::Sender<ServerHandle>) -> std::io::Result<()> {
                     scope(DAV_PREFIX)
                     .configure(dav::config)
                 )
-                .service(
-                    actix_files::Files::new("/static", ".")
-                        .show_files_listing()
-                        .use_last_modified(true),
-                )
+                .configure(cloud_ui::config)
         }
     })
     .keep_alive(Duration::from_secs(120))

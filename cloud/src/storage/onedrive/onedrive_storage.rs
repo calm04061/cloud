@@ -6,6 +6,7 @@ use crate::domain::table::tables::CloudMeta;
 use crate::storage::storage::{CreateResponse, FileInfo, FileItemWrapper, Network, Quota, ResponseResult, SearchResponse, Storage, StorageFile, User};
 use async_trait::async_trait;
 use log::{debug, info};
+use reqwest::multipart::Form;
 use task_local_extensions::Extensions;
 use urlencoding::encode;
 use crate::storage::onedrive::one_drive_authorization_middleware::OneDriveAuthMiddleware;
@@ -102,9 +103,9 @@ impl StorageFile for OneDriveStorage {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         let json = self
-            .get_json("/drive", &mut extensions)
+            .get_json("me/drive", &mut extensions)
             .await?;
-        debug!("{}", json);
+        info!("{}", json);
         let result: Drive = serde_json::from_str(json.as_str()).unwrap();
         let quota = result.quota;
         let user = result.owner.user;
@@ -116,27 +117,43 @@ impl StorageFile for OneDriveStorage {
     ///     &response_type=token&redirect_uri={redirect_uri}
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String> {
         let callback = format!("http://{}/api/cloud/callback", server);
-        let encoded = encode(callback.as_str());
-        Ok(format!("{}/common/oauth2/v2.0/authorize?response_type=code&client_id={}&redirect_uri={}&scope=onedrive.readwrite&state={}", AUTH_DOMAIN_PREFIX, self.client_id(), encoded, id))
+        let target = encode(callback.as_str());
+
+        let scope= encode("offline_access files.readwrite.all");
+        // https://cloud.calm0406.tk/callback.html
+        let callback = format!("{}/consumers/oauth2/v2.0/authorize?response_type=code&client_id={}&scope={}&state={}", AUTH_DOMAIN_PREFIX, self.client_id(),scope, id);
+        let callback = encode(callback.as_str());
+        let result_url = format!("https://cloud.calm0406.tk/callback.html?target={}&redirect_uri={}", target, callback);
+        Ok(result_url)
     }
 
     async fn callback(&self, server: String, code: String, _id: i32) -> ResponseResult<String> {
-        let callback = format!("http://{}/api/cloud/callback", server);
-        let encoded = encode(callback.as_str());
-        let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, format!("common/oauth2/v2.0/token?grant_type=authorization_code&code={}&client_id={}&client_secret={}&redirect_uri={}", code, self.client_id(), self.client_secret(), encoded));
+        let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, format!("consumers/oauth2/v2.0/token"));
         info!("{}", token_url);
-        let resp_result = self.inner.content_client.post(token_url).send();
+        let client_id= self.client_id().clone();
+        let client_secret= self.client_secret().clone();
+        let mut form =vec![];
+        form.push(("grant_type","authorization_code"));
+        form.push(("code",code.as_str()));
+        form.push(("client_id",client_id.as_str()));
+        form.push(("client_secret",client_secret.as_str()));
+        form.push(("redirect_uri","https://cloud.calm0406.tk/callback.html"));
+        let form = form.as_slice();
+        let resp_result = self.inner.content_client.post(token_url)
+            .form(form)
+            .send();
         let json_text = self.get_response_text(resp_result).await?;
         info!("{}", json_text);
         Ok(String::from(json_text))
     }
 
     fn client_id(&self) -> String {
-        "de6e4dde-5b44-4368-a40d-25222a4e1e51".to_string()
+        "2ef3cc2e-2309-4bf4-afb6-918d8177540e".to_string()
     }
 
     fn client_secret(&self) -> String {
-        "KDC8Q~amMqOpYqKe6.DwoH6HXDYZ~UPV0k0Xva3Y".to_string()
+        //4732946b-4d4a-45c7-9d8b-fc82b70d44cc
+        "iZx8Q~uobOdiWmCdaPIVB4oWfrTAFw5xJ8jXbaXf".to_string()
     }
 }
 

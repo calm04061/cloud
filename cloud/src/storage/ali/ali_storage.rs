@@ -557,8 +557,24 @@ impl StorageFile for AliStorage {
         cloud_meta.extra = Some(extra);
         Ok(())
     }
+
+    fn client_id(&self) -> String {
+        todo!()
+    }
+
+    fn client_secret(&self) -> String {
+        todo!()
+    }
 }
 
-impl Network for AliStorage {}
+impl Network for AliStorage {
+    fn get_client(&self) -> &ClientWithMiddleware {
+        &self.inner.api_client
+    }
+
+    fn get_api_prefix(&self) -> String {
+        API_DOMAIN_PREFIX.to_string()
+    }
+}
 
 impl Inner {}

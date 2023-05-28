@@ -79,6 +79,8 @@ async fn delete_cloud_file_block(file_meta: &mut FileMeta, file_block_meta: &Fil
     let cloud_file_blocks = CloudFileBlock::select_by_file_block_id(pool!(), file_block_meta.id.unwrap())
             .await
             .unwrap();
+    let size = cloud_file_blocks.len();
+
     for mut cloud_file_block in cloud_file_blocks {
         let result = cloud.delete(&cloud_file_block).await;
         if let Err(e) = result {
@@ -107,6 +109,6 @@ async fn delete_cloud_file_block(file_meta: &mut FileMeta, file_block_meta: &Fil
                 .unwrap();
         }
     }
-    cloud_file_blocks.len()
+    size
 }
 

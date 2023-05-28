@@ -104,6 +104,7 @@ impl From<i8> for CloudType {
             1 => CloudType::AliYun,
             2 => CloudType::Baidu,
             3 => CloudType::Local,
+            4 => CloudType::OneDrive,
             _ => CloudType::AliYun,
         }
     }
@@ -115,6 +116,7 @@ impl From<&CloudType> for i8 {
             CloudType::AliYun => 1,
             CloudType::Baidu => 2,
             CloudType::Local => 3,
+            CloudType::OneDrive => 4,
         }
     }
 }

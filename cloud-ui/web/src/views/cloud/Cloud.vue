@@ -18,7 +18,7 @@ onMounted(() => {
   }
   console.log(list());
 });
-const cloud_types = ref([{id: 1, name: "阿里云盘"}, {id: 2, name: "百度"}, {id: 3, name: "本地磁盘"}])
+const cloud_types = ref([{id: 1, name: "阿里云盘"}, {id: 2, name: "百度"}, {id: 3, name: "本地磁盘"}, {id: 4, name: "OneDrive"}])
 const status = ref([{id: 0, name: "待初始化"}, {id: 1, name: "待配置根目录"}, {id: 2, name: "可用"}, {
   id: 3,
   name: "token失效"

@@ -26,6 +26,7 @@ pub enum CloudType {
     AliYun,
     Baidu,
     Local,
+    OneDrive,
 }
 
 #[async_trait::async_trait]

@@ -25,7 +25,6 @@ use crypto::md5::Md5;
 use rbatis::utils::into_one::IntoOne;
 use reqwest::multipart::{Form, Part};
 use serde::Serialize;
-use crate::database::meta::cloud::MetaStatus;
 
 // const CHUNK_SIZE: usize = 10485760;
 const BLOCK_SIZE: usize = 1024 * 1024 * 4;
@@ -87,7 +86,6 @@ impl BaiduStorage {
 
 #[async_trait::async_trait]
 impl Storage for BaiduStorage {
-
     async fn user_info(&mut self, cloud_meta: CloudMeta) -> ResponseResult<User> {
         self.inner.user_info(cloud_meta).await
     }
@@ -121,45 +119,18 @@ impl Clone for BaiduStorage {
     }
 }
 
+impl Network for BaiduStorage {
+    fn get_client(&self) -> &ClientWithMiddleware {
+        &self.inner.api_client
+    }
+    fn get_api_prefix(&self) -> String {
+        API_DOMAIN_PREFIX.to_string()
+    }
+}
+
 #[async_trait]
 impl StorageFile for BaiduStorage {
-    // async fn upload(
-    //     &mut self,
-    //     parent_file_id: &str,
-    //     name: &str,
-    //     file_path: &str,
-    //     cloud_meta: CloudMeta,
-    // ) -> ResponseResult<CreateResponse> {
-    //     //https://api.aliyundrive.com/adrive/v2/file/createWithFolders
-    //
-    //     let file = File::open(file_path).unwrap();
-    //     let metadata = file.metadata().unwrap();
-    //     let len = metadata.len();
-    //     // let mut content = BufReader::new(file);
-    //
-    //     let chunk_count = (len + CHUNK_SIZE as u64 - 1) / CHUNK_SIZE as u64;
-    //
-    //     let mut part_infos = vec![];
-    //     let mut index = 0;
-    //     while index < chunk_count {
-    //         part_infos.insert(
-    //             index as usize,
-    //             PartInfo {
-    //                 part_number: (index + 1) as u32,
-    //                 upload_url: None,
-    //                 internal_upload_url: None,
-    //                 content_type: None,
-    //             },
-    //         );
-    //         index += 1;
-    //     }
-    //
-    //     let file = File::open(file_path).unwrap();
-    //
-    //     let content = BufReader::new(file);
-    //     let x = content.buffer().to_vec();
-    //     self.upload_content(parent_file_id, name, &x, cloud_meta).await
-    // }
+
     async fn upload_content(
         &mut self,
         name: &str,
@@ -453,13 +424,13 @@ impl StorageFile for BaiduStorage {
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String> {
         let callback = format!("http://{}/api/cloud/callback", server);
         let encoded = encode(callback.as_str());
-        Ok(format!("{}/oauth/2.0/authorize?response_type=code&client_id={}&redirect_uri={}&scope=basic,netdisk&state={}", AUTH_DOMAIN_PREFIX, "iWjfcOWq0BoUNZABxy4hGtXPdftzPtG8", encoded, id))
+        Ok(format!("{}/oauth/2.0/authorize?response_type=code&client_id={}&redirect_uri={}&scope=basic,netdisk&state={}", AUTH_DOMAIN_PREFIX, self.client_id(), encoded, id))
     }
 
     async fn callback(&self, server: String, code: String, _id: i32) -> ResponseResult<String> {
         let callback = format!("http://{}/api/cloud/callback", server);
         let encoded = encode(callback.as_str());
-        let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, format!("oauth/2.0/token?grant_type=authorization_code&code={}&client_id={}&client_secret={}&redirect_uri={}", code, "iWjfcOWq0BoUNZABxy4hGtXPdftzPtG8", "KqEOL6F9tT2vkeeYRgKqZvyPHlGQnujM", encoded));
+        let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, format!("oauth/2.0/token?grant_type=authorization_code&code={}&client_id={}&client_secret={}&redirect_uri={}", code, self.client_id(), self.client_secret(), encoded));
         info!("{}", token_url);
         let resp_result = self.inner.content_client.get(token_url).send();
         let json_text = self.inner.get_response_text(resp_result).await?;
@@ -467,51 +438,60 @@ impl StorageFile for BaiduStorage {
         Ok(String::from(json_text))
     }
 
-    async fn after_callback(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<()> {
-        cloud_meta.data_root = Some("/app/share-desk".to_string());
-        cloud_meta.status = MetaStatus::Enable.into();
-        Ok(())
+    fn client_id(&self) -> String {
+        "iWjfcOWq0BoUNZABxy4hGtXPdftzPtG8".to_string()
+    }
+
+    fn client_secret(&self) -> String {
+        "KqEOL6F9tT2vkeeYRgKqZvyPHlGQnujM".to_string()
     }
 }
 
-impl Network for Inner {}
+impl Network for Inner {
+    fn get_client(&self) -> &ClientWithMiddleware {
+        &self.api_client
+    }
+    fn get_api_prefix(&self) -> String {
+        API_DOMAIN_PREFIX.to_string()
+    }
+}
 
 impl Inner {
-    async fn get_json(
-        &mut self,
-        path: &str,
-        extensions: &mut Extensions,
-    ) -> ResponseResult<String> {
-        let resp_result = self
-            .api_client
-            .get(format!("{}/{}", API_DOMAIN_PREFIX, path))
-            .build()
-            .unwrap();
-        let resp_result = self
-            .api_client
-            .execute_with_extensions(resp_result, extensions);
-        return self.get_response_text(resp_result).await;
-    }
+    // async fn get_json(
+    //     &mut self,
+    //     path: &str,
+    //     extensions: &mut Extensions,
+    // ) -> ResponseResult<String> {
+    //     let resp_result = self
+    //         .api_client
+    //         .get(format!("{}/{}", API_DOMAIN_PREFIX, path))
+    //         .build()
+    //         .unwrap();
+    //     let resp_result = self
+    //         .api_client
+    //         .execute_with_extensions(resp_result, extensions);
+    //     return self.get_response_text(resp_result).await;
+    // }
     ///
     ///
     ///
-    async fn post_form(
-        &mut self,
-        path: &str,
-        form: &Vec<(&str, &str)>,
-        extensions: &mut Extensions,
-    ) -> ResponseResult<String> {
-        let resp_result = self
-            .api_client
-            .post(format!("{}/{}", API_DOMAIN_PREFIX, path))
-            .form(form)
-            .build()
-            .unwrap();
-        let resp_result = self
-            .api_client
-            .execute_with_extensions(resp_result, extensions);
-        return self.get_response_text(resp_result).await;
-    }
+    // async fn post_form(
+    //     &mut self,
+    //     path: &str,
+    //     form: &Vec<(&str, &str)>,
+    //     extensions: &mut Extensions,
+    // ) -> ResponseResult<String> {
+    //     let resp_result = self
+    //         .api_client
+    //         .post(format!("{}/{}", API_DOMAIN_PREFIX, path))
+    //         .form(form)
+    //         .build()
+    //         .unwrap();
+    //     let resp_result = self
+    //         .api_client
+    //         .execute_with_extensions(resp_result, extensions);
+    //     return self.get_response_text(resp_result).await;
+    // }
 
     async fn get_bytes(
         &mut self,
@@ -519,17 +499,19 @@ impl Inner {
         extensions: &mut Extensions,
     ) -> ResponseResult<Bytes> {
         let resp_result = self
-            .api_client
+            .get_client()
             .get(path)
             .header("User-Agent", "pan.baidu.com")
             .build()
             .unwrap();
         let resp_result = self
-            .api_client
+            .get_client()
             .execute_with_extensions(resp_result, extensions);
         return self.get_request_bytes(resp_result).await;
     }
-
+    fn get_client(&self) -> &ClientWithMiddleware {
+        &self.api_client
+    }
     ///
     /// 获得用户信息
     ///

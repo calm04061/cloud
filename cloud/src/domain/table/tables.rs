@@ -58,6 +58,7 @@ pub struct CloudMeta {
     pub remaining_quota: Option<i64>,
     pub extra: Option<String>,
 }
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Config {
     pub(crate) property: String,

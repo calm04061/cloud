@@ -1,0 +1,16 @@
+[package]
+name = "cloud-ui"
+version = "0.1.0-SNAPSHOT"
+edition = "2021"
+license = "MFT"
+description = "cloud-ui"
+build = "build.rs"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies]
+actix-web = "4.0"
+actix-web-static-files = "4.0"
+static-files = "0.2.1"
+
+
+[build-dependencies]
+static-files = "0.2.1"

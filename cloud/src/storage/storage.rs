@@ -4,8 +4,10 @@ use crate::domain::table::tables::CloudMeta;
 use bytes::Bytes;
 use log::info;
 use reqwest::{Response, StatusCode};
-use reqwest_middleware::Error;
+use reqwest_middleware::{ClientWithMiddleware, Error};
 use serde::{Deserialize, Serialize};
+use task_local_extensions::Extensions;
+use crate::database::meta::cloud::MetaStatus;
 
 use crate::error::ErrorInfo;
 
@@ -227,7 +229,13 @@ pub trait StorageFile {
     async fn drive_quota(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<Quota>;
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String>;
     async fn callback(&self, server: String, code: String, id: i32) -> ResponseResult<String>;
-    async fn after_callback(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<()>;
+    async fn after_callback(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<()> {
+        cloud_meta.data_root = Some("/app/share-desk".to_string());
+        cloud_meta.status = MetaStatus::Enable.into();
+        Ok(())
+    }
+    fn client_id(&self) -> String;
+    fn client_secret(&self) -> String;
 }
 
 #[async_trait::async_trait]
@@ -237,9 +245,48 @@ pub trait Storage {
 
 #[async_trait::async_trait]
 pub trait Network {
+    fn get_client(&self) -> &ClientWithMiddleware;
+    fn get_api_prefix(&self) -> String;
+    async fn get_json(
+        &self,
+        path: &str,
+        extensions: &mut Extensions,
+    ) -> ResponseResult<String> {
+        let resp_result = self
+            .get_client()
+            .get(format!("{}/{}", self.get_api_prefix(), path))
+            .build()
+            .unwrap();
+        let resp_result = self
+            .get_client()
+            .execute_with_extensions(resp_result, extensions);
+        return self.get_response_text(resp_result).await;
+    }
+    ///
+    ///
+    ///
+    async fn post_form(
+        &self,
+        path: &str,
+        form: &Vec<(&str, &str)>,
+        extensions: &mut Extensions,
+    ) -> ResponseResult<String> {
+        let resp_result = self
+            .get_client()
+            .post(format!("{}/{}", self.get_api_prefix(), path))
+            .form(form)
+            .build()
+            .unwrap();
+        let resp_result = self
+            .get_client()
+            .execute_with_extensions(resp_result, extensions);
+        return self.get_response_text(resp_result).await;
+    }
+
+
     async fn get_request_bytes(
         &self,
-        future: impl Future<Output = Result<Response, Error>> + Send,
+        future: impl Future<Output=Result<Response, Error>> + Send,
     ) -> ResponseResult<Bytes> {
         let result = future.await;
         let response = result.unwrap();
@@ -271,123 +318,9 @@ pub trait Network {
         }
     }
 
-    // async fn get_response_text(
-    //     &self,
-    //     future: impl Future<Output = Result<Response, Error>> + Send,
-    // ) -> ResponseResult<String> {
-    //     let resp_result = future.await;
-    //     let json_string_result = match resp_result {
-    //         Ok(resp) => {
-    //             let code = resp.status();
-    //             if code == StatusCode::OK
-    //                 || code == StatusCode::CREATED
-    //                 || code == StatusCode::BAD_REQUEST
-    //             {
-    //                 let x = resp.text();
-    //                 x.await
-    //             } else if code == StatusCode::NO_CONTENT {
-    //                 Ok(String::new())
-    //             } else if code == StatusCode::FORBIDDEN {
-    //                 let body = resp.text().await.unwrap();
-    //                 return Err(ErrorInfo::new(
-    //                     401,
-    //                     format!("状态码是{},body:{}", code, body).as_str(),
-    //                 ));
-    //             } else {
-    //                 let url = resp.url();
-    //                 return Err(ErrorInfo::new(
-    //                     code.as_u16() as i32,
-    //                     format!("\n状态码是{}\n{}", code, url).as_str(),
-    //                 ));
-    //             }
-    //         }
-    //         Err(e) => {
-    //             return match e {
-    //                 Error::Middleware(e) => {
-    //                     let result: anyhow::Result<ErrorInfo> = e.downcast();
-    //                     match result {
-    //                         Ok(e) => Err(e),
-    //                         Err(e) => {
-    //                             let string = format!("中间件错误{}", e);
-    //                             Err(ErrorInfo::new(10, string.as_str()))
-    //                         }
-    //                     }
-    //                 }
-    //                 Error::Reqwest(e) => {
-    //                     let option = e.url();
-    //                     let option1 = e.status();
-    //                     let string = format!("url={:?}:status:{:?}:{}", option, option1, e);
-    //                     Err(ErrorInfo::new(20, string.as_str()))
-    //                 }
-    //             };
-    //         }
-    //     };
-    //     match json_string_result {
-    //         Ok(body) => Ok(body),
-    //         Err(e) => {
-    //             let string = format!("{}", e);
-    //
-    //             Err(ErrorInfo::new(30, string.as_str()))
-    //         }
-    //     }
-    // }
-
-    // async fn get_response_json<T: DeserializeOwned>(
-    //     &self,
-    //     future: impl Future<Output=Result<Response, Error>> + Send,
-    // ) -> ResponseResult<T> {
-    //     let resp_result = future.await;
-    //     if let Err(e) = resp_result {
-    //         return match e {
-    //             Error::Middleware(e) => {
-    //                 let result: anyhow::Result<ErrorInfo> = e.downcast();
-    //                 match result {
-    //                     Ok(e) => Err(e),
-    //                     Err(e) => {
-    //                         let string = format!("中间件错误{}", e);
-    //                         Err(ErrorInfo::new(10, string.as_str()))
-    //                     }
-    //                 }
-    //             }
-    //             Error::Reqwest(e) => {
-    //                 let option = e.url();
-    //                 let option1 = e.status();
-    //                 let string = format!("url={:?}:status:{:?}:{}", option, option1, e);
-    //                 Err(ErrorInfo::new(20, string.as_str()))
-    //             }
-    //         };
-    //     }
-    //     let resp = resp_result.unwrap();
-    //
-    //     let code = resp.status();
-    //     if code == StatusCode::OK || code == StatusCode::CREATED {
-    //         let json = resp.json();
-    //         let result = json.await;
-    //         if let Ok(t) = result {
-    //             return Ok(t);
-    //         }
-    //         let error = result.err().unwrap();
-    //         return Err(ErrorInfo::new(
-    //             402,
-    //             format!("获得json错误{}", error).as_str(),
-    //         ));
-    //     }
-    //     if code == StatusCode::FORBIDDEN {
-    //         return Err(ErrorInfo::new(
-    //             401,
-    //             format!("状态码是{}", code).as_str(),
-    //         ));
-    //     } else {
-    //         let url = resp.url();
-    //         return Err(ErrorInfo::new(
-    //             code.as_u16() as i32,
-    //             format!("状态码是{},{}", code, url).as_str(),
-    //         ));
-    //     }
-    // }
     async fn get_response_text(
         &self,
-        future: impl Future<Output = Result<Response, Error>> + Send,
+        future: impl Future<Output=Result<Response, Error>> + Send,
     ) -> ResponseResult<String> {
         let resp_result = future.await;
         let json_string_result = match resp_result {

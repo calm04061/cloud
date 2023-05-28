@@ -119,4 +119,12 @@ impl StorageFile for LocalStorage {
     async fn after_callback(&mut self, _cloud_meta: &mut CloudMeta) -> ResponseResult<()> {
         todo!()
     }
+
+    fn client_id(&self) -> String {
+        todo!()
+    }
+
+    fn client_secret(&self) -> String {
+        todo!()
+    }
 }

@@ -11,6 +11,7 @@ use crate::service::CONTEXT;
 use crate::storage::ali::ali_storage::AliStorage;
 use crate::storage::baidu::baidu_storage::BaiduStorage;
 use crate::storage::local::local_storage::LocalStorage;
+use crate::storage::onedrive::onedrive_storage::OneDriveStorage;
 use crate::storage::storage::{CreateResponse, ResponseResult, StorageFile};
 use crate::web::vo::auth::Callback;
 
@@ -178,6 +179,7 @@ impl Inner {
             CloudType::AliYun => Box::new(AliStorage::new()) ,
             CloudType::Baidu => Box::new(BaiduStorage::new()),
             CloudType::Local => Box::new(LocalStorage::new()),
+            CloudType::OneDrive => Box::new(OneDriveStorage::new()),
         };
         return cloud;
     }

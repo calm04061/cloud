@@ -56,6 +56,7 @@ async-recursion = "1.0.4"
 fuse = "0.3.1"
 dav-server = { version = "0.5.5", features = ["actix-compat"] }
 futures-util = { version = "0.3.16" }
+cloud-ui = { path = "../cloud-ui" }
 [build-dependencies]
 vcpkg = "0.2.15"
 [target.'cfg(not(windows))'.dependencies]

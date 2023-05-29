@@ -110,6 +110,7 @@ impl DavFile for CloudDavFile {
             info!("read_bytes,{}:{},pos:{},count:{}", id ,self.file_meta.name ,self.pos,count);
             let result = self.fs.read(id as u64, self.pos as i64, count as u32).await.unwrap();
             let bytes = Bytes::copy_from_slice(result.as_slice());
+            self.pos += count;
             Ok(bytes)
         }.boxed()
     }

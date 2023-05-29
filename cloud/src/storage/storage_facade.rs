@@ -84,14 +84,15 @@ impl StorageFacade {
             return Ok(o);
         }
         let e = result.err().unwrap();
-        if e != Http401 {
-            return Err(e);
+        return if let Http401(_url) = e {
+            let result = self.inner.refresh_token(&meta).await;
+            match result {
+                Ok(_) => self.inner.upload_content(&meta, name, content).await,
+                Err(e) => Err(e),
+            }
+        } else {
+            Err(e)
         }
-        let result = self.inner.refresh_token(&meta).await;
-        return match result {
-            Ok(_) => self.inner.upload_content(&meta, name, content).await,
-            Err(e) => Err(e),
-        };
     }
     ///
     /// 删除文件
@@ -138,7 +139,7 @@ impl StorageFacade {
         }
         let e = result.err().unwrap();
 
-        if let Http401 = e {
+        if let Http401(_url) = e {
             let result = self.refresh_token(cloud_meta.id.unwrap()).await;
 
             match result {

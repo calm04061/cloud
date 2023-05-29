@@ -17,6 +17,7 @@ pub(crate) struct AuthorizationToken {
     refresh_token: Option<String>,
     user_id: Option<String>,
 }
+
 ///
 /// {
 //     "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#drives/$entity",
@@ -64,6 +65,12 @@ pub(crate) struct OneDriveOwner {
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct OneDriveUser {
     pub(crate) id: String,
-    #[serde(rename="displayName")]
+    #[serde(rename = "displayName")]
     pub(crate) display_name: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub(crate) struct DriveItem {
+    pub(crate) id: String,
+    pub(crate) name: String,
 }

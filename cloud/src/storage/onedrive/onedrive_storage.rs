@@ -5,12 +5,12 @@ use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use crate::domain::table::tables::CloudMeta;
 use crate::storage::storage::{CreateResponse, FileInfo, FileItemWrapper, Network, Quota, ResponseResult, SearchResponse, Storage, StorageFile, User};
 use async_trait::async_trait;
-use log::{debug, info};
-use reqwest::multipart::Form;
+use log::{info};
 use task_local_extensions::Extensions;
 use urlencoding::encode;
+use crate::error::ErrorInfo;
 use crate::storage::onedrive::one_drive_authorization_middleware::OneDriveAuthMiddleware;
-use crate::storage::onedrive::vo::Drive;
+use crate::storage::onedrive::vo::{Drive, DriveItem};
 
 pub const API_DOMAIN_PREFIX: &str = "https://graph.microsoft.com/v1.0";
 const AUTH_DOMAIN_PREFIX: &str = "https://login.microsoftonline.com";
@@ -55,7 +55,7 @@ impl OneDriveStorage {
 
 #[async_trait]
 impl Storage for OneDriveStorage {
-    async fn user_info(&mut self, cloud_meta: CloudMeta) -> ResponseResult<User> {
+    async fn user_info(&mut self, _cloud_meta: CloudMeta) -> ResponseResult<User> {
         todo!()
     }
 }
@@ -72,30 +72,84 @@ impl Network for OneDriveStorage {
 #[async_trait]
 impl StorageFile for OneDriveStorage {
     async fn upload_content(&mut self, name: &str, content: &Vec<u8>, cloud_meta: CloudMeta) -> ResponseResult<CreateResponse> {
-        todo!()
+        let data_root = cloud_meta.data_root.clone().unwrap();
+        let mut extensions = Extensions::new();
+        extensions.insert(cloud_meta.clone());
+        let json = self
+            .do_get_json(format!("me/drive/root:{}/{}", data_root, name).as_str(), &mut extensions)
+            .await;
+        let path = match json {
+            Ok(json) => {
+                let drive: DriveItem = serde_json::from_str(&json).unwrap();
+                format!("me/drive/items/{}/content", drive.id)
+            }
+            Err(e) => {
+                if let ErrorInfo::Http404(_url) = e {
+                    format!("me/drive/root:{}/{}:/content", data_root, name)
+                } else {
+                    return Err(e);
+                }
+            }
+        };
+        let mut extensions = Extensions::new();
+        extensions.insert(cloud_meta.clone());
+        let x = self.do_put_bytes(path.as_str(), content, &mut extensions).await.unwrap();
+        let drive: DriveItem = serde_json::from_str(&x).unwrap();
+        Ok(drive.into())
     }
 
-    async fn search(&mut self, parent_file_id: &str, name: &str, cloud_meta: CloudMeta) -> ResponseResult<SearchResponse> {
+    async fn search(&mut self, _parent_file_id: &str, _name: &str, _cloud_meta: CloudMeta) -> ResponseResult<SearchResponse> {
         todo!()
     }
 
     async fn delete(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<()> {
-        todo!()
+        let mut extensions = Extensions::new();
+        extensions.insert(cloud_meta.clone());
+        self.do_delete(format!("me/drive/items/{}", file_id).as_str(), &mut extensions).await.unwrap();
+        Ok(())
     }
 
     async fn content(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<Bytes> {
-        todo!()
+        let mut extensions = Extensions::new();
+        extensions.insert(cloud_meta.clone());
+        let result = self
+            .do_get_bytes(format!("me/drive/items/{}/content", file_id).as_str(), &mut extensions)
+            .await;
+        if let Ok(bo)= result{
+            return Ok(bo);
+        }
+        let e = result.unwrap_err();
+        return if let ErrorInfo::Http302(url) = e {
+            let resp_result = self
+                .inner.content_client
+                .get(url.as_str())
+                .build()
+                .unwrap();
+            let resp_result = self
+                .get_client()
+                .execute(resp_result);
+            self.get_request_bytes(resp_result).await
+        } else {
+            Err(e)
+        }
     }
 
     async fn info(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<FileInfo> {
+        let mut extensions = Extensions::new();
+        extensions.insert(cloud_meta.clone());
+        let json = self
+            .do_get_json(format!("me/drive/items/{}", file_id).as_str(), &mut extensions)
+            .await
+            .unwrap();
+        let drive: DriveItem = serde_json::from_str(&json).unwrap();
+        Ok(drive.into())
+    }
+
+    async fn list(&mut self, _parent_file_id: &str, _cloud_meta: CloudMeta) -> ResponseResult<FileItemWrapper> {
         todo!()
     }
 
-    async fn list(&mut self, parent_file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<FileItemWrapper> {
-        todo!()
-    }
-
-    async fn refresh_token(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<String> {
+    async fn refresh_token(&mut self, _cloud_meta: &CloudMeta) -> ResponseResult<String> {
         todo!()
     }
 
@@ -103,7 +157,7 @@ impl StorageFile for OneDriveStorage {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         let json = self
-            .get_json("me/drive", &mut extensions)
+            .do_get_json("me/drive", &mut extensions)
             .await?;
         info!("{}", json);
         let result: Drive = serde_json::from_str(json.as_str()).unwrap();
@@ -119,25 +173,25 @@ impl StorageFile for OneDriveStorage {
         let callback = format!("http://{}/api/cloud/callback", server);
         let target = encode(callback.as_str());
 
-        let scope= encode("offline_access files.readwrite.all");
+        let scope = encode("offline_access files.readwrite.all");
         // https://cloud.calm0406.tk/callback.html
-        let callback = format!("{}/consumers/oauth2/v2.0/authorize?response_type=code&client_id={}&scope={}&state={}", AUTH_DOMAIN_PREFIX, self.client_id(),scope, id);
+        let callback = format!("{}/consumers/oauth2/v2.0/authorize?response_type=code&client_id={}&scope={}&state={}", AUTH_DOMAIN_PREFIX, self.client_id(), scope, id);
         let callback = encode(callback.as_str());
         let result_url = format!("https://cloud.calm0406.tk/callback.html?target={}&redirect_uri={}", target, callback);
         Ok(result_url)
     }
 
-    async fn callback(&self, server: String, code: String, _id: i32) -> ResponseResult<String> {
+    async fn callback(&self, _server: String, code: String, _id: i32) -> ResponseResult<String> {
         let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, format!("consumers/oauth2/v2.0/token"));
-        info!("{}", token_url);
-        let client_id= self.client_id().clone();
-        let client_secret= self.client_secret().clone();
-        let mut form =vec![];
-        form.push(("grant_type","authorization_code"));
-        form.push(("code",code.as_str()));
-        form.push(("client_id",client_id.as_str()));
-        form.push(("client_secret",client_secret.as_str()));
-        form.push(("redirect_uri","https://cloud.calm0406.tk/callback.html"));
+        // debug!("{}", token_url);
+        let client_id = self.client_id().clone();
+        let client_secret = self.client_secret().clone();
+        let mut form = vec![];
+        form.push(("grant_type", "authorization_code"));
+        form.push(("code", code.as_str()));
+        form.push(("client_id", client_id.as_str()));
+        form.push(("client_secret", client_secret.as_str()));
+        form.push(("redirect_uri", "https://cloud.calm0406.tk/callback.html"));
         let form = form.as_slice();
         let resp_result = self.inner.content_client.post(token_url)
             .form(form)
@@ -152,8 +206,8 @@ impl StorageFile for OneDriveStorage {
     }
 
     fn client_secret(&self) -> String {
-        //4732946b-4d4a-45c7-9d8b-fc82b70d44cc
         "iZx8Q~uobOdiWmCdaPIVB4oWfrTAFw5xJ8jXbaXf".to_string()
     }
 }
 
+impl Inner {}

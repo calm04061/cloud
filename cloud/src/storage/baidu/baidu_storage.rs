@@ -37,7 +37,7 @@ struct Inner {
     content_client: ClientWithMiddleware,
     user: Option<User>,
 }
-
+/// https://pan.baidu.com/union/doc/jl3rg9m9v
 pub struct BaiduStorage {
     // api_client: ClientWithMiddleware,
     // content_client: ClientWithMiddleware,
@@ -177,7 +177,7 @@ impl StorageFile for BaiduStorage {
         extensions.insert(cloud_meta.clone());
         let result = self
             .inner
-            .post_form("rest/2.0/xpan/file?method=precreate", &par, &mut extensions)
+            .do_post_form("rest/2.0/xpan/file?method=precreate", &par, &mut extensions)
             .await;
 
         let json = result.unwrap();
@@ -225,7 +225,7 @@ impl StorageFile for BaiduStorage {
 
         let result = self
             .inner
-            .post_form("rest/2.0/xpan/file?method=create", &vec1, &mut extensions)
+            .do_post_form("rest/2.0/xpan/file?method=create", &vec1, &mut extensions)
             .await;
         let json = result.unwrap();
         info!("create:{}", json);
@@ -333,7 +333,7 @@ impl StorageFile for BaiduStorage {
         let fsids = serde_json::to_string(&fsids).unwrap();
         let result = self
             .inner
-            .get_json(
+            .do_get_json(
                 format!(
                     "rest/2.0/xpan/multimedia?method=filemetas&dlink=1&fsids={}",
                     fsids
@@ -410,7 +410,7 @@ impl StorageFile for BaiduStorage {
         extensions.insert(cloud_meta.clone());
         let result = self
             .inner
-            .get_json(
+            .do_get_json(
                 format!("api/quota?checkfree=1&checkexpire=1").as_str(),
                 &mut extensions,
             )
@@ -519,7 +519,7 @@ impl Inner {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         let json = self
-            .get_json("rest/2.0/xpan/nas?method=uinfo", &mut extensions)
+            .do_get_json("rest/2.0/xpan/nas?method=uinfo", &mut extensions)
             .await?;
         debug!("{}", json);
         let result: BaiduUser = serde_json::from_str(json.as_str()).unwrap();
@@ -552,7 +552,7 @@ impl Inner {
         let opera: &str = opera.into();
         let url = format!("rest/2.0/xpan/file?method=filemanager&opera={}", opera);
         let json = self
-            .post_form(url.as_str(), &parameter, &mut extensions)
+            .do_post_form(url.as_str(), &parameter, &mut extensions)
             .await?;
         debug!("{}", json);
         let result: BaiduFileManagerResult = serde_json::from_str(json.as_str()).unwrap();

@@ -3,7 +3,7 @@ use std::future::Future;
 use crate::domain::table::tables::CloudMeta;
 use bytes::Bytes;
 use log::info;
-use reqwest::{Response, StatusCode};
+use reqwest::{Body, Response, StatusCode};
 use reqwest_middleware::{ClientWithMiddleware, Error};
 use serde::{Deserialize, Serialize};
 use task_local_extensions::Extensions;
@@ -124,23 +124,23 @@ pub struct FileInfo {
     pub(crate) creator_id: Option<String>,
     pub(crate) creator_name: Option<String>,
     pub(crate) creator_type: Option<String>,
-    pub(crate) domain_id: String,
-    pub(crate) drive_id: String,
-    pub(crate) encrypt_mode: String,
+    pub(crate) domain_id: Option<String>,
+    pub(crate) drive_id: Option<String>,
+    pub(crate) encrypt_mode: Option<String>,
     pub(crate) ex_fields_info: Option<ExFieldsInfo>,
     pub(crate) file_id: String,
     pub(crate) path: Option<String>,
-    pub(crate) hidden: bool,
+    pub(crate) hidden: Option<bool>,
     pub(crate) last_modifier_id: Option<String>,
     pub(crate) last_modifier_name: Option<String>,
     pub(crate) last_modifier_type: Option<String>,
     pub(crate) name: String,
-    pub(crate) revision_id: String,
+    pub(crate) revision_id: Option<String>,
     pub(crate) starred: bool,
-    pub(crate) status: String,
+    pub(crate) status: Option<String>,
     #[serde(rename(serialize = "type", deserialize = "type"))]
     pub(crate) file_type: String,
-    pub(crate) updated_at: String,
+    pub(crate) updated_at: Option<String>,
     pub(crate) user_meta: Option<String>,
 
     pub(crate) labels: Option<Vec<String>>,
@@ -186,16 +186,6 @@ pub trait TokenManager {
 
 #[async_trait::async_trait]
 pub trait StorageFile {
-    // /**
-    //  * 上传
-    //  **/
-    // async fn upload(
-    //     &mut self,
-    //     parent_file_id: &str,
-    //     name: &str,
-    //     file_path: &str,
-    //     cloud_meta: CloudMeta,
-    // ) -> ResponseResult<CreateResponse>;
     /**
      * 上传body
      **/
@@ -247,7 +237,7 @@ pub trait Storage {
 pub trait Network {
     fn get_client(&self) -> &ClientWithMiddleware;
     fn get_api_prefix(&self) -> String;
-    async fn get_json(
+    async fn do_get_json(
         &self,
         path: &str,
         extensions: &mut Extensions,
@@ -262,10 +252,25 @@ pub trait Network {
             .execute_with_extensions(resp_result, extensions);
         return self.get_response_text(resp_result).await;
     }
+    async fn do_get_bytes(
+        &self,
+        path: &str,
+        extensions: &mut Extensions,
+    ) -> ResponseResult<Bytes> {
+        let resp_result = self
+            .get_client()
+            .get(format!("{}/{}", self.get_api_prefix(), path))
+            .build()
+            .unwrap();
+        let resp_result = self
+            .get_client()
+            .execute_with_extensions(resp_result, extensions);
+        return self.get_request_bytes(resp_result).await;
+    }
     ///
     ///
     ///
-    async fn post_form(
+    async fn do_post_form(
         &self,
         path: &str,
         form: &Vec<(&str, &str)>,
@@ -275,6 +280,46 @@ pub trait Network {
             .get_client()
             .post(format!("{}/{}", self.get_api_prefix(), path))
             .form(form)
+            .build()
+            .unwrap();
+        let resp_result = self
+            .get_client()
+            .execute_with_extensions(resp_result, extensions);
+        return self.get_response_text(resp_result).await;
+    }
+    ///
+    ///
+    ///
+    async fn do_put_bytes(
+        &self,
+        path: &str,
+        content: &Vec<u8>,
+        extensions: &mut Extensions,
+    ) -> ResponseResult<String> {
+        let vec = content.clone();
+        let body = Body::from(vec);
+        let resp_result = self
+            .get_client()
+            .put(format!("{}/{}", self.get_api_prefix(), path))
+            .body(body)
+            .build()
+            .unwrap();
+        let resp_result = self
+            .get_client()
+            .execute_with_extensions(resp_result, extensions);
+        return self.get_response_text(resp_result).await;
+    }
+    ///
+    ///
+    ///
+    async fn do_delete(
+        &self,
+        path: &str,
+        extensions: &mut Extensions,
+    ) -> ResponseResult<String> {
+        let resp_result = self
+            .get_client()
+            .delete(format!("{}/{}", self.get_api_prefix(), path))
             .build()
             .unwrap();
         let resp_result = self
@@ -340,6 +385,9 @@ pub trait Network {
                         401,
                         format!("状态码是{},body:{}", code, body).as_str(),
                     ));
+                } else if code == StatusCode::NOT_FOUND {
+                    let url = resp.url();
+                    return Err(ErrorInfo::Http404(url.to_string()));
                 } else {
                     let url = resp.url();
                     return Err(ErrorInfo::new(

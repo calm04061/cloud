@@ -62,10 +62,7 @@ vcpkg = "0.2.15"
 [target.'cfg(not(windows))'.dependencies]
 fuser = { version = "0.12.0" }
 users = "0.11.0"
-[profile.release]
-strip = true
-opt-level = "z"
-lto = true
+
 [package.metadata.deb]
 name = "cloudfs"
 license-file = ["LICENSE", "4"]

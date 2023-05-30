@@ -381,9 +381,8 @@ pub trait Network {
                     Ok(String::new())
                 } else if code == StatusCode::FORBIDDEN {
                     let body = resp.text().await.unwrap();
-                    return Err(ErrorInfo::new(
-                        401,
-                        format!("状态码是{},body:{}", code, body).as_str(),
+                    return Err(ErrorInfo::Http401(
+                        format!("状态码是{},body:{}", code, body),
                     ));
                 } else if code == StatusCode::NOT_FOUND {
                     let url = resp.url();

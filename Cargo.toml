@@ -1,2 +1,6 @@
 [workspace]
 members = ["cloud", "cloud-ui"]
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true

@@ -484,7 +484,7 @@ impl StorageFile for AliStorage {
         let result = serde_json::from_str(json.as_str());
         return Ok(result.unwrap());
     }
-    async fn refresh_token(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<String> {
+    async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
 
@@ -532,7 +532,7 @@ impl StorageFile for AliStorage {
         Ok(format!("{}/oauth/authorize?response_type=code&client_id={}&redirect_uri={}&scope=user:base,file:all:read&state={}", AUTH_DOMAIN_PREFIX, "iWjfcOWq0BoUNZABxy4hGtXPdftzPtG8", encoded, id))
     }
 
-    async fn callback(&self, server: String, code: String, _id: i32) -> ResponseResult<String> {
+    async fn callback(&self, server: String, code: String, _cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
         let callback = format!("http://{}/api/cloud/callback", server);
         let encoded = encode(callback.as_str());
         let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, format!("oauth/access_token?grant_type=authorization_code&code={}&client_id={}&client_secret={}&redirect_uri={}", code, "iWjfcOWq0BoUNZABxy4hGtXPdftzPtG8", "KqEOL6F9tT2vkeeYRgKqZvyPHlGQnujM", encoded));

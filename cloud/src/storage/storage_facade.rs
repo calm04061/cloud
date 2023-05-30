@@ -196,14 +196,14 @@ impl Inner {
         Ok(cloud_meta.clone())
     }
     async fn refresh_token(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<String> {
-        let cloud_meta = CONTEXT
+        let mut cloud_meta = CONTEXT
             .cloud_meta_manager
             .info(cloud_meta.id.unwrap())
             .await
             .unwrap();
         let mut cloud = self.get_cloud(cloud_meta.cloud_type.into());
         // let mut cloud = cloud.lock().unwrap();
-        let result = cloud.refresh_token(&cloud_meta).await.unwrap();
+        let result = cloud.refresh_token(&mut cloud_meta).await.unwrap();
         Ok(result)
     }
 
@@ -260,12 +260,10 @@ impl Inner {
         callback: &Callback,
         cloud_meta: &mut CloudMeta,
     ) -> ResponseResult<String> {
-        let id = callback.state.parse().unwrap();
-
         let cloud = self.get_cloud(cloud_meta.cloud_type.into());
         // let cloud = cloud.lock().unwrap();
         let result = cloud
-            .callback(server.to_string(), callback.code.clone(), id)
+            .callback(server.to_string(), callback.code.clone(), cloud_meta)
             .await;
 
         result

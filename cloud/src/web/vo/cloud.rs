@@ -24,6 +24,7 @@ impl From<CloudMetaVo> for CloudMeta {
             used_quota: None,
             remaining_quota: None,
             extra: None,
+            expires_in: None,
         }
     }
 }

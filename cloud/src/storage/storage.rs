@@ -212,13 +212,13 @@ pub trait StorageFile {
         parent_file_id: &str,
         cloud_meta: CloudMeta,
     ) -> ResponseResult<FileItemWrapper>;
-    async fn refresh_token(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<String>;
+    async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String>;
     /**
      * 获得容量
      **/
     async fn drive_quota(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<Quota>;
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String>;
-    async fn callback(&self, server: String, code: String, id: i32) -> ResponseResult<String>;
+    async fn callback(&self, server: String, code: String, cloud_meta: &mut CloudMeta) -> ResponseResult<String>;
     async fn after_callback(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<()> {
         cloud_meta.data_root = Some("/app/share-desk".to_string());
         cloud_meta.status = MetaStatus::Enable.into();

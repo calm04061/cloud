@@ -385,7 +385,7 @@ impl StorageFile for BaiduStorage {
         let result = serde_json::from_str(json.as_str());
         return Ok(result.unwrap());
     }
-    async fn refresh_token(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<String> {
+    async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
 
@@ -427,7 +427,7 @@ impl StorageFile for BaiduStorage {
         Ok(format!("{}/oauth/2.0/authorize?response_type=code&client_id={}&redirect_uri={}&scope=basic,netdisk&state={}", AUTH_DOMAIN_PREFIX, self.client_id(), encoded, id))
     }
 
-    async fn callback(&self, server: String, code: String, _id: i32) -> ResponseResult<String> {
+    async fn callback(&self, server: String, code: String, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
         let callback = format!("http://{}/api/cloud/callback", server);
         let encoded = encode(callback.as_str());
         let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, format!("oauth/2.0/token?grant_type=authorization_code&code={}&client_id={}&client_secret={}&redirect_uri={}", code, self.client_id(), self.client_secret(), encoded));
@@ -435,6 +435,8 @@ impl StorageFile for BaiduStorage {
         let resp_result = self.inner.content_client.get(token_url).send();
         let json_text = self.inner.get_response_text(resp_result).await?;
         info!("{}", json_text);
+        let token: Token = serde_json::from_str(json_text.as_str()).unwrap();
+        cloud_meta.expires_in = Some(token.expires_in - 10);
         Ok(String::from(json_text))
     }
 

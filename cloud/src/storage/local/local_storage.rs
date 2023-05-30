@@ -96,7 +96,7 @@ impl StorageFile for LocalStorage {
         todo!()
     }
 
-    async fn refresh_token(&mut self, _cloud_meta: &CloudMeta) -> ResponseResult<String> {
+    async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
         Ok("{}".to_string())
     }
 
@@ -112,7 +112,7 @@ impl StorageFile for LocalStorage {
         todo!()
     }
 
-    async fn callback(&self, _server: String, _code: String, _id: i32) -> ResponseResult<String> {
+    async fn callback(&self, _server: String, _code: String, _cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
         todo!()
     }
 

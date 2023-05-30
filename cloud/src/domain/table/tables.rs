@@ -57,6 +57,7 @@ pub struct CloudMeta {
     pub used_quota: Option<u64>,
     pub remaining_quota: Option<u64>,
     pub extra: Option<String>,
+    pub expires_in: Option<u32>,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]

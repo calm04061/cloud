@@ -17,7 +17,7 @@ pub fn task_init(sched: &Scheduler<8>) {
         Box::new(Clean::new(cache_file)),
     ));
     sched.schedule_task(quartz_sched::schedule_task_every(
-        Duration::from_secs(10),
+        Duration::from_secs(5),
         Box::new(Scan::new(cache_file)),
     ));
     sched.schedule_task(quartz_sched::schedule_task_every(

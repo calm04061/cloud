@@ -204,6 +204,8 @@ impl Inner {
         let mut cloud = self.get_cloud(cloud_meta.cloud_type.into());
         // let mut cloud = cloud.lock().unwrap();
         let result = cloud.refresh_token(&mut cloud_meta).await.unwrap();
+        cloud_meta.token = Some(result.clone());
+        self.update_meta_info(&cloud_meta).await.unwrap();
         Ok(result)
     }
 

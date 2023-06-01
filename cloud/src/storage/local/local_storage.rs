@@ -96,7 +96,7 @@ impl StorageFile for LocalStorage {
         todo!()
     }
 
-    async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
+    async fn refresh_token(&mut self, _cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
         Ok("{}".to_string())
     }
 

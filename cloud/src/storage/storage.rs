@@ -384,6 +384,11 @@ pub trait Network {
                     return Err(ErrorInfo::Http401(
                         format!("状态码是{},body:{}", code, body),
                     ));
+                }else if code == StatusCode::UNAUTHORIZED {
+                    let body = resp.text().await.unwrap();
+                    return Err(ErrorInfo::Http401(
+                        format!("状态码是{},body:{}", code, body),
+                    ));
                 } else if code == StatusCode::NOT_FOUND {
                     let url = resp.url();
                     return Err(ErrorInfo::Http404(url.to_string()));
@@ -408,9 +413,9 @@ pub trait Network {
                         }
                     }
                     Error::Reqwest(e) => {
-                        let option = e.url();
-                        let option1 = e.status();
-                        let string = format!("url={:?}:status:{:?}:{}", option, option1, e);
+                        let url = e.url();
+                        let status = e.status();
+                        let string = format!("url={:?}:status:{:?}:{}", url, status, e);
                         Err(ErrorInfo::new(20, string.as_str()))
                     }
                 };

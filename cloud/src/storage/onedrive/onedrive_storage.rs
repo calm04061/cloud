@@ -201,7 +201,7 @@ impl StorageFile for OneDriveStorage {
         Ok(result_url)
     }
 
-    async fn callback(&self, server: String, code: String, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
+    async fn callback(&self, _server: String, code: String, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
         let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, format!("consumers/oauth2/v2.0/token"));
         // debug!("{}", token_url);
         let client_id = self.client_id().clone();

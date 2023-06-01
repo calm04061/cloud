@@ -6,6 +6,8 @@ refresh_rate: 10 seconds
 appenders:
   stdout:
     kind: console
+    encoder:
+      pattern: "{d} - {T}-{I} - {m}{n}"
   file:
     kind: file
     path: "log/log.log"

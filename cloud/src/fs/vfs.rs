@@ -304,7 +304,7 @@ impl VirtualFileSystem {
         //     .build()
         //     .unwrap()
         //     .block_on(async {
-                info!("read file id {},from {:?}:size={}", ino, offset, size);
+                debug!("read file id {},from {:?}:size={}", ino, offset, size);
                 let result = CONTEXT.file_manager.info_by_id(ino as i64).await;
                 if let Err(e) = result {
                     error!("查询文件{}失败{}", ino, e);

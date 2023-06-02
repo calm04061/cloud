@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use log::info;
 use rbatis::utils::into_one::IntoOne;
 
 use crate::database::meta::cloud::MetaStatus;
@@ -92,7 +93,7 @@ impl StorageFacade {
             }
         } else {
             Err(e)
-        }
+        };
     }
     ///
     /// 删除文件
@@ -177,7 +178,7 @@ impl StorageFacade {
 impl Inner {
     fn get_cloud(&mut self, cloud_type: CloudType) -> Box<dyn StorageFile + Send> {
         let cloud: Box<(dyn StorageFile + Send)> = match cloud_type {
-            CloudType::AliYun => Box::new(AliStorage::new()) ,
+            CloudType::AliYun => Box::new(AliStorage::new()),
             CloudType::Baidu => Box::new(BaiduStorage::new()),
             CloudType::Local => Box::new(LocalStorage::new()),
             CloudType::OneDrive => Box::new(OneDriveStorage::new()),
@@ -216,8 +217,9 @@ impl Inner {
         content: &Vec<u8>,
     ) -> ResponseResult<CreateResponse> {
         // let cloud_meta = self.get_token(1).await.unwrap();
-
-        let mut cloud = self.get_cloud(cloud_meta.cloud_type.into());
+        let cloud_type = cloud_meta.cloud_type.into();
+        info!("start upload {} to {:?}({})", name,cloud_type, cloud_meta.name);
+        let mut cloud = self.get_cloud(cloud_type);
         // let mut cloud = cloud.lock().unwrap();
         let result = cloud
             .upload_content(name, &content, cloud_meta.clone())
@@ -230,7 +232,11 @@ impl Inner {
         file_id: &str,
         cloud_meta: &CloudMeta,
     ) -> ResponseResult<()> {
-        let mut cloud = self.get_cloud(cloud_meta.cloud_type.into());
+        let cloud_type = cloud_meta.cloud_type.into();
+
+        info!("delete {} from {:?}({})", file_id,cloud_type, cloud_meta.name);
+
+        let mut cloud = self.get_cloud(cloud_type);
         // let mut cloud = cloud.lock().unwrap();
         let result = cloud.delete(file_id, cloud_meta.clone()).await;
 

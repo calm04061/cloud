@@ -6,6 +6,7 @@ use crate::service::CONTEXT;
 use crate::storage::storage_facade::StorageFacade;
 use log::{debug, error, info};
 use quartz_sched::SchedulerHandle;
+use rbatis::rbdc::datetime::DateTime;
 
 pub(crate) struct Clean {
     cache_file: String,
@@ -26,6 +27,7 @@ impl quartz_sched::Job for Box<Clean> {
             .build()
             .unwrap()
             .block_on(async {
+                // info!("clean start");
                 let mut cloud = StorageFacade::new();
 
                 let ten = chrono::Local::now().timestamp_millis() - 10 * 1000;
@@ -34,6 +36,7 @@ impl quartz_sched::Job for Box<Clean> {
                 for mut file_meta in file_metas {
                     clean_file_block(&mut file_meta, &mut cloud, &self.cache_file).await;
                 }
+                // info!("clean end");
             });
     }
 
@@ -77,27 +80,52 @@ async fn clean_file_block(file_meta: &mut FileMeta, cloud: &mut StorageFacade, c
 
 async fn delete_cloud_file_block(file_meta: &mut FileMeta, file_block_meta: &FileBlockMeta, cloud: &mut StorageFacade) -> usize {
     let cloud_file_blocks = CloudFileBlock::select_by_file_block_id(pool!(), file_block_meta.id.unwrap())
-            .await
-            .unwrap();
+        .await
+        .unwrap();
     let size = cloud_file_blocks.len();
 
     for mut cloud_file_block in cloud_file_blocks {
+        let id = cloud_file_block.id.unwrap();
+        let db_status = cloud_file_block.status;
+        let cleaning: i8 = FileStatus::Cleaning.into();
+        if db_status == cleaning {
+            let time = cloud_file_block.update_time.clone();
+            let timestamp = time.unix_timestamp();
+            let now = DateTime::now();
+            let now = now.unix_timestamp();
+            if now - timestamp > 1000 {
+                cloud_file_block.status = FileStatus::WaitClean.into();
+                CloudFileBlock::update_by_status(pool!(), &cloud_file_block, id, FileStatus::Cleaning.into())
+                    .await.unwrap()
+                    .rows_affected;
+            }
+            continue;
+        }
+        let result = CloudFileBlock::update_by_status(pool!(), &cloud_file_block, id, FileStatus::Cleaning.into())
+            .await.unwrap()
+            .rows_affected;
+        if result == 0 {
+            continue;
+        }
         let result = cloud.delete(&cloud_file_block).await;
         if let Err(e) = result {
             match e {
                 ErrorInfo::FileNotFound(_) => {
                     cloud_file_block.deleted = 1;
+                    cloud_file_block.status = FileStatus::Cleaned.into();
                     CloudFileBlock::update_by_column(pool!(), &cloud_file_block, "id")
                         .await
                         .unwrap();
                 }
                 ErrorInfo::NoneCloudFileId(_) => {
                     cloud_file_block.deleted = 1;
+                    cloud_file_block.status = FileStatus::Cleaned.into();
                     CloudFileBlock::update_by_column(pool!(), &cloud_file_block, "id")
                         .await
                         .unwrap();
                 }
                 _ => {
+                    cloud_file_block.status = FileStatus::CleanFail.into();
                     error!("删除云文件失败:{},{}", file_meta.name, e);
                 }
             }

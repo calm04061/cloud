@@ -28,6 +28,9 @@ impl From<FileStatus> for i8 {
             FileStatus::FileNotExist => 5,
             FileStatus::FileReadError => 6,
             FileStatus::WaitClean => 7,
+            FileStatus::Cleaning => 8,
+            FileStatus::Cleaned => 9,
+            FileStatus::CleanFail => 10,
         }
     }
 }
@@ -77,6 +80,7 @@ impl From<i8> for FileMetaType {
         }
     }
 }
+
 impl From<i32> for FileMetaType {
     fn from(value: i32) -> Self {
         match value {
@@ -120,6 +124,7 @@ impl From<&CloudType> for i8 {
         }
     }
 }
+
 impl From<CloudType> for i8 {
     fn from(value: CloudType) -> Self {
         return i8::from(&value);

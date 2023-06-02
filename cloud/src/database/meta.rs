@@ -12,6 +12,9 @@ pub(crate) enum FileStatus {
     FileNotExist,
     FileReadError,
     WaitClean,
+    Cleaning,
+    Cleaned,
+    CleanFail,
 }
 
 #[derive(PartialEq, Clone, Debug, Copy)]

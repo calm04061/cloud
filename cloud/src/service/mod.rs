@@ -1,11 +1,11 @@
+use once_cell::sync::Lazy;
 use crate::config::ApplicationConfig;
 use crate::database::config::ConfigManager;
 use crate::database::meta::cloud::SimpleCloudMetaManager;
 use crate::database::meta::file::file_block_meta::SimpleFileBlockMetaManager;
 use crate::database::meta::file::file_meta::SimpleFileMetaManager;
 use crate::database::meta::file::SimpleFileManager;
-use once_cell::sync::Lazy;
-use rbatis::Rbatis;
+use rbatis::{RBatis};
 
 pub(crate) static CONTEXT: Lazy<ServiceContext> = Lazy::new(|| ServiceContext::default());
 #[macro_export]
@@ -16,7 +16,7 @@ macro_rules! pool {
 }
 pub(crate) struct ServiceContext {
     pub config: ApplicationConfig,
-    pub rb: Rbatis,
+    pub rb: RBatis,
     pub cloud_meta_manager: SimpleCloudMetaManager,
     pub file_meta_manager: SimpleFileMetaManager,
     pub file_block_meta_manager: SimpleFileBlockMetaManager,

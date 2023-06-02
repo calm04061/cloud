@@ -5,7 +5,7 @@ use bytes::{Buf, Bytes};
 use chrono::{Local, TimeZone};
 use dav_server::fs::{DavDirEntry, DavFile, DavMetaData, FsFuture, FsResult};
 use futures_util::{future, FutureExt};
-use log::info;
+use log::{debug, info};
 use crate::database::meta::FileMetaType;
 use crate::domain::table::tables::FileMeta;
 use crate::fs::vfs::VirtualFileSystem;
@@ -97,7 +97,7 @@ impl DavFile for CloudDavFile {
     fn write_bytes(&mut self, buf: Bytes) -> FsFuture<()> {
         async move {
             let id = self.file_meta.id.unwrap();
-            info!("write_bytes,{}:{},pos:{},len:{}", id,self.file_meta.name,self.pos,buf.len());
+            debug!("write_bytes,{}:{},pos:{},len:{}", id,self.file_meta.name,self.pos,buf.len());
             self.fs.write(id as u64, self.pos as i64, buf.as_ref()).await.unwrap();
             self.pos += buf.len();
             Ok(())
@@ -107,7 +107,7 @@ impl DavFile for CloudDavFile {
     fn read_bytes(&mut self, count: usize) -> FsFuture<Bytes> {
         async move {
             let id = self.file_meta.id.unwrap();
-            info!("read_bytes,{}:{},pos:{},count:{}", id ,self.file_meta.name ,self.pos,count);
+            debug!("read_bytes,{}:{},pos:{},count:{}", id ,self.file_meta.name ,self.pos,count);
             let result = self.fs.read(id as u64, self.pos as i64, count as u32).await.unwrap();
             let bytes = Bytes::copy_from_slice(result.as_slice());
             self.pos += count;

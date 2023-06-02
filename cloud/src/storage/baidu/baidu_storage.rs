@@ -181,7 +181,7 @@ impl StorageFile for BaiduStorage {
             .await;
 
         let json = result.unwrap();
-        info!("precreate:{}", json);
+        debug!("precreate:{}", json);
         let result: BaiduPreCreate = serde_json::from_str(json.as_str()).unwrap();
         for (index, block) in blocks.iter_mut().enumerate() {
             let upload_id = result.uploadid.clone();
@@ -214,21 +214,21 @@ impl StorageFile for BaiduStorage {
                 .api_client
                 .execute_with_extensions(resp_result, &mut extensions);
             let string = self.inner.get_response_text(resp_result).await.unwrap();
-            info!("upload:{}", string);
+            debug!("upload:{}", string);
             // self.post_file("rest/2.0/pcs/superfile2?method=upload", form, &mut extensions).await.unwrap();
         }
         let uploadid = result.uploadid.clone();
         let uploadid = uploadid.unwrap();
         let mut vec1 = par.clone();
         vec1.push(("uploadid", uploadid.as_str()));
-        info!("start create");
+        debug!("start create");
 
         let result = self
             .inner
             .do_post_form("rest/2.0/xpan/file?method=create", &vec1, &mut extensions)
             .await;
         let json = result.unwrap();
-        info!("create:{}", json);
+        debug!("create:{}", json);
         let result: BaiduCreate = serde_json::from_str(json.as_str()).unwrap();
         return Ok(CreateResponse {
             domain_id: "".to_string(),

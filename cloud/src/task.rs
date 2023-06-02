@@ -1,12 +1,14 @@
 mod clean;
 mod refresh_quota;
 mod scan;
+mod reset;
 
 use quartz_sched::Scheduler;
 use std::time::Duration;
 
 use crate::task::clean::Clean;
 use crate::task::refresh_quota::RefreshQuota;
+use crate::task::reset::Reset;
 use crate::task::scan::Scan;
 
 pub fn task_init(sched: &Scheduler<8>) {
@@ -19,6 +21,10 @@ pub fn task_init(sched: &Scheduler<8>) {
     sched.schedule_task(quartz_sched::schedule_task_every(
         Duration::from_secs(5),
         Box::new(Scan::new(cache_file)),
+    ));
+    sched.schedule_task(quartz_sched::schedule_task_every(
+        Duration::from_secs(5),
+        Box::new(Reset::new()),
     ));
     sched.schedule_task(quartz_sched::schedule_task_every(
         Duration::from_secs(60 * 60 * 24),

@@ -3,3 +3,6 @@
 cloud_back
 target
 dist
+*.log
+/cargo
+/cloud/config/file.db*

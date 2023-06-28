@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Callback</title>
+</head>
+<body>
+<div>
+
+</div>
+<script>
+  function getUrlParams(url) {
+    // 通过 ? 分割获取后面的参数字符串
+    let urlStr = url.split('?')[1]
+    // 创建空对象存储参数
+    let obj = {};
+    if (!urlStr){
+      return obj;
+    }
+    // 再通过 & 将每一个参数单独分割出来
+    let paramsArr = urlStr.split('&')
+    for (let i = 0, len = paramsArr.length; i < len; i++) {
+      // 再通过 = 将每一个参数分割为 key:value 的形式
+      let arr = paramsArr[i].split('=')
+      obj[arr[0]] = arr[1];
+    }
+    return obj
+  }
+
+  let locat = window.location;
+  let href = window.location.href;
+  let parameters = getUrlParams(href);
+  let target = parameters['target'];
+  let redirect_uri = parameters['redirect_uri'];
+  if (target && redirect_uri) {
+    sessionStorage.setItem("target", decodeURIComponent(target));
+    debugger
+    let url = encodeURIComponent(locat.origin + locat.pathname)
+    window.location.href = decodeURIComponent(redirect_uri) + "&redirect_uri=" + url
+  } else {
+    debugger
+    let callback = sessionStorage.getItem("target");
+    if (callback) {
+      window.location.href = decodeURIComponent(callback) + locat.search
+    }
+  }
+</script>
+</body>
+</html>

@@ -42,7 +42,7 @@ libc = "0.2.144"
 bytes = "1.4.0"
 thread_local = "1.1.7"
 dotenv = "0.15.0"
-openssl = { version = "0.10.54" }
+openssl = { version = "0.10.54" ,features=["vendored"]}
 rbs = { version = "4.3.2" }
 rbatis = { version = "4.3.0" }
 rbdc-sqlite = { version = "4.3.0" }

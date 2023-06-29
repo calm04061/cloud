@@ -7,7 +7,6 @@ fn main() -> std::io::Result<()> {
         .target("web/dist")
         .change_detection()
         .to_resource_dir()
-        .build().ok();
-    // println!("{:?}", result);
-    Ok(())
+        .build()
+    
 }

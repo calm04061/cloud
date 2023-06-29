@@ -1,5 +1,5 @@
 [workspace]
-members = ["cloud", "cloud-ui"]
+members = ["cloud-ui","cloud"]
 [profile.release]
 strip = true
 opt-level = "z"

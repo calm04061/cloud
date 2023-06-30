@@ -26,7 +26,8 @@ create table cloud_file_block
     cloud_file_hash text,
     status          integer,
     create_time     integer,
-    update_time     integer
+    update_time     integer,
+    deleted         integer
 );
 
 create table cloud_meta
@@ -41,7 +42,9 @@ create table cloud_meta
     cloud_type      int,
     total_quota     INTEGER,
     used_quota      integer,
-    remaining_quota integer
+    remaining_quota integer,
+    extra           TEXT,
+    expires_in      integer
 );
 
 create table config

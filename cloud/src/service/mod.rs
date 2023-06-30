@@ -6,6 +6,10 @@ use crate::database::meta::file::file_block_meta::SimpleFileBlockMetaManager;
 use crate::database::meta::file::file_meta::SimpleFileMetaManager;
 use crate::database::meta::file::SimpleFileManager;
 use rbatis::{RBatis};
+use rbatis::table_sync::{SqliteTableSync, TableSync};
+use rbs::to_value;
+use crate::database::meta::{FileMetaType, FileStatus};
+use crate::domain::table::tables::{CloudFileBlock, CloudMeta, Config, FileBlockMeta, FileMeta};
 
 pub(crate) static CONTEXT: Lazy<ServiceContext> = Lazy::new(|| ServiceContext::default());
 #[macro_export]
@@ -42,8 +46,31 @@ impl ServiceContext {
             self.rb.get_pool().expect("pool not init!").status()
         );
     }
+    pub async fn upgrade(&self) {
+        let mut s = SqliteTableSync::default();
+        s.sql_id = " PRIMARY KEY AUTOINCREMENT NOT NULL ".to_string();
+        s.sync(self.rb.acquire().await.unwrap(), to_value!(Config::default()), "config").await.unwrap();
+        s.sync(self.rb.acquire().await.unwrap(), to_value!(CloudMeta::default()), "cloud_meta").await.unwrap();
+        s.sync(self.rb.acquire().await.unwrap(), to_value!(FileMeta::default()), "file_meta").await.unwrap();
+        s.sync(self.rb.acquire().await.unwrap(), to_value!(CloudFileBlock::default()), "cloud_file_block").await.unwrap();
+        s.sync(self.rb.acquire().await.unwrap(), to_value!(FileBlockMeta::default()), "file_block_meta").await.unwrap();
+        let vec = FileMeta::select_by_column(pool!(), "id", 1).await.unwrap();
+        if vec.is_empty() {
+            let file_meta = FileMeta{
+                id: Some(1),
+                name: "/".to_string(),
+                parent_id: 0,
+                file_type: FileMetaType::DIR.get_code(),
+                file_length: 0,
+                status: FileStatus::UploadSuccess.into(),
+                deleted: 0,
+                create_time: 0,
+                update_time: 0,
+            };
+            FileMeta::insert(pool!(),&file_meta).await.unwrap();
+        }
+    }
 }
-
 impl Default for ServiceContext {
     fn default() -> Self {
         let config = ApplicationConfig::default();

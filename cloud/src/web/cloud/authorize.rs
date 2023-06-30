@@ -3,6 +3,7 @@ use crate::web::AppState;
 use actix_web::web::{Data, Path, Query};
 use actix_web::{get, HttpRequest, HttpResponse, Responder};
 use actix_web::http::header::HeaderMap;
+use log::error;
 
 #[get("/authorize/storage/{id}")]
 pub(crate) async fn authorize(
@@ -28,12 +29,24 @@ pub(crate) async fn callback(state: Query<Callback>, app_state: Data<AppState>, 
     let server = header_value(headers, "Host", "pan.calm0406.com:8080");
 
     let mut guard = data.facade_cloud.lock().unwrap();
-    let url = format!("/cloud?callback=true");
-    guard.callback(&server, &state.into_inner()).await;
-    HttpResponse::MovedPermanently()
-        .append_header(("Location", url.as_str()))
-        .append_header(("Cache-Control", "no-store"))
-        .finish()
+    let url = format!("/cloud");
+    let result = guard.callback(&server, &state.into_inner()).await;
+    match result {
+        Ok(_) => {
+            HttpResponse::MovedPermanently()
+                .append_header(("Location", url.as_str()))
+                .append_header(("Cache-Control", "no-store"))
+                .finish()
+        }
+        Err(e) => {
+            error!("{}", e);
+            HttpResponse::MovedPermanently()
+                .append_header(("Location", url.as_str()))
+                .append_header(("Cache-Control", "no-store"))
+                .finish()
+        }
+    }
+
 }
 
 fn header_value(headers: &HeaderMap, header: &str, default_value: &str) -> String {

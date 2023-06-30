@@ -27,10 +27,10 @@ impl FileManager for SimpleFileManager {
             .await;
     }
 
-    async fn list_by_parent(&self, parent_id: i64) -> ResponseResult<Vec<FileMeta>> {
+    async fn list_by_parent(&self, parent_id: i32) -> ResponseResult<Vec<FileMeta>> {
         return CONTEXT.file_meta_manager.list_by_parent(parent_id).await;
     }
-    async fn info_by_parent_and_name(&self, parent_id: i64, name: &str) -> Option<FileMeta> {
+    async fn info_by_parent_and_name(&self, parent_id: i32, name: &str) -> Option<FileMeta> {
         return CONTEXT
             .file_meta_manager
             .info_by_parent_and_name(parent_id, name)
@@ -39,7 +39,7 @@ impl FileManager for SimpleFileManager {
 
     async fn new_file(
         &self,
-        parent_id: i64,
+        parent_id: i32,
         name: &str,
         file_type: FileMetaType,
     ) -> ResponseResult<FileMeta> {
@@ -100,7 +100,7 @@ impl FileManager for SimpleFileManager {
         };
         option
     }
-    async fn delete_file_blocks(&self, file_id: i64, block_index: i64) {
+    async fn delete_file_blocks(&self, file_id: i32, block_index: i64) {
         let result = CONTEXT
             .file_block_meta_manager
             .delete_file_blocks(file_id, block_index)
@@ -111,18 +111,18 @@ impl FileManager for SimpleFileManager {
         }
     }
 
-    async fn info_by_id(&self, id: i64) -> ResponseResult<Option<FileMeta>> {
+    async fn info_by_id(&self, id: i32) -> ResponseResult<Option<FileMeta>> {
         return CONTEXT.file_meta_manager.info_by_id(id).await;
     }
 
-    async fn delete_file_meta(&self, id: i64) -> Option<FileMeta> {
+    async fn delete_file_meta(&self, id: i32) -> Option<FileMeta> {
         CONTEXT
             .file_meta_manager
             .delete_file_meta(id)
             .await
             .unwrap()
     }
-    async fn clean_file_meta(&self, id: i64) -> ResponseResult<Option<FileMeta>> {
+    async fn clean_file_meta(&self, id: i32) -> ResponseResult<Option<FileMeta>> {
         let option = CONTEXT.file_meta_manager.info_by_id(id).await.unwrap();
         if let None = option {
             return Ok(None);
@@ -140,7 +140,7 @@ impl FileManager for SimpleFileManager {
             .unwrap();
         Ok(Some(file_meta))
     }
-    async fn file_block_meta(&self, file_meta_id: i64) -> Vec<FileBlockMeta> {
+    async fn file_block_meta(&self, file_meta_id: i32) -> Vec<FileBlockMeta> {
         return CONTEXT
             .file_block_meta_manager
             .file_block_meta(file_meta_id)
@@ -149,7 +149,7 @@ impl FileManager for SimpleFileManager {
 
     async fn file_block_meta_index(
         &self,
-        file_meta_id: i64,
+        file_meta_id: i32,
         block_index: i64,
     ) -> Option<FileBlockMeta> {
         return CONTEXT
@@ -158,7 +158,7 @@ impl FileManager for SimpleFileManager {
             .await;
     }
 
-    async fn file_block_meta_info_by_id(&self, id: i64) -> Option<FileBlockMeta> {
+    async fn file_block_meta_info_by_id(&self, id: i32) -> Option<FileBlockMeta> {
         return CONTEXT
             .file_block_meta_manager
             .file_block_meta_info_by_id(id)
@@ -178,7 +178,7 @@ impl FileManager for SimpleFileManager {
 
     async fn new_file_block_meta(
         &self,
-        file_meta_id: i64,
+        file_meta_id: i32,
         block_index: i64,
     ) -> Option<FileBlockMeta> {
         let option = CONTEXT

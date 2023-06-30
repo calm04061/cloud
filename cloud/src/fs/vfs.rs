@@ -102,14 +102,14 @@ impl VirtualFileSystem {
 
         let option = CONTEXT
             .file_manager
-            .info_by_parent_and_name(parent as i64, name)
+            .info_by_parent_and_name(parent as i32, name)
             .await;
         if let Some(_) = option {
             return Err(ErrorInfo::FileAlreadyExist(name.to_string()));
         }
         CONTEXT
             .file_manager
-            .new_file(parent as i64, name, file_type)
+            .new_file(parent as i32, name, file_type)
             .await
     }
     pub(crate) async fn create_dir(&self, path: &str) -> ResponseResult<FileMeta> {
@@ -130,7 +130,7 @@ impl VirtualFileSystem {
         let parent_id = meta.id.unwrap();
         CONTEXT
             .file_manager
-            .new_file(parent_id as i64, name.as_str(), FileMetaType::FILE)
+            .new_file(parent_id as i32, name.as_str(), FileMetaType::FILE)
             .await
     }
     pub(crate) fn del_file(&self, parent: u64, name: &str) -> ResponseResult<()> {
@@ -142,7 +142,7 @@ impl VirtualFileSystem {
                 info!("del_file {:?}@{}", name, parent);
                 let option = CONTEXT
                     .file_manager
-                    .info_by_parent_and_name(parent as i64, name)
+                    .info_by_parent_and_name(parent as i32, name)
                     .await;
                 if let None = option {
                     return Err(ErrorInfo::FileNotFound(name.to_string()));
@@ -231,21 +231,21 @@ impl VirtualFileSystem {
 
                 let source_file: Option<FileMeta> = CONTEXT
                     .file_manager
-                    .info_by_parent_and_name(parent as i64, name)
+                    .info_by_parent_and_name(parent as i32, name)
                     .await;
                 if let None = source_file {
                     return Err(ErrorInfo::FileNotFound("源文件不存在".to_string()));
                 }
                 let target_file: Option<FileMeta> = CONTEXT
                     .file_manager
-                    .info_by_parent_and_name(new_parent as i64, new_name)
+                    .info_by_parent_and_name(new_parent as i32, new_name)
                     .await;
                 if let Some(_) = target_file {
                     return Err(ErrorInfo::FileAlreadyExist("目标文件已经存在".to_string()));
                 }
                 let mut f = source_file.unwrap();
 
-                f.parent_id = new_parent as i64;
+                f.parent_id = new_parent as i32;
                 f.name = String::from(new_name);
                 CONTEXT.file_manager.update_meta(f).await;
                 Ok(())
@@ -266,7 +266,7 @@ impl VirtualFileSystem {
             .block_on(async {
                 let option: Option<FileMeta> = CONTEXT
                     .file_manager
-                    .info_by_parent_and_name(parent as i64, name)
+                    .info_by_parent_and_name(parent as i32, name)
                     .await;
                 if let Some(f) = option {
                     return Ok(f);
@@ -279,7 +279,7 @@ impl VirtualFileSystem {
             .enable_all()
             .build()
             .unwrap()
-            .block_on(async { CONTEXT.file_manager.info_by_id(id as i64).await })
+            .block_on(async { CONTEXT.file_manager.info_by_id(id as i32).await })
     }
     pub(crate) async fn file_info_by_path(&self, path: &str) -> ResponseResult<Option<FileMeta>> {
         if path.eq("") || path.eq("/") {
@@ -305,7 +305,7 @@ impl VirtualFileSystem {
         //     .unwrap()
         //     .block_on(async {
                 debug!("read file id {},from {:?}:size={}", ino, offset, size);
-                let result = CONTEXT.file_manager.info_by_id(ino as i64).await;
+                let result = CONTEXT.file_manager.info_by_id(ino as i32).await;
                 if let Err(e) = result {
                     error!("查询文件{}失败{}", ino, e);
                     return Err(e);
@@ -324,7 +324,7 @@ impl VirtualFileSystem {
             // })
     }
     pub(crate) async fn list_by_parent(&self, ino: u64) -> ResponseResult<Vec<FileMeta>> {
-        CONTEXT.file_manager.list_by_parent(ino as i64).await
+        CONTEXT.file_manager.list_by_parent(ino as i32).await
     }
     pub(crate) fn setattr(
         &mut self,
@@ -336,7 +336,7 @@ impl VirtualFileSystem {
             .build()
             .unwrap()
             .block_on(async {
-                let result = CONTEXT.file_manager.info_by_id(ino as i64).await;
+                let result = CONTEXT.file_manager.info_by_id(ino as i32).await;
                 if let Err(e) = result {
                     return Err(e);
                 }
@@ -451,7 +451,7 @@ impl Inner {
         };
     }
 
-    async fn read_content_from_cloud(&mut self, file_block_id: i64) -> ResponseResult<Vec<u8>> {
+    async fn read_content_from_cloud(&mut self, file_block_id: i32) -> ResponseResult<Vec<u8>> {
         // let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
         info!("read from file_block_id:{}", file_block_id);
         let result = self.facade_cloud.content(file_block_id).await;
@@ -472,7 +472,7 @@ impl Inner {
         offset: i64,
         data: &[u8],
     ) -> ResponseResult<u32> {
-        let option = CONTEXT.file_manager.info_by_id(ino as i64).await?;
+        let option = CONTEXT.file_manager.info_by_id(ino as i32).await?;
         if let None = option {
             return Err(ErrorInfo::new(3, "文件不存在"));
         }
@@ -501,7 +501,7 @@ impl Inner {
     }
     async fn upload_block_content(
         &mut self,
-        file_meta_id: i64,
+        file_meta_id: i32,
         block_index: i64,
         seek: u64,
         data: &[u8],

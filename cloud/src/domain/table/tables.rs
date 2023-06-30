@@ -2,8 +2,8 @@ use rbatis::rbdc::datetime::DateTime;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct CloudFileBlock {
-    pub id: Option<i64>,
-    pub file_block_id: i64,
+    pub id: Option<i32>,
+    pub file_block_id: i32,
     pub cloud_meta_id: i32,
     pub cloud_file_id: Option<String>,
     pub cloud_file_hash: Option<String>,
@@ -15,7 +15,7 @@ pub struct CloudFileBlock {
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct FileBlockMeta {
-    pub(crate) id: Option<i64>,
+    pub(crate) id: Option<i32>,
     pub(crate) block_index: i64,
     pub(crate) file_part_id: String,
     // #[deprecated]
@@ -23,7 +23,7 @@ pub struct FileBlockMeta {
     pub(crate) update_time: i64,
     pub(crate) file_modify_time: i64,
     pub(crate) deleted: i8,
-    pub(crate) file_meta_id: i64,
+    pub(crate) file_meta_id: i32,
     pub(crate) part_hash: Option<String>,
     // #[deprecated]
     // pub(crate) cloud_file_hash: Option<String>,
@@ -32,9 +32,9 @@ pub struct FileBlockMeta {
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct FileMeta {
-    pub(crate) id: Option<i64>,
+    pub(crate) id: Option<i32>,
     pub(crate) name: String,
-    pub(crate) parent_id: i64,
+    pub(crate) parent_id: i32,
     pub(crate) file_type: i8,
     pub(crate) file_length: usize,
     pub(crate) status: i8,
@@ -62,6 +62,7 @@ pub struct CloudMeta {
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Config {
+    pub(crate) id: Option<i32>,
     pub(crate) property: String,
     pub(crate) value: String,
 }

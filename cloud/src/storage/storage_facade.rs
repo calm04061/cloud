@@ -56,20 +56,28 @@ impl StorageFacade {
     ///
     /// 授权登陆回调
     ///
-    pub(crate) async fn callback(&mut self, server: &str, callback: &Callback) {
+    pub(crate) async fn callback(&mut self, server: &str, callback: &Callback) -> ResponseResult<()> {
         let id = callback.state.parse().unwrap();
         let mut cloud_meta = self.inner.get_meta_info(id).await.unwrap();
 
         let result = self
             .inner
             .callback(server, callback, &mut cloud_meta)
-            .await
-            .unwrap();
+            .await;
+        let result = match result {
+            Ok(e) => { e }
+            Err(e) => {
+                return Err(e);
+            }
+        };
+        info!("result:{}",result);
         cloud_meta.token = Some(result);
         cloud_meta.status = MetaStatus::WaitDataRoot.into();
         self.inner.update_meta_info(&cloud_meta).await.unwrap();
         self.inner.after_callback(&mut cloud_meta).await;
         self.inner.update_meta_info(&cloud_meta).await.unwrap();
+        info!("end");
+        Ok(())
     }
     ///
     /// 上传文件
@@ -114,7 +122,7 @@ impl StorageFacade {
     ///
     /// 读取文件内容
     ///
-    pub(crate) async fn content(&mut self, file_block_id: i64) -> ResponseResult<Bytes> {
+    pub(crate) async fn content(&mut self, file_block_id: i32) -> ResponseResult<Bytes> {
         let cloud_file_block =
             CloudFileBlock::select_by_column(pool!(), "file_block_id", file_block_id)
                 .await

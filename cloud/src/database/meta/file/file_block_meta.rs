@@ -16,7 +16,7 @@ impl SimpleFileBlockMetaManager {
     pub(crate) fn new() -> Self {
         SimpleFileBlockMetaManager {}
     }
-    pub(crate) async fn file_block_meta_info_by_id(&self, id: i64) -> Option<FileBlockMeta> {
+    pub(crate) async fn file_block_meta_info_by_id(&self, id: i32) -> Option<FileBlockMeta> {
         let rows = FileBlockMeta::select_by_column(pool!(), "id", id)
             .await
             .unwrap();
@@ -40,7 +40,7 @@ impl SimpleFileBlockMetaManager {
 
     pub(crate) async fn new_file_block_meta(
         &self,
-        file_meta_id: i64,
+        file_meta_id: i32,
         block_index: i64,
     ) -> Option<FileBlockMeta> {
         let option = self.file_block_meta_index(file_meta_id, block_index).await;
@@ -80,7 +80,7 @@ impl SimpleFileBlockMetaManager {
 
     pub(crate) async fn file_block_meta_index(
         &self,
-        file_meta_id: i64,
+        file_meta_id: i32,
         block_index: i64,
     ) -> Option<FileBlockMeta> {
         let vec = FileBlockMeta::select_by_file_meta_id_and_block_index(
@@ -97,7 +97,7 @@ impl SimpleFileBlockMetaManager {
         }
     }
 
-    pub(crate) async fn file_block_meta(&self, file_meta_id: i64) -> Vec<FileBlockMeta> {
+    pub(crate) async fn file_block_meta(&self, file_meta_id: i32) -> Vec<FileBlockMeta> {
         FileBlockMeta::select_by_file_meta_id(pool!(), file_meta_id)
             .await
             .unwrap()
@@ -109,7 +109,7 @@ impl SimpleFileBlockMetaManager {
 
     pub(crate) async fn delete_file_blocks(
         &self,
-        file_id: i64,
+        file_id: i32,
         block_index: i64,
     ) -> ResponseResult<u64> {
         Ok(pool!().exec("update file_block_meta set deleted = 1,update_time=? where file_meta_id=? and block_index>? and deleted = 0",vec![to_value!(chrono::Local::now().timestamp_millis()),to_value!(file_id),to_value!(block_index)]).await.unwrap().rows_affected)
@@ -117,7 +117,7 @@ impl SimpleFileBlockMetaManager {
 
     pub(crate) async fn delete_file_meta_block_by_file_meta_id(
         &self,
-        file_meta_id: i64,
+        file_meta_id: i32,
     ) -> ResponseResult<u64> {
         let vec = FileBlockMeta::select_by_column(pool!(), "file_meta_id", file_meta_id)
             .await

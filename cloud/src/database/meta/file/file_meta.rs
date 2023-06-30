@@ -33,7 +33,7 @@ impl SimpleFileMetaManager {
         return self.info_by_id(meta.id.unwrap()).await;
     }
 
-    pub(crate) async fn info_by_id(&self, id: i64) -> ResponseResult<Option<FileMeta>> {
+    pub(crate) async fn info_by_id(&self, id: i32) -> ResponseResult<Option<FileMeta>> {
         let vec = FileMeta::select_by_column(pool!(), "id", id).await.unwrap();
         return if vec.is_empty() {
             Ok(None)
@@ -42,7 +42,7 @@ impl SimpleFileMetaManager {
         };
     }
 
-    pub(crate) async fn list_by_parent(&self, parent_id: i64) -> ResponseResult<Vec<FileMeta>> {
+    pub(crate) async fn list_by_parent(&self, parent_id: i32) -> ResponseResult<Vec<FileMeta>> {
         Ok(FileMeta::select_by_parent(pool!(), parent_id)
             .await
             .unwrap())
@@ -50,7 +50,7 @@ impl SimpleFileMetaManager {
 
     pub(crate) async fn info_by_parent_and_name(
         &self,
-        parent_id: i64,
+        parent_id: i32,
         name: &str,
     ) -> Option<FileMeta> {
         let vec = FileMeta::info_by_parent_and_name(pool!(), parent_id, name)
@@ -59,7 +59,7 @@ impl SimpleFileMetaManager {
         return if vec.is_empty() { None } else { vec.into_one() };
     }
     #[async_recursion::async_recursion]
-    pub(crate) async fn delete_file_meta(&self, id: i64) -> ResponseResult<Option<FileMeta>> {
+    pub(crate) async fn delete_file_meta(&self, id: i32) -> ResponseResult<Option<FileMeta>> {
         info!("delete file:{}", id);
         let file_meta = self.info_by_id(id).await.unwrap();
 
@@ -86,7 +86,7 @@ impl SimpleFileMetaManager {
     }
     pub(crate) async fn new_file(
         &self,
-        parent_id: i64,
+        parent_id: i32,
         name: &str,
         file_type: FileMetaType,
     ) -> ResponseResult<u64> {

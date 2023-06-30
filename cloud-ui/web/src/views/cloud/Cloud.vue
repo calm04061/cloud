@@ -29,7 +29,7 @@ const editedIndex = ref(-1);
 const refForm = ref();
 const editedItem = ref({
   id: "",
-  name: "1.jpg",
+  name: "",
   status: "",
   cloud_type: "",
   total_quota: "",

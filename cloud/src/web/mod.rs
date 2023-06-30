@@ -25,6 +25,7 @@ pub(crate) struct AppState {
 
 pub async fn run_web(tx: mpsc::Sender<ServerHandle>) -> std::io::Result<()> {
     CONTEXT.init_pool().await;
+    CONTEXT.upgrade().await;
 
     let server = HttpServer::new({
         move || {

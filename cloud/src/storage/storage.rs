@@ -2,7 +2,7 @@ use std::future::Future;
 
 use crate::domain::table::tables::CloudMeta;
 use bytes::Bytes;
-use log::info;
+use log::{error, info};
 use reqwest::{Body, Response, StatusCode};
 use reqwest_middleware::{ClientWithMiddleware, Error};
 use serde::{Deserialize, Serialize};
@@ -367,32 +367,41 @@ pub trait Network {
         &self,
         future: impl Future<Output=Result<Response, Error>> + Send,
     ) -> ResponseResult<String> {
+        info!("start get_response_text");
         let resp_result = future.await;
+        info!("future get_response_text");
         let json_string_result = match resp_result {
             Ok(resp) => {
+                info!("aa");
                 let code = resp.status();
                 if code == StatusCode::OK
                     || code == StatusCode::CREATED
                     || code == StatusCode::BAD_REQUEST
                 {
+                    info!("bbb");
                     let x = resp.text();
                     x.await
                 } else if code == StatusCode::NO_CONTENT {
+                    info!("NO_CONTENT");
                     Ok(String::new())
                 } else if code == StatusCode::FORBIDDEN {
+                    info!("FORBIDDEN");
                     let body = resp.text().await.unwrap();
                     return Err(ErrorInfo::Http401(
                         format!("状态码是{},body:{}", code, body),
                     ));
                 }else if code == StatusCode::UNAUTHORIZED {
+                    info!("UNAUTHORIZED");
                     let body = resp.text().await.unwrap();
                     return Err(ErrorInfo::Http401(
                         format!("状态码是{},body:{}", code, body),
                     ));
                 } else if code == StatusCode::NOT_FOUND {
+                    info!("NOT_FOUND");
                     let url = resp.url();
                     return Err(ErrorInfo::Http404(url.to_string()));
                 } else {
+                    info!("error");
                     let url = resp.url();
                     return Err(ErrorInfo::new(
                         code.as_u16() as i32,
@@ -401,6 +410,7 @@ pub trait Network {
                 }
             }
             Err(e) => {
+                error!("error:{}",e);
                 return match e {
                     Error::Middleware(e) => {
                         let result: anyhow::Result<ErrorInfo> = e.downcast();

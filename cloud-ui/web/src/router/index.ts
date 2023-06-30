@@ -13,7 +13,7 @@ import DataRoutes from "./data.routes";
 export const routes = [
   {
     path: "/",
-    redirect: "/dashboard",
+    redirect: "/cloud",
     meta: {},
   } as any,
   {

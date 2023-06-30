@@ -25,6 +25,7 @@ use crypto::md5::Md5;
 use rbatis::utils::into_one::IntoOne;
 use reqwest::multipart::{Form, Part};
 use serde::Serialize;
+use serde_json::Error;
 
 // const CHUNK_SIZE: usize = 10485760;
 const BLOCK_SIZE: usize = 1024 * 1024 * 4;
@@ -37,6 +38,7 @@ struct Inner {
     content_client: ClientWithMiddleware,
     user: Option<User>,
 }
+
 /// https://pan.baidu.com/union/doc/jl3rg9m9v
 pub struct BaiduStorage {
     // api_client: ClientWithMiddleware,
@@ -130,7 +132,6 @@ impl Network for BaiduStorage {
 
 #[async_trait]
 impl StorageFile for BaiduStorage {
-
     async fn upload_content(
         &mut self,
         name: &str,
@@ -424,18 +425,34 @@ impl StorageFile for BaiduStorage {
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String> {
         let callback = format!("http://{}/api/cloud/callback", server);
         let encoded = encode(callback.as_str());
-        Ok(format!("{}/oauth/2.0/authorize?response_type=code&client_id={}&redirect_uri={}&scope=basic,netdisk&state={}", AUTH_DOMAIN_PREFIX, self.client_id(), encoded, id))
+        let string = format!("{}/oauth/2.0/authorize?response_type=code&client_id={}&scope=basic,netdisk&state={}", AUTH_DOMAIN_PREFIX, self.client_id(), id);
+        let call = format!("https://cloud.calm0406.tk/callback.html?target={}&redirect_uri={}", encoded, encode(string.as_str()));
+        Ok(call)
     }
 
-    async fn callback(&self, server: String, code: String, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
-        let callback = format!("http://{}/api/cloud/callback", server);
-        let encoded = encode(callback.as_str());
+    async fn callback(&self, _server: String, code: String, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
+        // let callback = format!("http://{}/api/cloud/callback", server);
+        let encoded = encode("https://cloud.calm0406.tk/callback.html");
         let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, format!("oauth/2.0/token?grant_type=authorization_code&code={}&client_id={}&client_secret={}&redirect_uri={}", code, self.client_id(), self.client_secret(), encoded));
         info!("{}", token_url);
         let resp_result = self.inner.content_client.get(token_url).send();
-        let json_text = self.inner.get_response_text(resp_result).await?;
+        info!("{}", "send");
+        let json_text = self.inner.get_response_text(resp_result).await;
+        info!("{}", "get_response_text");
+        let json_text = match json_text {
+            Ok(e) => {e}
+            Err(e) => {
+                return Err(e);
+            }
+        };
         info!("{}", json_text);
-        let token: Token = serde_json::from_str(json_text.as_str()).unwrap();
+        let token:Result<Token, Error> = serde_json::from_str(json_text.as_str());
+        let token = match token {
+            Ok(token) => {token}
+            Err(e) => {
+                return Err(ErrorInfo::OTHER(50,e.to_string()));
+            }
+        };
         cloud_meta.expires_in = Some(token.expires_in - 10);
         Ok(String::from(json_text))
     }

@@ -4,8 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/etc/cloudfs/
-ExecStart=/usr/bin/cloudfs
+ExecStart=/usr/local/cloudfs/cloud
 KillMode=process
 Restart=on-failure
 

@@ -1,3 +1,2 @@
-target/
-cloud-ui/web/dist/
-cloud-ui/web/node_modules/
+cloud_back
+callback

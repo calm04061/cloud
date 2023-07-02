@@ -72,7 +72,7 @@ assets = [
 ]
 maintainer-scripts = "scripts/"
 systemd-units = { enable = true }
-[profile.release]
-strip = true
-opt-level = "z"
-lto = true
+#[profile.release]
+#strip = true
+#opt-level = "z"
+#lto = true

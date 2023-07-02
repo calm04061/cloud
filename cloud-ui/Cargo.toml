@@ -14,7 +14,7 @@ static-files = "0.2.3"
 
 [build-dependencies]
 static-files = "0.2.3"
-[profile.release]
-strip = true
-opt-level = "z"
-lto = true
+#[profile.release]
+#strip = true
+#opt-level = "z"
+#lto = true

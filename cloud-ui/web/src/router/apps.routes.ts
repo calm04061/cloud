@@ -71,20 +71,6 @@ export default [
     children: [],
   },
   {
-    path: "/apps/booking",
-    meta: {
-      requiresAuth: true,
-      layout: "ui",
-      category: "APP",
-      title: "Booking",
-    },
-    component: () =>
-      import(
-        /* webpackChunkName: "app-booking" */ "@/views/app/booking/BookingApp.vue"
-      ),
-    children: [],
-  },
-  {
     path: "/apps/ikea",
     meta: {
       requiresAuth: true,

@@ -56,31 +56,31 @@ export default [
         link: "/error/unexpected",
       },
     ],
-  },
-  {
-    icon: "mdi-file-cog-outline",
-    key: "menu.utilityPages",
-    text: "Utility Pages",
-    regex: /^\/utility/,
-    items: [
-      {
-        icon: "mdi-wrench-clock",
-        key: "menu.utilityMaintenance",
-        text: "Maintenance",
-        link: "/utility/maintenance",
-      },
-      {
-        icon: "mdi-timer-sand",
-        key: "menu.utilitySoon",
-        text: "Coming Soon",
-        link: "/utility/coming-soon",
-      },
-      {
-        icon: "mdi-comment-question-outline",
-        key: "menu.utilityHelp",
-        text: "FAQs / Help",
-        link: "/utility/help",
-      },
-    ],
-  },
+  }
+  // {
+  //   icon: "mdi-file-cog-outline",
+  //   key: "menu.utilityPages",
+  //   text: "Utility Pages",
+  //   regex: /^\/utility/,
+  //   items: [
+  //     {
+  //       icon: "mdi-wrench-clock",
+  //       key: "menu.utilityMaintenance",
+  //       text: "Maintenance",
+  //       link: "/utility/maintenance",
+  //     },
+  //     {
+  //       icon: "mdi-timer-sand",
+  //       key: "menu.utilitySoon",
+  //       text: "Coming Soon",
+  //       link: "/utility/coming-soon",
+  //     },
+  //     {
+  //       icon: "mdi-comment-question-outline",
+  //       key: "menu.utilityHelp",
+  //       text: "FAQs / Help",
+  //       link: "/utility/help",
+  //     },
+  //   ],
+  // },
 ];

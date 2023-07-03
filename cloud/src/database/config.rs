@@ -1,7 +1,7 @@
-use rbatis::utils::into_one::IntoOne;
 
 use crate::domain::table::tables::Config;
 use crate::pool;
+use crate::util::IntoOne;
 
 pub(crate) struct ConfigManager {}
 

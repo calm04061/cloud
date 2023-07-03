@@ -29,14 +29,14 @@ impl Middleware for OneDriveAuthMiddleware {
             return Err(middleware);
         }
         let meta = option.unwrap();
-        let token_option = meta.token.clone();
-        if let None = token_option {
+        let auth_option = meta.auth.clone();
+        if let None = auth_option {
             let err = anyhow::Error::msg(ErrorInfo::NotFoundConfig("token没有配置".to_string()));
             let middleware = reqwest_middleware::Error::Middleware(err);
             return Err(middleware);
         }
 
-        let token = token_option.unwrap();
+        let token = auth_option.unwrap();
         let token: AuthorizationToken = serde_json::from_str(token.as_str()).unwrap();
 
         let header_map = req.headers_mut();

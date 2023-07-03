@@ -1,3 +1,4 @@
+use std::fs;
 use once_cell::sync::Lazy;
 use crate::config::ApplicationConfig;
 use crate::database::config::ConfigManager;
@@ -31,6 +32,7 @@ pub(crate) struct ServiceContext {
 impl ServiceContext {
     /// init database pool
     pub async fn init_pool(&self) {
+        fs::create_dir_all("./data").unwrap();
         log::info!("rbatis pool init ({})...", self.config.database_url);
         let driver = rbdc_sqlite::driver::SqliteDriver {};
         let driver_name = format!("{:?}", driver);
@@ -49,11 +51,11 @@ impl ServiceContext {
     pub async fn upgrade(&self) {
         let mut s = SqliteTableSync::default();
         s.sql_id = " PRIMARY KEY AUTOINCREMENT NOT NULL ".to_string();
-        s.sync(self.rb.acquire().await.unwrap(), to_value!(Config::default()), "config").await.unwrap();
-        s.sync(self.rb.acquire().await.unwrap(), to_value!(CloudMeta::default()), "cloud_meta").await.unwrap();
-        s.sync(self.rb.acquire().await.unwrap(), to_value!(FileMeta::default()), "file_meta").await.unwrap();
-        s.sync(self.rb.acquire().await.unwrap(), to_value!(CloudFileBlock::default()), "cloud_file_block").await.unwrap();
-        s.sync(self.rb.acquire().await.unwrap(), to_value!(FileBlockMeta::default()), "file_block_meta").await.unwrap();
+        s.sync(self.rb.acquire().await.unwrap(), to_value!(Config::sync_default()), "config").await.unwrap();
+        s.sync(self.rb.acquire().await.unwrap(), to_value!(CloudMeta::sync_default()), "cloud_meta").await.unwrap();
+        s.sync(self.rb.acquire().await.unwrap(), to_value!(FileMeta::sync_default()), "file_meta").await.unwrap();
+        s.sync(self.rb.acquire().await.unwrap(), to_value!(CloudFileBlock::sync_default()), "cloud_file_block").await.unwrap();
+        s.sync(self.rb.acquire().await.unwrap(), to_value!(FileBlockMeta::sync_default()), "file_block_meta").await.unwrap();
         let vec = FileMeta::select_by_column(pool!(), "id", 1).await.unwrap();
         if vec.is_empty() {
             let file_meta = FileMeta{

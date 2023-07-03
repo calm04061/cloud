@@ -56,4 +56,52 @@ export default defineConfig({
     },
   },
   cacheDir: ".vite_cache", // 将缓存目录设置为项目根目录下的 .vite_cache 文件夹
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: function (id) {
+
+          if (id.includes('node_modules')) {
+            if (id.includes("echart")) {
+              return "echart";
+            }
+            if (id.includes("microsoft-cognitiveservices-speech-sdk") || id.includes("openai")||id.includes("uuid")||id.includes("form-data")||id.includes("tslib")||id.includes("md-editor")||id.includes("clipboard")||id.includes("mitt")||id.includes("lottie-web")) {
+              return "utils";
+            }
+            if (id.includes("axios")||id.includes("bent")) {
+              return "net";
+            }
+            if (id.includes("vuetify")) {
+              return "vuetify";
+            }
+            if (id.includes("vue")||id.includes("moment")||id.includes("devtools")||id.includes("pinia")||id.includes("intlify")) {
+              return "vue";
+            }
+            // if (id.includes("faker")) {
+            //   return "faker";
+            // }
+            if (id.includes("zrender")) {
+              return "zrender";
+            }
+            // if (id.includes("devtools")||id.includes("pinia")||id.includes("intlify")) {
+            //   return "devtools";
+            // }
+            console.log("vendor:" + id)
+            return 'vendor';
+          }
+          // if (id.includes("vuetify")) {
+          //   return "vuetify";
+          // }
+          // if (id.includes('components')||id.includes('landing')) {
+          //   return "components";
+          // }
+          // if (id.includes('cloud')) {
+          //   return "cloud";
+          // }
+          console.log("index:" + id)
+          return "index";
+        }
+      }
+    }
+  },
 });

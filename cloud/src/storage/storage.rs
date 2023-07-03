@@ -1,8 +1,8 @@
 use std::future::Future;
 
-use crate::domain::table::tables::CloudMeta;
+use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use bytes::Bytes;
-use log::{error, info};
+use log::{debug, error, info};
 use reqwest::{Body, Response, StatusCode};
 use reqwest_middleware::{ClientWithMiddleware, Error};
 use serde::{Deserialize, Serialize};
@@ -191,10 +191,27 @@ pub trait StorageFile {
      **/
     async fn upload_content(
         &mut self,
-        name: &str,
+        file_block: FileBlockMeta,
         content: &Vec<u8>,
         cloud_meta: CloudMeta,
     ) -> ResponseResult<CreateResponse>;
+
+    async fn delete(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<()>;
+    async fn content(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<Bytes>;
+
+    /**
+     * 获得容量
+     **/
+    async fn drive_quota(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<Quota>;
+}
+#[async_trait::async_trait]
+pub trait CloudStorageFile{
+    async fn info(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<FileInfo>;
+    async fn list(
+        &mut self,
+        parent_file_id: &str,
+        cloud_meta: CloudMeta,
+    ) -> ResponseResult<FileItemWrapper>;
     /**
      * 搜索
      **/
@@ -204,19 +221,10 @@ pub trait StorageFile {
         name: &str,
         cloud_meta: CloudMeta,
     ) -> ResponseResult<SearchResponse>;
-    async fn delete(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<()>;
-    async fn content(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<Bytes>;
-    async fn info(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<FileInfo>;
-    async fn list(
-        &mut self,
-        parent_file_id: &str,
-        cloud_meta: CloudMeta,
-    ) -> ResponseResult<FileItemWrapper>;
+}
+#[async_trait::async_trait]
+pub trait OAuthStorageFile :StorageFile{
     async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String>;
-    /**
-     * 获得容量
-     **/
-    async fn drive_quota(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<Quota>;
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String>;
     async fn callback(&self, server: String, code: String, cloud_meta: &mut CloudMeta) -> ResponseResult<String>;
     async fn after_callback(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<()> {
@@ -227,7 +235,6 @@ pub trait StorageFile {
     fn client_id(&self) -> String;
     fn client_secret(&self) -> String;
 }
-
 #[async_trait::async_trait]
 pub trait Storage {
     async fn user_info(&mut self, cloud_meta: CloudMeta) -> ResponseResult<User>;
@@ -367,18 +374,18 @@ pub trait Network {
         &self,
         future: impl Future<Output=Result<Response, Error>> + Send,
     ) -> ResponseResult<String> {
-        info!("start get_response_text");
+        debug!("start get_response_text");
         let resp_result = future.await;
-        info!("future get_response_text");
+        debug!("future get_response_text");
         let json_string_result = match resp_result {
             Ok(resp) => {
-                info!("aa");
+                debug!("aa");
                 let code = resp.status();
                 if code == StatusCode::OK
                     || code == StatusCode::CREATED
                     || code == StatusCode::BAD_REQUEST
                 {
-                    info!("bbb");
+                    debug!("bbb");
                     let x = resp.text();
                     x.await
                 } else if code == StatusCode::NO_CONTENT {

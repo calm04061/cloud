@@ -10,12 +10,12 @@ use log::info;
 use crate::database::meta::CloudMetaManager;
 use crate::domain::table::tables::Config;
 use crate::fs::fuse::cloud_fs::CloudFS;
+use crate::fs::vfs::DEFAULT_TEMP_PATH;
 use crate::service::CONTEXT;
 use crate::web::common::WebResult;
 
 const MOUNT_PATH: &str = "MOUNT_PATH";
 pub(crate) const TEMP_PATH: &str = "TEMP_PATH";
-pub(crate) const DEFAULT_TEMP_PATH: &str = "/var/lib/storage/temp";
 
 pub(crate) struct FsManager {
     session_holder: Mutex<Option<BackgroundSession>>,

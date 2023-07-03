@@ -7,7 +7,7 @@ use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use task_local_extensions::Extensions;
 use urlencoding::encode;
 
-use crate::domain::table::tables::CloudMeta;
+use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use crate::error::ErrorInfo;
 use crate::error::ErrorInfo::{Http, Http302};
 use crate::storage::baidu::baidu_authorization_middleware::{BaiduAuthMiddleware, Token};
@@ -15,17 +15,14 @@ use crate::storage::baidu::vo::{
     AsyncType, BaiduCreate, BaiduFileManagerResult, BaiduOpera, BaiduPreCreate, BaiduQuota,
     BaiduUser, FileMetas, Query, Search,
 };
-use crate::storage::storage::{
-    CreateResponse, FileInfo, FileItemWrapper, Network, Quota, ResponseResult, SearchResponse,
-    Storage, StorageFile, User,
-};
+use crate::storage::storage::{CloudStorageFile, CreateResponse, FileInfo, FileItemWrapper, Network, OAuthStorageFile, Quota, ResponseResult, SearchResponse, Storage, StorageFile, User};
 use async_trait::async_trait;
 use crypto::digest::Digest;
 use crypto::md5::Md5;
-use rbatis::utils::into_one::IntoOne;
 use reqwest::multipart::{Form, Part};
 use serde::Serialize;
 use serde_json::Error;
+use crate::util::IntoOne;
 
 // const CHUNK_SIZE: usize = 10485760;
 const BLOCK_SIZE: usize = 1024 * 1024 * 4;
@@ -134,7 +131,7 @@ impl Network for BaiduStorage {
 impl StorageFile for BaiduStorage {
     async fn upload_content(
         &mut self,
-        name: &str,
+        file_block: FileBlockMeta,
         content: &Vec<u8>,
         cloud_meta: CloudMeta,
     ) -> ResponseResult<CreateResponse> {
@@ -163,7 +160,7 @@ impl StorageFile for BaiduStorage {
         let block_list = serde_json::to_string(&md5s);
         let block_list = block_list.unwrap();
         let block_list = block_list.as_str();
-        let path = format!("{}/{}", cloud_meta.data_root.as_ref().unwrap(), name);
+        let path = format!("{}/{}", cloud_meta.data_root.as_ref().unwrap(), file_block.file_part_id);
         let mut par = vec![];
         // let mut parameter = HashMap::new();
         par.push(("path", path.as_str().clone()));
@@ -245,33 +242,6 @@ impl StorageFile for BaiduStorage {
         });
     }
 
-    async fn search(
-        &mut self,
-        parent_file_id: &str,
-        name: &str,
-        cloud_meta: CloudMeta,
-    ) -> ResponseResult<SearchResponse> {
-        let drive_id = self.get_drive_id(cloud_meta).await?;
-        let query = format!(
-            "parent_file_id = \"{}\" and (name = \"{}\")",
-            parent_file_id, name
-        );
-        let search = Search {
-            drive_id,
-            limit: 100,
-            order_by: "name ASC".to_string(),
-            query,
-        };
-        let resp_result = self
-            .inner
-            .api_client
-            .post(format!("{}/{}", API_DOMAIN_PREFIX, "adrive/v3/file/search"))
-            .json(&search)
-            .send();
-        let json = self.inner.get_response_text(resp_result).await?;
-        let result = serde_json::from_str(json.as_str());
-        return Ok(result.unwrap());
-    }
 
     async fn delete(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<()> {
         let result = self.info(file_id, cloud_meta.clone()).await;
@@ -325,6 +295,27 @@ impl StorageFile for BaiduStorage {
             }
         }
     }
+
+
+    async fn drive_quota(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<Quota> {
+        let mut extensions = Extensions::new();
+        extensions.insert(cloud_meta.clone());
+        let result = self
+            .inner
+            .do_get_json(
+                format!("api/quota?checkfree=1&checkexpire=1").as_str(),
+                &mut extensions,
+            )
+            .await
+            .unwrap();
+
+        let result: BaiduQuota = serde_json::from_str(result.as_str()).unwrap();
+        Ok(result.into())
+    }
+
+}
+#[async_trait::async_trait]
+impl CloudStorageFile for BaiduStorage {
 
     async fn info(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<FileInfo> {
         let mut extensions = Extensions::new();
@@ -386,12 +377,43 @@ impl StorageFile for BaiduStorage {
         let result = serde_json::from_str(json.as_str());
         return Ok(result.unwrap());
     }
+
+    async fn search(
+        &mut self,
+        parent_file_id: &str,
+        name: &str,
+        cloud_meta: CloudMeta,
+    ) -> ResponseResult<SearchResponse> {
+        let drive_id = self.get_drive_id(cloud_meta).await?;
+        let query = format!(
+            "parent_file_id = \"{}\" and (name = \"{}\")",
+            parent_file_id, name
+        );
+        let search = Search {
+            drive_id,
+            limit: 100,
+            order_by: "name ASC".to_string(),
+            query,
+        };
+        let resp_result = self
+            .inner
+            .api_client
+            .post(format!("{}/{}", API_DOMAIN_PREFIX, "adrive/v3/file/search"))
+            .json(&search)
+            .send();
+        let json = self.inner.get_response_text(resp_result).await?;
+        let result = serde_json::from_str(json.as_str());
+        return Ok(result.unwrap());
+    }
+}
+#[async_trait]
+impl OAuthStorageFile for BaiduStorage {
     async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
 
-        let token_option = cloud_meta.token.clone();
-        let token = token_option.unwrap();
+        let auth_option = cloud_meta.auth.clone();
+        let token = auth_option.unwrap();
         let token: Token = serde_json::from_str(token.as_str()).unwrap();
         // let mut refresh_token = HashMap::new();
         // refresh_token.insert("refresh_token", token.refresh_token);
@@ -406,22 +428,6 @@ impl StorageFile for BaiduStorage {
         Ok(resp_result)
     }
 
-    async fn drive_quota(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<Quota> {
-        let mut extensions = Extensions::new();
-        extensions.insert(cloud_meta.clone());
-        let result = self
-            .inner
-            .do_get_json(
-                format!("api/quota?checkfree=1&checkexpire=1").as_str(),
-                &mut extensions,
-            )
-            .await
-            .unwrap();
-
-        let result: BaiduQuota = serde_json::from_str(result.as_str()).unwrap();
-        Ok(result.into())
-    }
-
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String> {
         let callback = format!("http://{}/api/cloud/callback", server);
         let encoded = encode(callback.as_str());
@@ -429,7 +435,6 @@ impl StorageFile for BaiduStorage {
         let call = format!("https://cloud.calm0406.tk/callback.html?target={}&redirect_uri={}", encoded, encode(string.as_str()));
         Ok(call)
     }
-
     async fn callback(&self, _server: String, code: String, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
         // let callback = format!("http://{}/api/cloud/callback", server);
         let encoded = encode("https://cloud.calm0406.tk/callback.html");
@@ -456,7 +461,6 @@ impl StorageFile for BaiduStorage {
         cloud_meta.expires_in = Some(token.expires_in - 10);
         Ok(String::from(json_text))
     }
-
     fn client_id(&self) -> String {
         "iWjfcOWq0BoUNZABxy4hGtXPdftzPtG8".to_string()
     }
@@ -465,7 +469,6 @@ impl StorageFile for BaiduStorage {
         "KqEOL6F9tT2vkeeYRgKqZvyPHlGQnujM".to_string()
     }
 }
-
 impl Network for Inner {
     fn get_client(&self) -> &ClientWithMiddleware {
         &self.api_client

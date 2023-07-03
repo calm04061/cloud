@@ -1,7 +1,6 @@
 use crypto::digest::Digest;
 use crypto::md5::Md5;
 use log::debug;
-use rbatis::utils::into_one::IntoOne;
 use rbs::to_value;
 
 use crate::database::meta::cloud::MetaStatus;
@@ -9,6 +8,7 @@ use crate::database::meta::{FileBlockMeta, FileStatus};
 use crate::domain::table::tables::{CloudFileBlock, CloudMeta};
 use crate::pool;
 use crate::storage::storage::ResponseResult;
+use crate::util::IntoOne;
 
 pub struct SimpleFileBlockMetaManager {}
 

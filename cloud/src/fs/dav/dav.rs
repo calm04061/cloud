@@ -52,9 +52,8 @@ impl DavFileSystem for CloudDavFs {
         async move {
             let full_path = self.fs_path(path);
             info!("FS: open {:?},options:{:?}", full_path,options);
-            let create = options.create;
             let meta;
-            if create {
+            if options.create {
                 let result = self.inner.fs.file_info_by_path(full_path.as_str()).await.unwrap();
                 if let None = result {
                     meta = self.inner.fs.create_path_file(full_path.as_str()).await.unwrap();

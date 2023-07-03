@@ -30,6 +30,7 @@ pub enum CloudType {
     Baidu,
     Local,
     OneDrive,
+    Sftp,
 }
 
 #[async_trait::async_trait]

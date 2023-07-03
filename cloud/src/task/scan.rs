@@ -114,7 +114,7 @@ impl quartz_sched::Job for Box<Scan> {
                         let mut cloud = StorageFacade::new();
                         let result = cloud
                             .upload_content(
-                                file_block_meta.file_part_id.as_str(),
+                                file_block_meta.clone(),
                                 &cloud_meta,
                                 &body,
                             )

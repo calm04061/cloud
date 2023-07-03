@@ -4,7 +4,7 @@ use rbatis::utils::into_one::IntoOne;
 
 use crate::database::meta::cloud::MetaStatus;
 use crate::database::meta::{CloudMetaManager, CloudType};
-use crate::domain::table::tables::{CloudFileBlock, CloudMeta};
+use crate::domain::table::tables::{CloudFileBlock, CloudMeta, FileBlockMeta};
 use crate::error::ErrorInfo;
 use crate::error::ErrorInfo::Http401;
 use crate::pool;
@@ -13,7 +13,7 @@ use crate::storage::ali::ali_storage::AliStorage;
 use crate::storage::baidu::baidu_storage::BaiduStorage;
 use crate::storage::local::local_storage::LocalStorage;
 use crate::storage::onedrive::onedrive_storage::OneDriveStorage;
-use crate::storage::storage::{CreateResponse, ResponseResult, StorageFile};
+use crate::storage::storage::{CreateResponse, OAuthStorageFile, ResponseResult, StorageFile};
 use crate::web::vo::auth::Callback;
 
 #[derive(Clone)]
@@ -49,7 +49,7 @@ impl StorageFacade {
     async fn refresh_token(&mut self, id: i32) -> ResponseResult<CloudMeta> {
         let mut meta = self.inner.get_meta_info(id).await.unwrap();
         let result = self.inner.refresh_token(&meta).await.unwrap();
-        meta.token = Some(result);
+        meta.auth = Some(result);
         self.inner.update_meta_info(&meta).await.unwrap();
         Ok(meta)
     }
@@ -71,7 +71,7 @@ impl StorageFacade {
             }
         };
         info!("result:{}",result);
-        cloud_meta.token = Some(result);
+        cloud_meta.auth = Some(result);
         cloud_meta.status = MetaStatus::WaitDataRoot.into();
         self.inner.update_meta_info(&cloud_meta).await.unwrap();
         self.inner.after_callback(&mut cloud_meta).await;
@@ -84,11 +84,11 @@ impl StorageFacade {
     ///
     pub(crate) async fn upload_content(
         &mut self,
-        name: &str,
+        name: FileBlockMeta,
         meta: &CloudMeta,
         content: &Vec<u8>,
     ) -> ResponseResult<CreateResponse> {
-        let result = self.inner.upload_content(meta, name, content).await;
+        let result = self.inner.upload_content(meta, name.clone(), content).await;
         if let Ok(o) = result {
             return Ok(o);
         }
@@ -96,7 +96,7 @@ impl StorageFacade {
         return if let Http401(_url) = e {
             let result = self.inner.refresh_token(&meta).await;
             match result {
-                Ok(_) => self.inner.upload_content(&meta, name, content).await,
+                Ok(_) => self.inner.upload_content(&meta, name.clone(), content).await,
                 Err(e) => Err(e),
             }
         } else {
@@ -170,7 +170,7 @@ impl StorageFacade {
             .await
             .unwrap();
         for mut meta in all {
-            let mut cloud = self.inner.get_cloud(meta.cloud_type.into());
+            let mut cloud = self.inner.get_cloud(meta.cloud_type.into()).unwrap();
             // let mut guard = cloud.lock().unwrap();
             let result = cloud.drive_quota(&meta).await.unwrap();
             meta.used_quota = Some(result.used);
@@ -184,12 +184,26 @@ impl StorageFacade {
 }
 
 impl Inner {
-    fn get_cloud(&mut self, cloud_type: CloudType) -> Box<dyn StorageFile + Send> {
-        let cloud: Box<(dyn StorageFile + Send)> = match cloud_type {
-            CloudType::AliYun => Box::new(AliStorage::new()),
-            CloudType::Baidu => Box::new(BaiduStorage::new()),
-            CloudType::Local => Box::new(LocalStorage::new()),
-            CloudType::OneDrive => Box::new(OneDriveStorage::new()),
+    fn get_cloud(&mut self, cloud_type: CloudType) -> Result<Box<dyn StorageFile + Send>, &str> {
+        let cloud: Result<Box<(dyn StorageFile + Send)>, &str> = match cloud_type {
+            CloudType::AliYun => Ok(Box::new(AliStorage::new())),
+            CloudType::Baidu => Ok(Box::new(BaiduStorage::new())),
+            CloudType::Local => Ok(Box::new(LocalStorage::new())),
+            CloudType::OneDrive => Ok(Box::new(OneDriveStorage::new())),
+            _ => {
+                Err("unsupported type")
+            }
+        };
+        return cloud;
+    }
+    fn get_oauth_cloud(&mut self, cloud_type: CloudType) -> Result<Box<dyn OAuthStorageFile + Send>, &str> {
+        let cloud: Result<Box<dyn OAuthStorageFile + Send>, &str> = match cloud_type {
+            CloudType::AliYun => Ok(Box::new(AliStorage::new())),
+            CloudType::Baidu => Ok(Box::new(BaiduStorage::new())),
+            CloudType::OneDrive => Ok(Box::new(OneDriveStorage::new())),
+            _ => {
+                Err("unsupporttd type")
+            }
         };
         return cloud;
     }
@@ -210,10 +224,10 @@ impl Inner {
             .info(cloud_meta.id.unwrap())
             .await
             .unwrap();
-        let mut cloud = self.get_cloud(cloud_meta.cloud_type.into());
+        let mut cloud = self.get_oauth_cloud(cloud_meta.cloud_type.into()).unwrap();
         // let mut cloud = cloud.lock().unwrap();
         let result = cloud.refresh_token(&mut cloud_meta).await.unwrap();
-        cloud_meta.token = Some(result.clone());
+        cloud_meta.auth = Some(result.clone());
         self.update_meta_info(&cloud_meta).await.unwrap();
         Ok(result)
     }
@@ -221,16 +235,16 @@ impl Inner {
     pub(crate) async fn upload_content(
         &mut self,
         cloud_meta: &CloudMeta,
-        name: &str,
+        name: FileBlockMeta,
         content: &Vec<u8>,
     ) -> ResponseResult<CreateResponse> {
         // let cloud_meta = self.get_token(1).await.unwrap();
         let cloud_type = cloud_meta.cloud_type.into();
-        info!("start upload {} to {:?}({})", name,cloud_type, cloud_meta.name);
-        let mut cloud = self.get_cloud(cloud_type);
+        info!("start upload {} to {:?}({})", name.file_part_id,cloud_type, cloud_meta.name);
+        let mut cloud = self.get_cloud(cloud_type).unwrap();
         // let mut cloud = cloud.lock().unwrap();
         let result = cloud
-            .upload_content(name, &content, cloud_meta.clone())
+            .upload_content(name.clone(), &content, cloud_meta.clone())
             .await;
         return result;
     }
@@ -244,7 +258,7 @@ impl Inner {
 
         info!("delete {} from {:?}({})", file_id,cloud_type, cloud_meta.name);
 
-        let mut cloud = self.get_cloud(cloud_type);
+        let mut cloud = self.get_cloud(cloud_type).unwrap();
         // let mut cloud = cloud.lock().unwrap();
         let result = cloud.delete(file_id, cloud_meta.clone()).await;
 
@@ -258,14 +272,14 @@ impl Inner {
     ) -> ResponseResult<Bytes> {
         // let cloud_meta = self.get_token(1).await.unwrap();
 
-        let mut cloud = self.get_cloud(cloud_meta.cloud_type.into());
+        let mut cloud = self.get_cloud(cloud_meta.cloud_type.into()).unwrap();
         // let mut cloud = cloud.lock().unwrap();
         return cloud.content(file_id, cloud_meta.clone()).await;
     }
 
     pub(crate) async fn authorize(&mut self, server: &str, id: i32) -> String {
         let cloud_meta = CONTEXT.cloud_meta_manager.info(id).await.unwrap();
-        let cloud = self.get_cloud(cloud_meta.cloud_type.into());
+        let cloud = self.get_oauth_cloud(cloud_meta.cloud_type.into()).unwrap();
         // let cloud = cloud.lock().unwrap();
         cloud.authorize(server, id).unwrap()
     }
@@ -276,7 +290,7 @@ impl Inner {
         callback: &Callback,
         cloud_meta: &mut CloudMeta,
     ) -> ResponseResult<String> {
-        let cloud = self.get_cloud(cloud_meta.cloud_type.into());
+        let cloud = self.get_oauth_cloud(cloud_meta.cloud_type.into()).unwrap();
         // let cloud = cloud.lock().unwrap();
         let result = cloud
             .callback(server.to_string(), callback.code.clone(), cloud_meta)
@@ -285,7 +299,7 @@ impl Inner {
         result
     }
     pub(crate) async fn after_callback(&mut self, cloud_meta: &mut CloudMeta) {
-        let mut cloud = self.get_cloud(cloud_meta.cloud_type.into());
+        let mut cloud = self.get_oauth_cloud(cloud_meta.cloud_type.into()).unwrap();
         // let mut cloud = cloud.lock().unwrap();
         cloud.after_callback(cloud_meta).await.ok();
         let quota = cloud.drive_quota(cloud_meta).await.unwrap();

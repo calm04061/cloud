@@ -6,3 +6,4 @@ dist
 *.log
 /cargo
 /cloud/config/file.db*
+/data

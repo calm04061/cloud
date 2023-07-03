@@ -9,14 +9,11 @@ use serde::{Deserialize, Serialize};
 use task_local_extensions::Extensions;
 use urlencoding::encode;
 
-use crate::domain::table::tables::CloudMeta;
+use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use crate::error::ErrorInfo;
 use crate::storage::ali::ali_authorization_middleware::{AliAuthMiddleware, Token};
 use crate::storage::ali::vo::{AliExtra, DevicePersonalInfo, DriveInfo};
-use crate::storage::storage::{
-    CreateResponse, FileInfo, FileItemWrapper, Network, Quota, ResponseResult, SearchResponse,
-    Storage, StorageFile, User,
-};
+use crate::storage::storage::{CloudStorageFile, CreateResponse, FileInfo, FileItemWrapper, Network, OAuthStorageFile, Quota, ResponseResult, SearchResponse, Storage, StorageFile, User};
 
 const CHUNK_SIZE: usize = 10485760;
 pub const API_DOMAIN_PREFIX: &str = "https://api.aliyundrive.com";
@@ -208,7 +205,7 @@ impl Clone for AliStorage {
 impl StorageFile for AliStorage {
     async fn upload_content(
         &mut self,
-        name: &str,
+        file_block: FileBlockMeta,
         content: &Vec<u8>,
         cloud_meta: CloudMeta,
     ) -> ResponseResult<CreateResponse> {
@@ -240,7 +237,7 @@ impl StorageFile for AliStorage {
             drive_id: drive_id.clone(),
             parent_file_id: cloud_meta.data_root.clone().unwrap(),
             part_info_list: part_infos,
-            name: name.to_string(),
+            name: file_block.file_part_id,
             file_type: "file".to_string(),
             check_name_mode: Some("overwrite".to_string()),
             size: len as u64,
@@ -326,36 +323,6 @@ impl StorageFile for AliStorage {
         });
     }
 
-    async fn search(
-        &mut self,
-        parent_file_id: &str,
-        name: &str,
-        cloud_meta: CloudMeta,
-    ) -> ResponseResult<SearchResponse> {
-        let extra = cloud_meta.extra.unwrap();
-        let extra: AliExtra = serde_json::from_str(extra.as_str()).unwrap();
-
-        let drive_id = extra.drive_id.unwrap();
-
-        let query = format!(
-            "parent_file_id = \"{}\" and (name = \"{}\")",
-            parent_file_id, name
-        );
-        let search = Search {
-            drive_id,
-            limit: 100,
-            order_by: "name ASC".to_string(),
-            query,
-        };
-        let resp_result = self
-            .inner.api_client
-            .post(format!("{}/{}", API_DOMAIN_PREFIX, "adrive/v3/file/search"))
-            .json(&search)
-            .send();
-        let json = self.get_response_text(resp_result).await?;
-        let result = serde_json::from_str(json.as_str());
-        return Ok(result.unwrap());
-    }
 
     async fn delete(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<()> {
         let extra = cloud_meta.extra.as_ref().unwrap();
@@ -431,6 +398,29 @@ impl StorageFile for AliStorage {
         self.get_request_bytes(body).await
     }
 
+
+
+    async fn drive_quota(&mut self, _cloud_meta: &CloudMeta) -> ResponseResult<Quota> {
+        let empty: HashMap<String, String> = HashMap::new();
+        let resp_result = self
+            .inner.api_client
+            .post(format!(
+                "{}/{}",
+                API_DOMAIN_PREFIX, "adrive/v1.0/user/getSpaceInfo"
+            ))
+            .json(&empty)
+            .send();
+
+        let json = self.get_response_text(resp_result).await?;
+
+        // println!("{:?}", json);
+        let result: Result<DevicePersonalInfo, _> = serde_json::from_str(json.as_str());
+        let result: DevicePersonalInfo = result.unwrap();
+        return Ok(result.personal_space_info.into());
+    }
+}
+#[async_trait::async_trait]
+impl CloudStorageFile for AliStorage {
     async fn info(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<FileInfo> {
         let extra = cloud_meta.extra.unwrap();
         let extra: AliExtra = serde_json::from_str(extra.as_str()).unwrap();
@@ -484,11 +474,45 @@ impl StorageFile for AliStorage {
         let result = serde_json::from_str(json.as_str());
         return Ok(result.unwrap());
     }
+
+    async fn search(
+        &mut self,
+        parent_file_id: &str,
+        name: &str,
+        cloud_meta: CloudMeta,
+    ) -> ResponseResult<SearchResponse> {
+        let extra = cloud_meta.extra.unwrap();
+        let extra: AliExtra = serde_json::from_str(extra.as_str()).unwrap();
+
+        let drive_id = extra.drive_id.unwrap();
+
+        let query = format!(
+            "parent_file_id = \"{}\" and (name = \"{}\")",
+            parent_file_id, name
+        );
+        let search = Search {
+            drive_id,
+            limit: 100,
+            order_by: "name ASC".to_string(),
+            query,
+        };
+        let resp_result = self
+            .inner.api_client
+            .post(format!("{}/{}", API_DOMAIN_PREFIX, "adrive/v3/file/search"))
+            .json(&search)
+            .send();
+        let json = self.get_response_text(resp_result).await?;
+        let result = serde_json::from_str(json.as_str());
+        return Ok(result.unwrap());
+    }
+}
+#[async_trait::async_trait]
+impl OAuthStorageFile for AliStorage{
     async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
 
-        let token_option = cloud_meta.clone().token;
+        let token_option = cloud_meta.clone().auth;
         let token = token_option.unwrap();
         let token: Token = serde_json::from_str(token.as_str()).unwrap();
         let mut refresh_token = HashMap::new();
@@ -507,31 +531,11 @@ impl StorageFile for AliStorage {
         Ok(json)
     }
 
-    async fn drive_quota(&mut self, _cloud_meta: &CloudMeta) -> ResponseResult<Quota> {
-        let empty: HashMap<String, String> = HashMap::new();
-        let resp_result = self
-            .inner.api_client
-            .post(format!(
-                "{}/{}",
-                API_DOMAIN_PREFIX, "adrive/v1.0/user/getSpaceInfo"
-            ))
-            .json(&empty)
-            .send();
-
-        let json = self.get_response_text(resp_result).await?;
-
-        // println!("{:?}", json);
-        let result: Result<DevicePersonalInfo, _> = serde_json::from_str(json.as_str());
-        let result: DevicePersonalInfo = result.unwrap();
-        return Ok(result.personal_space_info.into());
-    }
-
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String> {
         let callback = format!("http://{}/api/cloud/callback", server);
         let encoded = encode(callback.as_str());
         Ok(format!("{}/oauth/authorize?response_type=code&client_id={}&redirect_uri={}&scope=user:base,file:all:read&state={}", AUTH_DOMAIN_PREFIX, "iWjfcOWq0BoUNZABxy4hGtXPdftzPtG8", encoded, id))
     }
-
     async fn callback(&self, server: String, code: String, _cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
         let callback = format!("http://{}/api/cloud/callback", server);
         let encoded = encode(callback.as_str());
@@ -547,7 +551,6 @@ impl StorageFile for AliStorage {
         info!("{}", json_text);
         Ok(String::from(json_text))
     }
-
     async fn after_callback(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<()> {
         let result = self.get_drive_id(cloud_meta.clone()).await.unwrap();
         let extra = AliExtra {

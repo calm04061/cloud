@@ -91,13 +91,14 @@ impl DavFile for CloudDavFile {
     }
 
     fn write_buf(&mut self, _buf: Box<dyn Buf + Send>) -> FsFuture<()> {
+        info!("write_buf,{},pos:{}", self.file_meta.name,self.pos);
         todo!()
     }
 
     fn write_bytes(&mut self, buf: Bytes) -> FsFuture<()> {
         async move {
             let id = self.file_meta.id.unwrap();
-            debug!("write_bytes,{}:{},pos:{},len:{}", id,self.file_meta.name,self.pos,buf.len());
+            info!("write_bytes,{}:{},pos:{},len:{}", id,self.file_meta.name,self.pos,buf.len());
             self.fs.write(id as u64, self.pos as i64, buf.as_ref()).await.unwrap();
             self.pos += buf.len();
             Ok(())

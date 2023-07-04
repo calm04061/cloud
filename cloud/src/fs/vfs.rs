@@ -130,7 +130,7 @@ impl VirtualFileSystem {
         let parent_id = meta.id.unwrap();
         CONTEXT
             .file_manager
-            .new_file(parent_id as i32, name.as_str(), FileMetaType::FILE)
+            .new_file(parent_id, name.as_str(), FileMetaType::FILE)
             .await
     }
     pub(crate) fn del_file(&self, parent: u64, name: &str) -> ResponseResult<()> {
@@ -176,7 +176,7 @@ impl VirtualFileSystem {
             let temp = &data[start..];
             let result = self
                 .inner
-                .write(ino, (offset + start as i64) as i64, temp)
+                .write(ino, offset + start as i64, temp)
                 .await
                 .unwrap();
             start = start + result as usize;
@@ -508,7 +508,7 @@ impl Inner {
     ) {
         let file_block_meta_opt = CONTEXT
             .file_manager
-            .file_block_meta_index(file_meta_id, block_index as i64)
+            .file_block_meta_index(file_meta_id, block_index)
             .await;
 
         let file_block_meta = match file_block_meta_opt {
@@ -523,7 +523,6 @@ impl Inner {
             Some(f) => f,
         };
         self.write_block(file_block_meta.clone(), data, seek);
-        // let result = self.cloud_file.upload_content("621af67887d1f1ffb94a41e9bb6f4174188ffcb0", file_block_meta.file_meta_id.as_str(), data.to_vec()).unwrap();
         let mut meta = CONTEXT
             .file_manager
             .file_block_meta_info_by_id(file_block_meta.id.unwrap())

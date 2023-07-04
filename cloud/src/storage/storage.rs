@@ -2,7 +2,7 @@ use std::future::Future;
 
 use crate::domain::table::tables::CloudMeta;
 use bytes::Bytes;
-use log::{error, info};
+use log::{debug, error, info};
 use reqwest::{Body, Response, StatusCode};
 use reqwest_middleware::{ClientWithMiddleware, Error};
 use serde::{Deserialize, Serialize};
@@ -367,18 +367,18 @@ pub trait Network {
         &self,
         future: impl Future<Output=Result<Response, Error>> + Send,
     ) -> ResponseResult<String> {
-        info!("start get_response_text");
+        debug!("start get_response_text");
         let resp_result = future.await;
-        info!("future get_response_text");
+        debug!("future get_response_text");
         let json_string_result = match resp_result {
             Ok(resp) => {
-                info!("aa");
+                debug!("aa");
                 let code = resp.status();
                 if code == StatusCode::OK
                     || code == StatusCode::CREATED
                     || code == StatusCode::BAD_REQUEST
                 {
-                    info!("bbb");
+                    debug!("bbb");
                     let x = resp.text();
                     x.await
                 } else if code == StatusCode::NO_CONTENT {

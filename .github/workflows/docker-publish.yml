@@ -9,7 +9,7 @@ on:
   # schedule:
   #   - cron: '28 1 * * *'
   push:
-    branches: [ master ]
+    branches: [ master ,"develop"]
     # Publish semver tags as releases.
     tags: [ 'v*.*.*' ]
   pull_request:
@@ -80,7 +80,7 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/arm/v7
+          platforms: linux/arm64/v8,linux/amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

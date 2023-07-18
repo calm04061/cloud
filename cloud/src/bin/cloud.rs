@@ -42,13 +42,19 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 #[cfg(windows)]
 fn sigint_handler(server_handle: ServerHandle) {
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
-    let term = Arc::new(AtomicBool::new(false));
-    signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term)).unwrap();
-    while !term.load(Ordering::Relaxed) {}
-    info!("Received signal ");
-    rt::System::new().block_on(server_handle.stop(true));
+    ctrlc::set_handler(move || {
+        rt::System::new().block_on(server_handle.stop(true));
+    }).expect("failed to set Ctrl-C handler");
+
+    println!("File system is mounted, press Ctrl-C to unmount.");
+
+    // use std::sync::atomic::{AtomicBool, Ordering};
+    // use std::sync::Arc;
+    // let term = Arc::new(AtomicBool::new(false));
+    // signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term)).unwrap();
+    // while !term.load(Ordering::Relaxed) {}
+    // info!("Received signal ");
+    // rt::System::new().block_on(server_handle.stop(true));
 }
 
 #[cfg(not(windows))]

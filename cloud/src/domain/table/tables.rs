@@ -47,7 +47,7 @@ pub struct FileMeta {
 pub struct CloudMeta {
     pub(crate) id: Option<i32>,
     pub(crate) name: String,
-    pub token: Option<String>,
+    pub auth: Option<String>,
     pub last_work_time: Option<i64>,
     pub data_root: Option<String>,
     pub status: i8,

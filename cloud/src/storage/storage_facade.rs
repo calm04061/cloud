@@ -49,7 +49,7 @@ impl StorageFacade {
     async fn refresh_token(&mut self, id: i32) -> ResponseResult<CloudMeta> {
         let mut meta = self.inner.get_meta_info(id).await.unwrap();
         let result = self.inner.refresh_token(&meta).await.unwrap();
-        meta.token = Some(result);
+        meta.auth = Some(result);
         self.inner.update_meta_info(&meta).await.unwrap();
         Ok(meta)
     }
@@ -71,7 +71,7 @@ impl StorageFacade {
             }
         };
         info!("result:{}",result);
-        cloud_meta.token = Some(result);
+        cloud_meta.auth = Some(result);
         cloud_meta.status = MetaStatus::WaitDataRoot.into();
         self.inner.update_meta_info(&cloud_meta).await.unwrap();
         self.inner.after_callback(&mut cloud_meta).await;
@@ -213,7 +213,7 @@ impl Inner {
         let mut cloud = self.get_cloud(cloud_meta.cloud_type.into());
         // let mut cloud = cloud.lock().unwrap();
         let result = cloud.refresh_token(&mut cloud_meta).await.unwrap();
-        cloud_meta.token = Some(result.clone());
+        cloud_meta.auth = Some(result.clone());
         self.update_meta_info(&cloud_meta).await.unwrap();
         Ok(result)
     }

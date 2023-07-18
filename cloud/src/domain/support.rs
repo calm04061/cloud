@@ -23,7 +23,7 @@ impl Default for CloudMeta {
         CloudMeta {
             id: None,
             name: "".to_string(),
-            token: None,
+            auth: None,
             last_work_time: None,
             data_root: None,
             status: 0,

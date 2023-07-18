@@ -390,8 +390,8 @@ impl StorageFile for BaiduStorage {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
 
-        let token_option = cloud_meta.token.clone();
-        let token = token_option.unwrap();
+        let auth_option = cloud_meta.auth.clone();
+        let token = auth_option.unwrap();
         let token: Token = serde_json::from_str(token.as_str()).unwrap();
         // let mut refresh_token = HashMap::new();
         // refresh_token.insert("refresh_token", token.refresh_token);

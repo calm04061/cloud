@@ -488,7 +488,7 @@ impl StorageFile for AliStorage {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
 
-        let token_option = cloud_meta.clone().token;
+        let token_option = cloud_meta.clone().auth;
         let token = token_option.unwrap();
         let token: Token = serde_json::from_str(token.as_str()).unwrap();
         let mut refresh_token = HashMap::new();

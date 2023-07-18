@@ -155,7 +155,7 @@ impl StorageFile for OneDriveStorage {
         let client_id = self.client_id().clone();
         let client_secret = self.client_secret().clone();
         let mut form = vec![];
-        let token = cloud_meta.clone().token.unwrap();
+        let token = cloud_meta.clone().auth.unwrap();
         let token: AuthorizationToken = serde_json::from_str(token.as_str()).unwrap();
         let refresh_token = token.refresh_token.unwrap();
         form.push(("grant_type", "refresh_token"));

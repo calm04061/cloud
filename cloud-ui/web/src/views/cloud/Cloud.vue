@@ -1,14 +1,31 @@
 <script setup lang="ts">
-import {getAllMeta, addMeta, updateMeta,deleteMeta} from "@/api/cloudApi";
+import {addMeta, deleteMeta, getAllMeta, getSupportCloud, updateMeta} from "@/api/cloudApi";
 import {useRouter} from 'vue-router'
-const desserts = ref([]);
 
+interface CloudMeta{
+  id: number,
+  name: string,
+  status: string,
+  auth: any,
+  cloud_type: string,
+  total_quota: string,
+  used_quota: string,
+  data_root: string,
+  remaining_quota: string,
+}
+const desserts = ref<CloudMeta[]>([]);
 const list = async () => {
-  let a = await getAllMeta();
-  desserts.value = a.data.data;
+  let meta = await getAllMeta();
+  let temp = meta.data.data;
+  temp=temp.map((val)=>{
+    val.auth = JSON.parse(val.auth)
+    val.cloud_type = val.cloud_type.toString()
+    return val;
+  });
+  desserts.value = temp;
 };
 
-onMounted(() => {
+onMounted(async () => {
   const { currentRoute } = useRouter();
   const route = currentRoute.value;
   let callback=route.query.callback
@@ -16,9 +33,11 @@ onMounted(() => {
     opener.location.reload();
     self.close()
   }
-  console.log(list());
+  let temp = await getSupportCloud();
+  cloud_types.value = temp.data.data;
+  await list();
 });
-const cloud_types = ref([{id: 1, name: "阿里云盘"}, {id: 2, name: "百度"}, {id: 3, name: "本地磁盘"}, {id: 4, name: "OneDrive"}])
+const cloud_types = ref()
 const status = ref([{id: 0, name: "待初始化"}, {id: 1, name: "待配置根目录"}, {id: 2, name: "可用"}, {
   id: 3,
   name: "token失效"
@@ -27,29 +46,33 @@ const dialog = ref(false);
 const search = ref("");
 const editedIndex = ref(-1);
 const refForm = ref();
-const editedItem = ref({
-  id: "",
+const editedItem = ref<CloudMeta>({
+  id: 0,
   name: "",
   status: "",
-  cloud_type: "",
+  auth: {},
+  cloud_type: "1",
   total_quota: "",
   used_quota: "",
+  data_root: "",
   remaining_quota: "",
 });
-const defaultItem = ref({
-  id: "",
+const defaultItem = ref<CloudMeta>({
+  id: 0,
   name: "",
   status: "",
-  cloud_type: "",
+  auth: {},
+  cloud_type: "1",
   total_quota: "",
+  data_root: "",
   used_quota: "",
   remaining_quota: "",
 });
 
-const nameRules = [
-  (v) => !!v || "Name is required",
-  (v) => (v && v.length <= 10) || "Name must be less than 10 characters",
-];
+// const nameRules = [
+//   (v) => !!v || "Name is required",
+//   (v) => (v && v.length <= 10) || "Name must be less than 10 characters",
+// ];
 // const convertVolume = computed((v) => {
 //   return desserts.value.filter((user: any) => {
 //     return user.name.toLowerCase().includes(search.value.toLowerCase());
@@ -88,7 +111,6 @@ function convertStatus(v) {
     }
   }
 }
-
 //Methods
 const filteredList = computed(() => {
   return desserts.value.filter((user: any) => {
@@ -126,10 +148,8 @@ function close() {
 async function save() {
   if (editedIndex.value > -1) {
     await updateMeta(editedItem.value,editedItem.value.id);
-    // Object.assign(desserts.value[editedIndex.value], editedItem.value);
   } else {
     await addMeta(editedItem.value);
-    // desserts.value.push(editedItem.value);
   }
   await list();
   close();
@@ -158,17 +178,15 @@ const formTitle = computed(() => {
           <v-col cols="12" lg="8" md="6" class="text-right">
             <v-dialog v-model="dialog" max-width="700">
               <template v-slot:activator="{ props }">
-                <v-btn color="primary" v-bind="props" flat class="ml-auto">
+                <v-btn color="primary" v-bind="props" flat class="ml-auto" @click="editItem(defaultItem)">
                   <v-icon class="mr-2">mdi-account-multiple-plus</v-icon>
-                  Add
-                  Cloud
+                  Add Cloud
                 </v-btn>
               </template>
               <v-card>
                 <v-card-title class="pa-4 bg-secondary">
                   <span class="title text-white">{{ formTitle }}</span>
                 </v-card-title>
-
                 <v-card-text>
                   <v-form
                     class="mt-5"
@@ -190,6 +208,7 @@ const formTitle = computed(() => {
                         <v-select
                           variant="outlined"
                           color="primary"
+                          :readonly="editedItem.id>0"
                           v-model="editedItem.cloud_type"
                           label="类型"
                           item-value="id"
@@ -198,6 +217,59 @@ const formTitle = computed(() => {
                         ></v-select>
                       </v-col>
                     </v-row>
+                    <v-row>
+                      <v-col cols="12" sm="6" :hidden="editedItem.cloud_type!=5">
+                        <v-text-field
+                            variant="outlined"
+                            color="primary"
+                            required
+                            v-model="editedItem.auth.username"
+                            label="用户名"
+                        ></v-text-field>
+                      </v-col>
+                      <v-col cols="12" sm="6" :hidden="editedItem.cloud_type!=5">
+                        <v-text-field
+                            variant="outlined"
+                            color="primary"
+                            type="password"
+                            required
+                            v-model="editedItem.auth.password"
+                            label="密码"
+                        ></v-text-field>
+                      </v-col>
+                    </v-row>
+                    <v-row>
+                      <v-col cols="12" sm="6" :hidden="editedItem.cloud_type!=5">
+                        <v-text-field
+                            variant="outlined"
+                            color="primary"
+                            required
+                            v-model="editedItem.auth.hostname"
+                            label="主机"
+                        ></v-text-field>
+                      </v-col>
+                      <v-col cols="12" sm="6" :hidden="editedItem.cloud_type!=5">
+                        <v-text-field
+                            variant="outlined"
+                            color="primary"
+                            required
+                            v-model="editedItem.auth.port"
+                            label="端口"
+                        ></v-text-field>
+                      </v-col>
+                    </v-row>
+                    <v-row>
+                      <v-col cols="12" :hidden="!(editedItem.cloud_type==3||editedItem.cloud_type==5)">
+                      <v-text-field
+                            variant="outlined"
+                            color="primary"
+                            required
+                            v-model="editedItem.data_root"
+                            label="存储路径"
+                        ></v-text-field>
+                      </v-col>
+                    </v-row>
+
                   </v-form>
                 </v-card-text>
                 <v-divider></v-divider>
@@ -206,9 +278,6 @@ const formTitle = computed(() => {
                   <v-btn color="error" @click="close">Cancel</v-btn>
                   <v-btn
                     color="secondary"
-                    :disabled="
-                      editedItem.username == '' || editedItem.usermail == ''
-                    "
                     variant="flat"
                     @click="save"
                   >Save
@@ -242,19 +311,8 @@ const formTitle = computed(() => {
           <td class="font-weight-bold">{{ item.id }}</td>
           <td>
             <div class="d-flex align-center py-1">
-              <div>
-                <v-img
-                  :src="item.avatar"
-                  width="40"
-                  class="rounded-circle img-fluid"
-                ></v-img>
-              </div>
-
               <div class="ml-5">
                 <p class="font-weight-bold">{{ item.name }}</p>
-                <!--                  <span class="d-block mt-1 text-caption textSecondary">{{-->
-                <!--                    item.usermail-->
-                <!--                  }}</span>-->
               </div>
             </div>
           </td>

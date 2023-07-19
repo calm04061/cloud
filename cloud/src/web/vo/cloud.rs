@@ -6,17 +6,19 @@ use crate::domain::table::tables::CloudMeta;
 pub struct CloudMetaVo {
     pub name: String,
     pub cloud_type: CloudType,
+    pub auth: Option<String>,
+    pub data_root: Option<String>,
 }
 
 impl From<CloudMetaVo> for CloudMeta {
     fn from(meta: CloudMetaVo) -> Self {
-        let cloud_type:i8=meta.cloud_type.into();
+        let cloud_type: i8 = meta.cloud_type.into();
         CloudMeta {
             id: None,
             name: meta.name,
-            auth: None,
+            auth: meta.auth,
             last_work_time: None,
-            data_root: None,
+            data_root: meta.data_root,
             status: 0,
             deleted: 0,
             cloud_type,

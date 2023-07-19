@@ -24,7 +24,7 @@ unsafe impl Send for CloudFS {}
 impl CloudFS {
     pub(crate) fn from(cache_file: &str) -> CloudFS {
         CloudFS {
-            vfs: VirtualFileSystem::new(cache_file.clone()),
+            vfs: VirtualFileSystem::new(cache_file),
         }
     }
     pub(crate) fn convert_attr(&self, f: FileMeta) -> FileAttr {
@@ -90,7 +90,7 @@ impl CloudFS {
                 let attr = self.convert_attr(meta);
                 let data = vec![];
                 let data = data.as_slice();
-                self.vfs.write(attr.ino, 0, data.clone()).await.ok();
+                self.vfs.write(attr.ino, 0, data).await.ok();
                 reply.entry(&TTL, &attr, 0);
             });
     }

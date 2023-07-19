@@ -5,6 +5,7 @@ mod file;
 #[cfg(not(windows))]
 pub(crate) mod fs;
 pub(crate) mod meta;
+mod support;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(meta::list);
@@ -18,7 +19,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(file::root_files);
     cfg.service(authorize::authorize);
     cfg.service(authorize::callback);
-    #[cfg(not(windows))]
+    cfg.service(support::cloud_types);
     fs(cfg);
 }
 
@@ -31,4 +32,8 @@ fn fs(cfg: &mut web::ServiceConfig) {
     cfg.app_data(Data::new(manager))
         .service(fs::umount)
         .service(fs::mount);
+}
+#[cfg(windows)]
+fn fs(cfg: &mut web::ServiceConfig) {
+
 }

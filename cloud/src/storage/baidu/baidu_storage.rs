@@ -214,7 +214,7 @@ impl Storage for BaiduStorage {
         let path = format!("{}/{}", cloud_meta.data_root.as_ref().unwrap(), file_block.file_part_id);
         let mut par = vec![];
         // let mut parameter = HashMap::new();
-        par.push(("path", path.as_str().clone()));
+        par.push(("path", path.as_str()));
         par.push(("size", size));
         par.push(("isdir", "0"));
         par.push(("autoinit", "1"));

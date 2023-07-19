@@ -501,6 +501,24 @@ impl OAuthStorageFile for AliStorage {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
 
+        let token_option = cloud_meta.clone().auth;
+        let token = token_option.unwrap();
+        let token: Token = serde_json::from_str(token.as_str()).unwrap();
+        let mut refresh_token = HashMap::new();
+        refresh_token.insert("refresh_token", token.refresh_token);
+
+        let resp_result = self
+            .inner.api_client
+            .post(format!("{}/{}", API_DOMAIN_PREFIX, "token/refresh"))
+            .json(&refresh_token)
+            .build()
+            .unwrap();
+        let resp_result = self
+            .inner.api_client
+            .execute_with_extensions(resp_result, &mut extensions);
+        let json = self.get_response_text(resp_result).await?;
+        Ok(json)
+    }
 
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String> {
         let callback = format!("http://{}/api/cloud/callback", server);

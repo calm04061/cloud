@@ -12,6 +12,7 @@ use crate::storage::ali::ali_storage::AliStorage;
 use crate::storage::baidu::baidu_storage::BaiduStorage;
 use crate::storage::local::local_storage::LocalStorage;
 use crate::storage::onedrive::onedrive_storage::OneDriveStorage;
+use crate::storage::sftp::sftp_storage::SftpStorage;
 use crate::storage::storage::{CreateResponse, OAuthStorageFile, ResponseResult, Storage};
 use crate::util::IntoOne;
 use crate::web::vo::auth::Callback;
@@ -190,9 +191,10 @@ impl Inner {
             CloudType::Baidu => Ok(Box::new(BaiduStorage::new())),
             CloudType::Local => Ok(Box::new(LocalStorage::new())),
             CloudType::OneDrive => Ok(Box::new(OneDriveStorage::new())),
-            _ => {
-                Err("unsupported type")
-            }
+            CloudType::Sftp => Ok(Box::new(SftpStorage::new())),
+            // _ => {
+            //     Err("unsupported type")
+            // }
         };
         return cloud;
     }

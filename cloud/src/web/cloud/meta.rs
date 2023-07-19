@@ -1,8 +1,9 @@
 use actix_web::web::{Json, Path};
-use actix_web::{delete, get, post,  Responder, Result};
+use actix_web::{delete, get, post, Responder, Result};
 
 use crate::database::meta::cloud::{MetaStatus};
-use crate::database::meta::CloudMetaManager;
+use crate::database::meta::{CloudMetaManager, CloudType};
+use crate::database::meta::CloudType::{Local, Sftp};
 use crate::domain::table::tables::CloudMeta;
 use crate::service::CONTEXT;
 use crate::web::common::WebResult;
@@ -20,17 +21,19 @@ pub(crate) async fn new(
     meta: Json<CloudMetaVo>,
 ) -> impl Responder {
     let vo = meta.0.clone();
-    let meta = CloudMeta::from(vo);
+    let mut meta = CloudMeta::from(vo);
+    let cloud_type :CloudType = meta.cloud_type.into();
+    match cloud_type {
+        Local => {
+            meta.status = MetaStatus::Enable.into();
+        }
+        Sftp => {
+            meta.status = MetaStatus::Enable.into();
+        }
+        _ => {}
+    }
     let meta = CONTEXT.cloud_meta_manager.add(&meta).await.unwrap();
-    // HttpResponse::MovedPermanently()
-    //     .append_header((
-    //         "Location",
-    //         format!("/api/storage/baidu/authorize/{}", meta.id.unwrap()),
-    //     ))
-    //     .finish()
-
     WebResult::actix_web_json_result(&meta.id)
-
 }
 
 #[get("/storage/meta/{id}")]
@@ -48,6 +51,8 @@ pub(crate) async fn update(
 ) -> Result<impl Responder> {
     let mut meta_db = CONTEXT.cloud_meta_manager.info(id.into_inner()).await.unwrap();
     meta_db.name = meta.name.clone();
+    meta_db.auth = meta.auth.clone();
+    meta_db.data_root = meta.data_root.clone();
     let x = CONTEXT.cloud_meta_manager.update_meta(&meta_db).await;
     Ok(WebResult::actix_web_json_result(&x))
 }

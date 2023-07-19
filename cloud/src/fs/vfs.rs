@@ -15,6 +15,7 @@ use crate::error::ErrorInfo;
 use crate::service::CONTEXT;
 use crate::storage::storage::ResponseResult;
 use crate::storage::storage_facade::StorageFacade;
+pub(crate) const DEFAULT_TEMP_PATH: &str = "/var/lib/storage/temp";
 
 pub const CLOUD_FILE_BLOCK_SIZE: usize = 4194304 * 4;
 

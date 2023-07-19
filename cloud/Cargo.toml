@@ -49,7 +49,6 @@ quartz_sched = "0.1.11"
 urlencoding = "2.1.2"
 once_cell = "1.17.1"
 async-recursion = "1.0.4"
-fuser = { version = "0.12.0" }
 dav-server = { version = "0.5.5", features = ["actix-compat"] }
 futures-util = { version = "0.3.28" }
 cloud-ui = { path = "../cloud-ui" }

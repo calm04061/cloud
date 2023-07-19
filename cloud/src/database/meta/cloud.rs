@@ -32,7 +32,6 @@ impl CloudMetaManager for SimpleCloudMetaManager {
     async fn add(&self, meta: &CloudMeta) -> ResponseResult<CloudMeta> {
         let mut meta = meta.clone();
         meta.deleted = i8::from(false);
-        meta.status = MetaStatus::WaitInit.into();
         let id = CloudMeta::insert(pool!(), &meta)
             .await
             .unwrap()
@@ -49,34 +48,12 @@ impl CloudMetaManager for SimpleCloudMetaManager {
             return None;
         }
         vec.into_one()
-        // let connection = self.pool.get().unwrap();
-        // let mut statement = connection
-        //     .prepare("select * from cloud_meta where id=:id")
-        //     .unwrap();
-        //
-        // let result = statement.query_row(
-        //     named_params! {
-        //         ":id": id,
-        //     },
-        //     |r| Ok(CloudMeta::from(r)),
-        // );
-        // return if let Ok(r) = result { Some(r) } else { None };
     }
     async fn update_meta(&self, meta: &CloudMeta) -> Option<CloudMeta> {
         CloudMeta::update_by_column(pool!(), meta, "id")
             .await
             .unwrap();
-        // let connection = self.pool.get().unwrap();
-        // let mut statement = connection.prepare("update cloud_meta set name =:name,token =:token,last_work_time =:last_work_time,status =:status  where id = :id").unwrap();
-        // statement
-        //     .execute(named_params! {
-        //         ":name":meta.name,
-        //         ":token":meta.token,
-        //         ":last_work_time":meta.last_work_time,
-        //         ":status":meta.status,
-        //         ":id":meta.id,
-        //     })
-        //     .unwrap();
+
         return self.info(meta.id.unwrap()).await;
     }
 
@@ -86,16 +63,6 @@ impl CloudMetaManager for SimpleCloudMetaManager {
         CloudMeta::update_by_column(pool!(), &meta, "id")
             .await
             .unwrap();
-        // let connection = self.pool.get().unwrap();
-        // let mut statement = connection
-        //     .prepare("update cloud_meta set deleted =:deleted where id = :id")
-        //     .unwrap();
-        // statement
-        //     .execute(named_params! {
-        //         ":deleted":true,
-        //         ":id":id,
-        //     })
-        //     .unwrap();
         return self.info(id).await;
     }
 }

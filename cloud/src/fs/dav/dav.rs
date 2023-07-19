@@ -27,7 +27,7 @@ impl CloudDavFs {
     pub(crate) fn new(cache_file: &str, prefix: &str) -> Self {
         CloudDavFs {
             inner: Arc::new(CloudDavFsInner {
-                fs: VirtualFileSystem::new(cache_file.clone()),
+                fs: VirtualFileSystem::new(cache_file),
                 // fs_access_guard: None,
                 prefix: prefix.to_string(),
             }),
@@ -131,7 +131,7 @@ impl DavFileSystem for CloudDavFs {
         async move {
             let from_full_path = self.fs_path(from);
             let to_full_path = self.fs_path(to);
-            self.inner.fs.rename_path(from_full_path.as_str().clone(), to_full_path.as_str().clone()).await.ok();
+            self.inner.fs.rename_path(from_full_path.as_str(), to_full_path.as_str()).await.ok();
             Ok(())
         }.boxed()
     }

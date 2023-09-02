@@ -5,3 +5,5 @@ resolver = "2"
 strip = true
 opt-level = "z"
 lto = true
+panic = "abort"
+codegen-units = 1

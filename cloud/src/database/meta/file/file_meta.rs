@@ -1,11 +1,11 @@
 use log::info;
-use rbatis::utils::into_one::IntoOne;
 
 use crate::database::meta::FileMetaType::DIR;
 use crate::database::meta::{FileMetaType, FileStatus};
 use crate::domain::table::tables::FileMeta;
 use crate::pool;
 use crate::storage::storage::ResponseResult;
+use crate::util::IntoOne;
 
 pub struct SimpleFileMetaManager {}
 

@@ -1,6 +1,5 @@
 use bytes::Bytes;
 use log::info;
-use rbatis::utils::into_one::IntoOne;
 
 use crate::database::meta::cloud::MetaStatus;
 use crate::database::meta::{CloudMetaManager, CloudType};
@@ -14,6 +13,7 @@ use crate::storage::baidu::baidu_storage::BaiduStorage;
 use crate::storage::local::local_storage::LocalStorage;
 use crate::storage::onedrive::onedrive_storage::OneDriveStorage;
 use crate::storage::storage::{CreateResponse, OAuthStorageFile, ResponseResult, StorageFile};
+use crate::util::IntoOne;
 use crate::web::vo::auth::Callback;
 
 #[derive(Clone)]

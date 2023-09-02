@@ -5,6 +5,8 @@ edition = "2021"
 license = "MFT"
 description = "cloud-ui"
 build = "build.rs"
+[lib]
+crate-type = ["lib", "cdylib"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 actix-web = "4.3.1"

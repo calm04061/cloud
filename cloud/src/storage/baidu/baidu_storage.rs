@@ -19,10 +19,10 @@ use crate::storage::storage::{CloudStorageFile, CreateResponse, FileInfo, FileIt
 use async_trait::async_trait;
 use crypto::digest::Digest;
 use crypto::md5::Md5;
-use rbatis::utils::into_one::IntoOne;
 use reqwest::multipart::{Form, Part};
 use serde::Serialize;
 use serde_json::Error;
+use crate::util::IntoOne;
 
 // const CHUNK_SIZE: usize = 10485760;
 const BLOCK_SIZE: usize = 1024 * 1024 * 4;

@@ -40,7 +40,7 @@ thread_local = "1.1.7"
 dotenv = "0.15.0"
 openssl = { version = "0.10.57" }
 rbs = { version = "4.3.3" }
-rbatis = { version = "4.3.14" }
+rbatis = { version = "4.3.15" }
 rbdc-sqlite = { version = "4.3.12" }
 #threads_pool = "^0.2.0"
 #lru = "0.7.5"

@@ -38,9 +38,9 @@ impl quartz_sched::Job for Box<Scan> {
                         file_block.id.unwrap(),
                         origin_status,
                     )
-                    .await
-                    .unwrap()
-                    .rows_affected;
+                        .await
+                        .unwrap()
+                        .rows_affected;
                     if i > 0 {
                         let cloud_meta = CONTEXT
                             .cloud_meta_manager
@@ -61,6 +61,10 @@ impl quartz_sched::Job for Box<Scan> {
                             .file_block_meta_info_by_id(file_block.file_block_id)
                             .await
                             .unwrap();
+                        if file_block_meta.part_hash == None {
+                            error!("{} part_hash is none", file_block_meta.id.unwrap());
+                            continue;
+                        }
                         let cache_file = format!(
                             "{}/{}",
                             self.cache_file.clone(),
@@ -130,8 +134,8 @@ impl quartz_sched::Job for Box<Scan> {
                                     file_block.id.unwrap(),
                                     FileStatus::Uploading.into(),
                                 )
-                                .await
-                                .unwrap();
+                                    .await
+                                    .unwrap();
                                 info!("upload {} done", cache_file);
                             }
                             Err(e) => {
@@ -143,8 +147,8 @@ impl quartz_sched::Job for Box<Scan> {
                                     file_block.id.unwrap(),
                                     FileStatus::Uploading.into(),
                                 )
-                                .await
-                                .unwrap();
+                                    .await
+                                    .unwrap();
                             }
                         }
                     }

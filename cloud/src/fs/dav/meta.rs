@@ -1,18 +1,17 @@
-use std::{env, fs};
 use std::fmt::{Debug};
-use std::fs::File;
-use std::io::{Error, ErrorKind, Read, Seek, SeekFrom, Write};
+use std::io::{Error, ErrorKind, SeekFrom};
 use std::io::SeekFrom::Start;
 use std::time::SystemTime;
-use bytes::{Buf, Bytes};
+use bytes::{Buf, BufMut, Bytes};
 use chrono::{Local, TimeZone};
 use dav_server::fs::{DavDirEntry, DavFile, DavMetaData, FsFuture, FsResult};
 use futures_util::{future, FutureExt};
 use log::{debug, info};
-use uuid::Uuid;
 use crate::database::meta::FileMetaType;
 use crate::domain::table::tables::FileMeta;
 use crate::fs::vfs::VirtualFileSystem;
+
+const BLOCK_SIZE: usize = 1024 * 128;
 
 #[derive(Debug, Clone)]
 pub struct CloudFsMetaData {
@@ -73,8 +72,9 @@ pub(crate) struct CloudDavFile {
     pub(crate) file_meta: FileMeta,
     pub(crate) fs: VirtualFileSystem,
     pos: usize,
-    temp_file: Option<String>,
-
+    temp_pos: usize,
+    temp_buf: Vec<u8>,
+    // temp_file: Option<String>,
 }
 
 impl CloudDavFile {
@@ -83,7 +83,8 @@ impl CloudDavFile {
             file_meta,
             fs: system,
             pos: 0,
-            temp_file: None,
+            temp_pos: 0,
+            temp_buf: vec![],
         }
     }
 }
@@ -104,21 +105,19 @@ impl DavFile for CloudDavFile {
     fn write_bytes(&mut self, buf: Bytes) -> FsFuture<()> {
         async move {
             let id = self.file_meta.id.unwrap();
-            let mut file;
-            if let Some(file_path) = self.temp_file.clone() {
-                file = File::options().write(true).open(file_path).unwrap();
-            } else {
-                let dir = env::temp_dir();
-                let uuid = Uuid::new_v4().to_string();
-                let temp_file_path = format!("{}{}", dir.display(), uuid);
-                self.temp_file = Some(temp_file_path);
-                let file_path = self.temp_file.clone().unwrap();
-                file = File::options().write(true).create_new(true).open(file_path).unwrap();
+
+            self.temp_buf.put_slice(buf.as_ref());
+            let temp_size = self.temp_buf.len();
+            if temp_size > BLOCK_SIZE {
+                info!("write_block_bytes,{}:{},pos:{},len:{}", id,self.file_meta.name,self.pos,buf.len());
+                self.fs.write(id as u64, self.temp_pos as i64, self.temp_buf.as_ref()).await.unwrap();
+                self.temp_buf.clear();
+                self.pos += buf.len();
+                self.temp_pos = self.pos;
+            }else{
+                info!("write_bytes,{}:{},pos:{},len:{}", id,self.file_meta.name,self.pos,buf.len());
+                self.pos += buf.len();
             }
-            file.seek(Start(self.pos as u64)).unwrap();
-            file.write_all(buf.as_ref()).unwrap();
-            info!("write_bytes,{}:{},pos:{},len:{}", id,self.file_meta.name,self.pos,buf.len());
-            self.pos += buf.len();
             Ok(())
         }.boxed()
     }
@@ -164,22 +163,13 @@ impl DavFile for CloudDavFile {
         async move {
             info!("{}:flush",self.file_meta.id.unwrap());
             let id = self.file_meta.id.unwrap();
-            if let Some(file) = self.temp_file.clone() {
-                let mut reader = File::open(file.clone()).unwrap();
-                let mut buffer = vec![0u8; 2048 * 1024 * 64];
-                let mut start = 0;
-                while let Ok(len) = reader.read(&mut buffer) {
-                    if len == 0 {
-                        break;
-                    }
-                    let temp = &buffer[0..len];
-                    self.fs.write(id as u64, start, temp).await.unwrap();
-                    start = start + len as i64;
-                }
-                fs::remove_file(file.clone()).unwrap();
-                self.temp_file = None;
+            let temp_size = self.temp_buf.len();
+            if temp_size > 0 {
+                self.fs.write(id as u64, self.temp_pos as i64, self.temp_buf.as_ref()).await.unwrap();
+                self.temp_buf.clear();
             }
             self.pos = 0;
+            self.temp_pos = 0;
             Ok(())
         }.boxed()
     }

@@ -191,13 +191,13 @@ pub trait StorageFile {
      **/
     async fn upload_content(
         &mut self,
-        file_block: FileBlockMeta,
+        file_block: &FileBlockMeta,
         content: &Vec<u8>,
-        cloud_meta: CloudMeta,
+        cloud_meta: &CloudMeta,
     ) -> ResponseResult<CreateResponse>;
 
-    async fn delete(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<()>;
-    async fn content(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<Bytes>;
+    async fn delete(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()>;
+    async fn content(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes>;
 
     /**
      * 获得容量
@@ -206,7 +206,7 @@ pub trait StorageFile {
 }
 #[async_trait::async_trait]
 pub trait CloudStorageFile{
-    async fn info(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<FileInfo>;
+    async fn info(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo>;
     async fn list(
         &mut self,
         parent_file_id: &str,

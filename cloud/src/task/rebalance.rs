@@ -5,17 +5,17 @@ use crate::pool;
 use quartz_sched::SchedulerHandle;
 use rbatis::rbdc::datetime::DateTime;
 
-pub(crate) struct Reset {
+pub(crate) struct Rebalance {
 }
 
-impl Reset {
+impl Rebalance {
     pub(crate) fn new() -> Self {
-        Reset {
+        Rebalance {
         }
     }
 }
 
-impl quartz_sched::Job for Box<Reset> {
+impl quartz_sched::Job for Box<Rebalance> {
     fn execute(&self, _engine: Option<SchedulerHandle>) {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -41,11 +41,11 @@ async fn reset(status: i8) {
     let timestamp = update_time.unix_timestamp();
     let update_time = DateTime::from_timestamp(timestamp - (30 * 10));
     let cloud_file_block = CloudFileBlock::select_by_status(pool!(), status, update_time).await.unwrap();
-    // info!("select from {} to reset,size:{}",  status, cloud_file_block.len());
+    info!("select from {} to reset,size:{}",  status, cloud_file_block.len());
     for mut file_block in cloud_file_block {
         file_block.status = FileStatus::Init.into();
         file_block.update_time= DateTime::now();
-        // info!("update {} status from {} to {}", file_block.id.unwrap(), status, 1);
+        info!("update {} status from {} to {}", file_block.id.unwrap(), status, 1);
         CloudFileBlock::update_by_status(
             pool!(),
             &file_block,

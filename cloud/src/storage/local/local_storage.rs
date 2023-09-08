@@ -9,6 +9,7 @@ use std::path::Path;
 use tokio::fs;
 
 pub struct LocalStorage {}
+
 impl LocalStorage {
     pub(crate) fn new() -> LocalStorage {
         LocalStorage {}
@@ -30,14 +31,13 @@ impl Clone for LocalStorage {
 
 #[async_trait::async_trait]
 impl StorageFile for LocalStorage {
-
     async fn upload_content(
         &mut self,
-        file_block: FileBlockMeta,
+        file_block: &FileBlockMeta,
         content: &Vec<u8>,
-        cloud_meta: CloudMeta,
+        cloud_meta: &CloudMeta,
     ) -> ResponseResult<CreateResponse> {
-        let data_root = cloud_meta.data_root.unwrap();
+        let data_root = cloud_meta.data_root.clone().unwrap();
         let path_str = format!("{}/{}", data_root, file_block.file_part_id);
         fs::write(path_str, content).await.ok();
         Ok(CreateResponse {
@@ -54,8 +54,8 @@ impl StorageFile for LocalStorage {
         })
     }
 
-    async fn delete(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<()> {
-        let data_root = cloud_meta.data_root.unwrap();
+    async fn delete(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {
+        let data_root = cloud_meta.data_root.clone().unwrap();
         let path_str = format!("{}/{}", data_root, file_id);
         let path = Path::new(path_str.as_str());
         if path.exists() {
@@ -66,8 +66,8 @@ impl StorageFile for LocalStorage {
         Ok(())
     }
 
-    async fn content(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<Bytes> {
-        let data_root = cloud_meta.data_root.unwrap();
+    async fn content(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
+        let data_root = cloud_meta.data_root.clone().unwrap();
         let path_str = format!("{}/{}", data_root, file_id);
         let result = fs::read(path_str).await;
         let vec = result.unwrap();

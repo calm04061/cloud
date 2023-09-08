@@ -71,7 +71,7 @@ impl Network for OneDriveStorage {
 
 #[async_trait]
 impl StorageFile for OneDriveStorage {
-    async fn upload_content(&mut self, file_block: FileBlockMeta, content: &Vec<u8>, cloud_meta: CloudMeta) -> ResponseResult<CreateResponse> {
+    async fn upload_content(&mut self, file_block: &FileBlockMeta, content: &Vec<u8>, cloud_meta: &CloudMeta) -> ResponseResult<CreateResponse> {
         let data_root = cloud_meta.data_root.clone().unwrap();
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
@@ -99,14 +99,14 @@ impl StorageFile for OneDriveStorage {
     }
 
 
-    async fn delete(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<()> {
+    async fn delete(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         self.do_delete(format!("me/drive/items/{}", file_id).as_str(), &mut extensions).await.unwrap();
         Ok(())
     }
 
-    async fn content(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<Bytes> {
+    async fn content(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         let result = self
@@ -152,7 +152,7 @@ impl StorageFile for OneDriveStorage {
 #[async_trait::async_trait]
 impl CloudStorageFile for OneDriveStorage{
 
-    async fn info(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<FileInfo> {
+    async fn info(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         let json = self

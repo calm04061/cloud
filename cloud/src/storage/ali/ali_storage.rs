@@ -205,9 +205,9 @@ impl Clone for AliStorage {
 impl StorageFile for AliStorage {
     async fn upload_content(
         &mut self,
-        file_block: FileBlockMeta,
+        file_block: &FileBlockMeta,
         content: &Vec<u8>,
-        cloud_meta: CloudMeta,
+        cloud_meta: &CloudMeta,
     ) -> ResponseResult<CreateResponse> {
         let extra = cloud_meta.extra.as_ref().unwrap();
         let extra: AliExtra = serde_json::from_str(extra.as_str()).unwrap();
@@ -237,7 +237,7 @@ impl StorageFile for AliStorage {
             drive_id: drive_id.clone(),
             parent_file_id: cloud_meta.data_root.clone().unwrap(),
             part_info_list: part_infos,
-            name: file_block.file_part_id,
+            name: file_block.file_part_id.clone(),
             file_type: "file".to_string(),
             check_name_mode: Some("overwrite".to_string()),
             size: len as u64,
@@ -324,7 +324,7 @@ impl StorageFile for AliStorage {
     }
 
 
-    async fn delete(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<()> {
+    async fn delete(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {
         let extra = cloud_meta.extra.as_ref().unwrap();
         let extra: AliExtra = serde_json::from_str(extra.as_str()).unwrap();
 
@@ -354,7 +354,7 @@ impl StorageFile for AliStorage {
         }
     }
 
-    async fn content(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<Bytes> {
+    async fn content(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
         debug!("get_drive_id");
         let extra = cloud_meta.extra.as_ref().unwrap();
         let extra: AliExtra = serde_json::from_str(extra.as_str()).unwrap();
@@ -421,8 +421,8 @@ impl StorageFile for AliStorage {
 }
 #[async_trait::async_trait]
 impl CloudStorageFile for AliStorage {
-    async fn info(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<FileInfo> {
-        let extra = cloud_meta.extra.unwrap();
+    async fn info(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
+        let extra = cloud_meta.extra.clone().unwrap();
         let extra: AliExtra = serde_json::from_str(extra.as_str()).unwrap();
 
         let drive_id = extra.drive_id.unwrap();

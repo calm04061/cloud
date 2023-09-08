@@ -1,8 +1,8 @@
 use std::fmt::{Debug, Formatter};
 use std::fs;
 use std::fs::File;
-use std::io::SeekFrom::Start;
 use std::io::{Read, Seek, Write};
+use std::io::SeekFrom::Start;
 use std::path::Path;
 
 use crypto::digest::Digest;
@@ -15,6 +15,7 @@ use crate::error::ErrorInfo;
 use crate::service::CONTEXT;
 use crate::storage::storage::ResponseResult;
 use crate::storage::storage_facade::StorageFacade;
+
 pub(crate) const DEFAULT_TEMP_PATH: &str = "/var/lib/storage/temp";
 
 pub const CLOUD_FILE_BLOCK_SIZE: usize = 4194304 * 4;

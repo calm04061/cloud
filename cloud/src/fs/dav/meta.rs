@@ -1,17 +1,19 @@
-use std::fmt::{Debug};
+use std::fmt::Debug;
 use std::io::{Error, ErrorKind, SeekFrom};
 use std::io::SeekFrom::Start;
 use std::time::SystemTime;
+
 use bytes::{Buf, BufMut, Bytes};
 use chrono::{Local, TimeZone};
 use dav_server::fs::{DavDirEntry, DavFile, DavMetaData, FsFuture, FsResult};
 use futures_util::{future, FutureExt};
 use log::{debug, info};
+
 use crate::database::meta::FileMetaType;
 use crate::domain::table::tables::FileMeta;
 use crate::fs::vfs::VirtualFileSystem;
 
-const BLOCK_SIZE: usize = 1024 * 128;
+const BLOCK_SIZE: usize = 1024 * 1024 * 4;
 
 #[derive(Debug, Clone)]
 pub struct CloudFsMetaData {
@@ -109,13 +111,13 @@ impl DavFile for CloudDavFile {
             self.temp_buf.put_slice(buf.as_ref());
             let temp_size = self.temp_buf.len();
             if temp_size > BLOCK_SIZE {
-                info!("write_block_bytes,{}:{},pos:{},len:{}", id,self.file_meta.name,self.pos,buf.len());
+                info!("write_block_bytes,{}:{},pos:{},len:{}", id,self.file_meta.name,self.temp_pos,self.temp_buf.len());
                 self.fs.write(id as u64, self.temp_pos as i64, self.temp_buf.as_ref()).await.unwrap();
                 self.temp_buf.clear();
                 self.pos += buf.len();
                 self.temp_pos = self.pos;
-            }else{
-                info!("write_bytes,{}:{},pos:{},len:{}", id,self.file_meta.name,self.pos,buf.len());
+            } else {
+                debug!("write_bytes,{}:{},pos:{},len:{}", id,self.file_meta.name,self.pos,buf.len());
                 self.pos += buf.len();
             }
             Ok(())

@@ -84,11 +84,11 @@ impl StorageFacade {
     ///
     pub(crate) async fn upload_content(
         &mut self,
-        name: FileBlockMeta,
+        block_meta: &FileBlockMeta,
         meta: &CloudMeta,
         content: &Vec<u8>,
     ) -> ResponseResult<CreateResponse> {
-        let result = self.inner.upload_content(meta, name.clone(), content).await;
+        let result = self.inner.upload_content(meta, &block_meta, content).await;
         if let Ok(o) = result {
             return Ok(o);
         }
@@ -96,7 +96,7 @@ impl StorageFacade {
         return if let Http401(_url) = e {
             let result = self.inner.refresh_token(&meta).await;
             match result {
-                Ok(_) => self.inner.upload_content(&meta, name.clone(), content).await,
+                Ok(_) => self.inner.upload_content(&meta, &block_meta, content).await,
                 Err(e) => Err(e),
             }
         } else {
@@ -235,16 +235,16 @@ impl Inner {
     pub(crate) async fn upload_content(
         &mut self,
         cloud_meta: &CloudMeta,
-        name: FileBlockMeta,
+        block_meta: &FileBlockMeta,
         content: &Vec<u8>,
     ) -> ResponseResult<CreateResponse> {
         // let cloud_meta = self.get_token(1).await.unwrap();
         let cloud_type = cloud_meta.cloud_type.into();
-        info!("start upload {} to {:?}({})", name.file_part_id,cloud_type, cloud_meta.name);
+        info!("start upload {} to {:?}({})", block_meta.file_part_id,cloud_type, cloud_meta.name);
         let mut cloud = self.get_cloud(cloud_type).unwrap();
         // let mut cloud = cloud.lock().unwrap();
         let result = cloud
-            .upload_content(name.clone(), &content, cloud_meta.clone())
+            .upload_content(&block_meta, &content, &cloud_meta)
             .await;
         return result;
     }
@@ -260,7 +260,7 @@ impl Inner {
 
         let mut cloud = self.get_cloud(cloud_type).unwrap();
         // let mut cloud = cloud.lock().unwrap();
-        let result = cloud.delete(file_id, cloud_meta.clone()).await;
+        let result = cloud.delete(file_id, &cloud_meta).await;
 
         return result;
     }
@@ -274,7 +274,7 @@ impl Inner {
 
         let mut cloud = self.get_cloud(cloud_meta.cloud_type.into()).unwrap();
         // let mut cloud = cloud.lock().unwrap();
-        return cloud.content(file_id, cloud_meta.clone()).await;
+        return cloud.content(file_id, &cloud_meta).await;
     }
 
     pub(crate) async fn authorize(&mut self, server: &str, id: i32) -> String {

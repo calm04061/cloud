@@ -131,9 +131,9 @@ impl Network for BaiduStorage {
 impl StorageFile for BaiduStorage {
     async fn upload_content(
         &mut self,
-        file_block: FileBlockMeta,
+        file_block: &FileBlockMeta,
         content: &Vec<u8>,
-        cloud_meta: CloudMeta,
+        cloud_meta: &CloudMeta,
     ) -> ResponseResult<CreateResponse> {
         let len = content.len();
         let mut blocks = vec![];
@@ -211,9 +211,15 @@ impl StorageFile for BaiduStorage {
                 .inner
                 .api_client
                 .execute_with_extensions(resp_result, &mut extensions);
-            let string = self.inner.get_response_text(resp_result).await.unwrap();
-            debug!("upload:{}", string);
-            // self.post_file("rest/2.0/pcs/superfile2?method=upload", form, &mut extensions).await.unwrap();
+            let result_text = self.inner.get_response_text(resp_result).await;
+            match result_text {
+                Ok(string) => {
+                    debug!("upload:{}", string);
+                }
+                Err(e) => {
+                    return Err(e);
+                }
+            }
         }
         let uploadid = result.uploadid.clone();
         let uploadid = uploadid.unwrap();
@@ -225,6 +231,9 @@ impl StorageFile for BaiduStorage {
             .inner
             .do_post_form("rest/2.0/xpan/file?method=create", &vec1, &mut extensions)
             .await;
+        if let Err(e) = result {
+            return Err(e);
+        }
         let json = result.unwrap();
         debug!("create:{}", json);
         let result: BaiduCreate = serde_json::from_str(json.as_str()).unwrap();
@@ -243,8 +252,8 @@ impl StorageFile for BaiduStorage {
     }
 
 
-    async fn delete(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<()> {
-        let result = self.info(file_id, cloud_meta.clone()).await;
+    async fn delete(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {
+        let result = self.info(file_id, cloud_meta).await;
         if let Err(e) = result {
             return if e == Http(404) { Ok(()) } else { Err(e) };
         }
@@ -272,11 +281,11 @@ impl StorageFile for BaiduStorage {
         }
     }
 
-    async fn content(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<Bytes> {
+    async fn content(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
         debug!("get_download_url");
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
-        let file_info = self.info(file_id, cloud_meta.clone()).await;
+        let file_info = self.info(file_id, cloud_meta).await;
         let info = file_info.unwrap();
         let mut download_url = info.download_url.unwrap();
         loop {
@@ -312,12 +321,11 @@ impl StorageFile for BaiduStorage {
         let result: BaiduQuota = serde_json::from_str(result.as_str()).unwrap();
         Ok(result.into())
     }
-
 }
+
 #[async_trait::async_trait]
 impl CloudStorageFile for BaiduStorage {
-
-    async fn info(&mut self, file_id: &str, cloud_meta: CloudMeta) -> ResponseResult<FileInfo> {
+    async fn info(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         let mut fsids = vec![];
@@ -406,6 +414,7 @@ impl CloudStorageFile for BaiduStorage {
         return Ok(result.unwrap());
     }
 }
+
 #[async_trait]
 impl OAuthStorageFile for BaiduStorage {
     async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
@@ -445,17 +454,17 @@ impl OAuthStorageFile for BaiduStorage {
         let json_text = self.inner.get_response_text(resp_result).await;
         info!("{}", "get_response_text");
         let json_text = match json_text {
-            Ok(e) => {e}
+            Ok(e) => { e }
             Err(e) => {
                 return Err(e);
             }
         };
         info!("{}", json_text);
-        let token:Result<Token, Error> = serde_json::from_str(json_text.as_str());
+        let token: Result<Token, Error> = serde_json::from_str(json_text.as_str());
         let token = match token {
-            Ok(token) => {token}
+            Ok(token) => { token }
             Err(e) => {
-                return Err(ErrorInfo::OTHER(50,e.to_string()));
+                return Err(ErrorInfo::OTHER(50, e.to_string()));
             }
         };
         cloud_meta.expires_in = Some(token.expires_in - 10);
@@ -469,6 +478,7 @@ impl OAuthStorageFile for BaiduStorage {
         "KqEOL6F9tT2vkeeYRgKqZvyPHlGQnujM".to_string()
     }
 }
+
 impl Network for Inner {
     fn get_client(&self) -> &ClientWithMiddleware {
         &self.api_client

@@ -1,15 +1,17 @@
-mod clean;
-mod refresh_quota;
-mod scan;
-mod reset;
+use std::time::Duration;
 
 use quartz_sched::Scheduler;
-use std::time::Duration;
 
 use crate::task::clean::Clean;
 use crate::task::refresh_quota::RefreshQuota;
 use crate::task::reset::Reset;
 use crate::task::scan::Scan;
+
+mod clean;
+mod refresh_quota;
+mod scan;
+mod reset;
+mod rebalance;
 
 pub fn task_init(sched: &Scheduler<8>) {
     let cache_file = dotenv::var("TEMP_PATH").unwrap_or(String::from("/var/lib/storage/temp"));
@@ -19,7 +21,7 @@ pub fn task_init(sched: &Scheduler<8>) {
         Box::new(Clean::new(cache_file)),
     ));
     sched.schedule_task(quartz_sched::schedule_task_every(
-        Duration::from_secs(5),
+        Duration::from_secs(3),
         Box::new(Scan::new(cache_file)),
     ));
     sched.schedule_task(quartz_sched::schedule_task_every(

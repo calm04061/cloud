@@ -24,7 +24,7 @@ pub struct FileBlockMeta {
     pub(crate) file_modify_time: i64,
     pub(crate) deleted: i8,
     pub(crate) file_meta_id: i32,
-    pub(crate) part_hash: Option<String>,
+    pub(crate) part_hash: String,
     // #[deprecated]
     // pub(crate) cloud_file_hash: Option<String>,
     pub(crate) status: i8,

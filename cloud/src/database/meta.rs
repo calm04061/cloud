@@ -79,11 +79,14 @@ pub trait FileManager {
 
     // fn file_blocks(&self, file_block_meta_id: i64) -> Vec<FileBlock>;
 
-    async fn new_file_block_meta(
+    // async fn new_file_block_meta(
+    //     &self,
+    //     file_meta_id: i32,
+    //     block_index: i64,
+    // ) -> Option<FileBlockMeta>;
+     async fn save_file_block_meta(
         &self,
-        file_meta_id: i32,
-        block_index: i64,
+        meta: FileBlockMeta,
     ) -> Option<FileBlockMeta>;
-
     async fn modified_blocks(&self, before: i64) -> Vec<FileBlockMeta>;
 }

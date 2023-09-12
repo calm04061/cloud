@@ -50,10 +50,10 @@ impl Scan {
                 .file_block_meta_info_by_id(file_block.file_block_id)
                 .await
                 .unwrap();
-            if file_block_meta.part_hash == None {
-                error!("{} part_hash is none", file_block_meta.id.unwrap());
-                continue;
-            }
+            // if file_block_meta.part_hash == None {
+            //     error!("{} part_hash is none", file_block_meta.id.unwrap());
+            //     continue;
+            // }
             let cache_file = format!("{}/{}", self.cache_file, file_block_meta.file_part_id);
             debug!("upload {}", cache_file);
             let result = File::open(cache_file.clone());
@@ -109,7 +109,7 @@ impl Scan {
                     file_block.status = FileStatus::UploadSuccess.into();
                     file_block.cloud_file_id = Some(cr.file_id);
                     file_block.update_time= DateTime::now();
-                    file_block.cloud_file_hash = file_block_meta.part_hash;
+                    file_block.cloud_file_hash = Some(file_block_meta.part_hash);
                     CloudFileBlock::update_by_status(
                         pool!(),
                         &file_block,

@@ -1,6 +1,4 @@
 use log::error;
-
-use crate::database::meta::FileMetaType::FILE;
 use crate::database::meta::{FileBlockMeta, FileManager, FileMetaType};
 use crate::domain::table::tables::FileMeta;
 use crate::error::ErrorInfo;
@@ -58,13 +56,13 @@ impl FileManager for SimpleFileManager {
             return Err(ErrorInfo::new(12, "创文件失败"));
         }
         let f = option.unwrap();
-        if file_type == FILE {
-            CONTEXT
-                .file_block_meta_manager
-                .new_file_block_meta(f.id.unwrap(), 0)
-                .await
-                .unwrap();
-        }
+        // if file_type == FILE {
+            // CONTEXT
+            //     .file_block_meta_manager
+            //     .new_file_block_meta(f.id.unwrap(), 0)
+            //     .await
+            //     .unwrap();
+        // }
         return Ok(f);
     }
 
@@ -123,7 +121,7 @@ impl FileManager for SimpleFileManager {
             .unwrap()
     }
     async fn clean_file_meta(&self, id: i32) -> ResponseResult<Option<FileMeta>> {
-        let option = CONTEXT.file_meta_manager.info_by_id(id).await.unwrap();
+        let option = CONTEXT.file_meta_manager.info_by_id(id).await?;
         if let None = option {
             return Ok(None);
         }
@@ -132,12 +130,12 @@ impl FileManager for SimpleFileManager {
             .file_block_meta_manager
             .delete_file_meta_block_by_file_meta_id(id)
             .await
-            .unwrap();
+            ?;
         CONTEXT
             .file_meta_manager
             .delete_meta(&file_meta)
             .await
-            .unwrap();
+            ?;
         Ok(Some(file_meta))
     }
     async fn file_block_meta(&self, file_meta_id: i32) -> Vec<FileBlockMeta> {
@@ -176,14 +174,10 @@ impl FileManager for SimpleFileManager {
         return Ok(option);
     }
 
-    async fn new_file_block_meta(
-        &self,
-        file_meta_id: i32,
-        block_index: i64,
-    ) -> Option<FileBlockMeta> {
+    async fn save_file_block_meta(&self, meta: FileBlockMeta) -> Option<FileBlockMeta> {
         let option = CONTEXT
             .file_block_meta_manager
-            .new_file_block_meta(file_meta_id, block_index)
+            .save_file_block_meta(meta)
             .await;
         return option;
     }

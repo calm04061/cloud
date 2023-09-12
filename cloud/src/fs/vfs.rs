@@ -9,7 +9,7 @@ use crypto::digest::Digest;
 use crypto::md5::Md5;
 use log::{debug, error, info};
 
-use crate::database::meta::{FileManager, FileMetaType};
+use crate::database::meta::{FileManager, FileMetaType, FileStatus};
 use crate::domain::table::tables::{FileBlockMeta, FileMeta};
 use crate::error::ErrorInfo;
 use crate::service::CONTEXT;
@@ -49,7 +49,7 @@ impl VirtualFileSystem {
             },
         }
     }
-    pub(crate) async fn path_meta(&self, path: &str) -> ResponseResult<Option<FileMeta>>  {
+    pub(crate) async fn path_meta(&self, path: &str) -> ResponseResult<Option<FileMeta>> {
         let mut parent: Option<FileMeta> = None;
         if path.eq("/") {
             parent = CONTEXT
@@ -85,14 +85,13 @@ impl VirtualFileSystem {
             }
         }
         Ok(parent)
-
     }
     pub(crate) async fn path_info(&self, path: &str) -> ResponseResult<(Option<FileMeta>, String)> {
         let split = path.split("/");
         let name = split.last().unwrap();
         let end = (path.len() - name.len()) - 1;
         let parent_path = &path[0..end];
-        let parent: Option<FileMeta> =self.path_meta(parent_path).await.unwrap();
+        let parent: Option<FileMeta> = self.path_meta(parent_path).await.unwrap();
         Ok((parent, name.to_string()))
     }
     pub(crate) async fn create_file(
@@ -101,7 +100,6 @@ impl VirtualFileSystem {
         name: &str,
         file_type: FileMetaType,
     ) -> ResponseResult<FileMeta> {
-
         let option = CONTEXT
             .file_manager
             .info_by_parent_and_name(parent as i32, name)
@@ -172,7 +170,6 @@ impl VirtualFileSystem {
     /// 循环写入多个文件块
     ///
     pub(crate) async fn write(&mut self, ino: u64, offset: i64, data: &[u8]) -> ResponseResult<u32> {
-
         let mut start = 0;
         loop {
             let temp = &data[start..];
@@ -230,31 +227,30 @@ impl VirtualFileSystem {
         new_parent: u64,
         new_name: &str,
     ) -> ResponseResult<()> {
+        let source_file: Option<FileMeta> = CONTEXT
+            .file_manager
+            .info_by_parent_and_name(parent as i32, name)
+            .await;
+        if let None = source_file {
+            return Err(ErrorInfo::FileNotFound("源文件不存在".to_string()));
+        }
+        let target_file: Option<FileMeta> = CONTEXT
+            .file_manager
+            .info_by_parent_and_name(new_parent as i32, new_name)
+            .await;
+        if let Some(_) = target_file {
+            return Err(ErrorInfo::FileAlreadyExist("目标文件已经存在".to_string()));
+        }
+        let mut f = source_file.unwrap();
 
-                let source_file: Option<FileMeta> = CONTEXT
-                    .file_manager
-                    .info_by_parent_and_name(parent as i32, name)
-                    .await;
-                if let None = source_file {
-                    return Err(ErrorInfo::FileNotFound("源文件不存在".to_string()));
-                }
-                let target_file: Option<FileMeta> = CONTEXT
-                    .file_manager
-                    .info_by_parent_and_name(new_parent as i32, new_name)
-                    .await;
-                if let Some(_) = target_file {
-                    return Err(ErrorInfo::FileAlreadyExist("目标文件已经存在".to_string()));
-                }
-                let mut f = source_file.unwrap();
-
-                f.parent_id = new_parent as i32;
-                f.name = String::from(new_name);
-                CONTEXT.file_manager.update_meta(f).await;
-                Ok(())
+        f.parent_id = new_parent as i32;
+        f.name = String::from(new_name);
+        CONTEXT.file_manager.update_meta(f).await;
+        Ok(())
     }
-    pub(crate) async fn  rename_path(&self, from_full_path: &str, to_full_path: &str)-> ResponseResult<()> {
+    pub(crate) async fn rename_path(&self, from_full_path: &str, to_full_path: &str) -> ResponseResult<()> {
         let (parent_from, name_from) = self.path_info(from_full_path).await.unwrap();
-        let (parent_to, name_to)  = self.path_info(to_full_path).await.unwrap();
+        let (parent_to, name_to) = self.path_info(to_full_path).await.unwrap();
         self.rename(parent_from.unwrap().id.unwrap() as u64, name_from.as_str(), parent_to.unwrap().id.unwrap() as u64, name_to.as_str()).await.ok();
         Ok(())
     }
@@ -301,29 +297,25 @@ impl VirtualFileSystem {
     }
 
     pub(crate) async fn read(&mut self, ino: u64, offset: i64, size: u32) -> ResponseResult<Vec<u8>> {
-        // tokio::runtime::Builder::new_multi_thread()
-        //     .enable_all()
-        //     .build()
-        //     .unwrap()
-        //     .block_on(async {
-                debug!("read file id {},from {:?}:size={}", ino, offset, size);
-                let result = CONTEXT.file_manager.info_by_id(ino as i32).await;
-                if let Err(e) = result {
-                    error!("查询文件{}失败{}", ino, e);
-                    return Err(e);
-                }
-                let option = result.unwrap();
-                if let None = option {
-                    return Err(ErrorInfo::new(3, "文件不存在"));
-                }
-                let f = option.unwrap();
-
-                let file_block_metas = CONTEXT.file_manager.file_block_meta(f.id.unwrap()).await;
-                if file_block_metas.is_empty() {
-                    return Err(ErrorInfo::new(3, "文件块数据不存在"));
-                }
-                self.read_content(file_block_metas, offset, size).await
-            // })
+        debug!("read file id {},from {:?}:size={}", ino, offset, size);
+        let result = CONTEXT.file_manager.info_by_id(ino as i32).await;
+        if let Err(e) = result {
+            error!("查询文件{}失败{}", ino, e);
+            return Err(e);
+        }
+        let option = result.unwrap();
+        if let None = option {
+            return Err(ErrorInfo::new(3, "文件不存在"));
+        }
+        let f = option.unwrap();
+        if f.file_length == 0 {
+            return Ok(vec![]);
+        }
+        let file_block_metas = CONTEXT.file_manager.file_block_meta(f.id.unwrap()).await;
+        if file_block_metas.is_empty() {
+            return Err(ErrorInfo::new(3, "文件块数据不存在"));
+        }
+        self.read_content(file_block_metas, offset, size).await
     }
     pub(crate) async fn list_by_parent(&self, ino: u64) -> ResponseResult<Vec<FileMeta>> {
         CONTEXT.file_manager.list_by_parent(ino as i32).await
@@ -410,14 +402,6 @@ impl Inner {
             return Err(ErrorInfo::Retry);
         }
         Err(result.err().unwrap())
-
-        // match result {
-        //     Ok(_) => self.read_block(&file_block_meta, seek).await,
-        //     Err(e) => {
-        //         error!("文件写入失败,{}", e);
-        //         Err(e)
-        //     }
-        // }
     }
     fn write_local_file(&self, file_path: String, body: &[u8], seek: u64) -> ResponseResult<()> {
         let path = Path::new(file_path.as_str());
@@ -468,12 +452,7 @@ impl Inner {
         info!("read from :{} end", file_block_id);
         return a;
     }
-    pub(crate) async fn write(
-        &mut self,
-        ino: u64,
-        offset: i64,
-        data: &[u8],
-    ) -> ResponseResult<u32> {
+    pub(crate) async fn write(&mut self, ino: u64, offset: i64, data: &[u8]) -> ResponseResult<u32> {
         let option = CONTEXT.file_manager.info_by_id(ino as i32).await?;
         if let None = option {
             return Err(ErrorInfo::new(3, "文件不存在"));
@@ -501,46 +480,47 @@ impl Inner {
             Ok(data.len() as u32)
         }
     }
-    async fn upload_block_content(
-        &mut self,
-        file_meta_id: i32,
-        block_index: i64,
-        seek: u64,
-        data: &[u8],
-    ) {
+    async fn upload_block_content(&mut self, file_meta_id: i32, block_index: i64, seek: u64, data: &[u8]) {
         let file_block_meta_opt = CONTEXT
             .file_manager
             .file_block_meta_index(file_meta_id, block_index)
             .await;
-
-        let file_block_meta = match file_block_meta_opt {
-            None => {
-                // format!("{}:{}", file_id, 1);
-                CONTEXT
-                    .file_manager
-                    .new_file_block_meta(file_meta_id, block_index)
-                    .await
-                    .unwrap()
-            }
-            Some(f) => f,
-        };
-        self.write_block(file_block_meta.clone(), data, seek);
-        let mut meta = CONTEXT
-            .file_manager
-            .file_block_meta_info_by_id(file_block_meta.id.unwrap())
-            .await
-            .unwrap();
         let mut md5 = Md5::new();
         md5.input(data);
         let md5_value = md5.result_str();
-        meta.part_hash = Some(md5_value);
+        let file_block_meta = match file_block_meta_opt {
+            None => {
+                let mut md5 = Md5::new();
+                let file_name = format!("{}:{}", file_meta_id, block_index);
+                let file_name_body = file_name.as_bytes();
+                md5.input(file_name_body);
+                let file_name_hash = md5.result_str();
+
+                FileBlockMeta {
+                    id: None,
+                    file_part_id: file_name_hash,
+                    block_index,
+                    update_time: chrono::Local::now().timestamp_millis(),
+                    file_modify_time: chrono::Local::now().timestamp_millis(),
+                    file_meta_id,
+                    deleted: 0,
+                    part_hash: md5_value,
+                    status: FileStatus::Init.into(),
+                }
+            }
+            Some(mut f) => {
+                f.part_hash = md5_value;
+                f
+            }
+        };
+        self.write_block(&file_block_meta, data, seek);
         CONTEXT
             .file_manager
-            .update_file_block_meta(meta)
+            .save_file_block_meta(file_block_meta)
             .await
             .unwrap();
     }
-    fn write_block(&mut self, file_block_meta: FileBlockMeta, body: &[u8], seek: u64) {
+    fn write_block(&mut self, file_block_meta: &FileBlockMeta, body: &[u8], seek: u64) {
         let local_cache_file = format!("{}/{}", self.cache_file, file_block_meta.file_part_id);
         let result = self.write_local_file(local_cache_file, body, seek);
         match result {

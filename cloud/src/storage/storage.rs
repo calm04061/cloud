@@ -404,8 +404,8 @@ pub trait Network {
                         format!("状态码是{},body:{}", code, body),
                     ));
                 } else if code == StatusCode::NOT_FOUND {
-                    info!("NOT_FOUND");
                     let url = resp.url();
+                    info!("NOT_FOUND:{}",url);
                     return Err(ErrorInfo::Http404(url.to_string()));
                 } else {
                     info!("error");

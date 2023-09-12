@@ -93,7 +93,13 @@ impl StorageFile for OneDriveStorage {
         };
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
-        let x = self.do_put_bytes(path.as_str(), content, &mut extensions).await.unwrap();
+        let x = self.do_put_bytes(path.as_str(), content, &mut extensions).await;
+       let x=  match x {
+            Ok(v) => {v}
+            Err(e) => {
+                return Err(e);
+            }
+        };
         let drive: DriveItem = serde_json::from_str(&x).unwrap();
         Ok(drive.into())
     }

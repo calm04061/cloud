@@ -111,7 +111,7 @@ impl DavFile for CloudDavFile {
             self.temp_buf.put_slice(buf.as_ref());
             let temp_size = self.temp_buf.len();
             if temp_size > BLOCK_SIZE {
-                info!("write_block_bytes,{}:{},pos:{},len:{}", id,self.file_meta.name,self.temp_pos,self.temp_buf.len());
+                debug!("write_block_bytes,{}:{},pos:{},len:{}", id,self.file_meta.name,self.temp_pos,self.temp_buf.len());
                 self.fs.write(id as u64, self.temp_pos as i64, self.temp_buf.as_ref()).await.unwrap();
                 self.temp_buf.clear();
                 self.pos += buf.len();

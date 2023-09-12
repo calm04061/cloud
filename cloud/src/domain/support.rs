@@ -83,6 +83,7 @@ impl Default for CloudFileBlock {
 
 impl Default for FileBlockMeta {
     fn default() -> Self {
+
         FileBlockMeta {
             id: Some(0),
             block_index: 0,
@@ -91,7 +92,7 @@ impl Default for FileBlockMeta {
             file_modify_time: 0,
             deleted: 0,
             file_meta_id: 0,
-            part_hash: None,
+            part_hash: "".to_string(),
             status: 0,
         }
     }

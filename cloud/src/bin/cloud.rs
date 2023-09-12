@@ -1,12 +1,12 @@
 extern crate core;
 
 use std::error::Error;
-use std::sync::mpsc;
+use std::sync::mpsc::channel;
 use std::thread;
 
 use actix_web::dev::ServerHandle;
 use actix_web::rt;
-use log::{error, info};
+use log::{info};
 
 use cloud::task::task_init;
 use cloud::web::run_web;
@@ -20,7 +20,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    let (tx, rx) = mpsc::channel();
+    let (tx, rx) = channel();
     info!("spawning thread for server");
     thread::spawn(move || {
         let server_future = run_web(tx);
@@ -42,23 +42,20 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 #[cfg(windows)]
 fn sigint_handler(server_handle: ServerHandle) {
+    let (tx, rx) = channel();
     ctrlc::set_handler(move || {
+        tx.send(()).expect("failed to set Ctrl-C handler");
         rt::System::new().block_on(server_handle.stop(true));
+        info!("stop")
     }).expect("failed to set Ctrl-C handler");
 
-    println!("File system is mounted, press Ctrl-C to unmount.");
-
-    // use std::sync::atomic::{AtomicBool, Ordering};
-    // use std::sync::Arc;
-    // let term = Arc::new(AtomicBool::new(false));
-    // signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term)).unwrap();
-    // while !term.load(Ordering::Relaxed) {}
-    // info!("Received signal ");
-    // rt::System::new().block_on(server_handle.stop(true));
+    info!("File system is mounted, press Ctrl-C to unmount.");
+    rx.recv().unwrap();
 }
 
 #[cfg(not(windows))]
 fn sigint_handler(server_handle: ServerHandle) {
+    use log::{error};
     let signals = signal_hook::iterator::Signals::new(&[
         signal_hook::consts::SIGINT,
         signal_hook::consts::SIGTERM,

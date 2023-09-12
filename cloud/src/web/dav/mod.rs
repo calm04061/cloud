@@ -24,5 +24,5 @@ pub(crate) fn config(cfg: &mut web::ServiceConfig) {
         .build_handler();
 
     cfg.app_data(web::Data::new(dav_server.clone()))
-        .service(web::resource("/{tail:.*}").to(dav_handler));
+        .service(web::resource("{tail:.*}").to(dav_handler));
 }

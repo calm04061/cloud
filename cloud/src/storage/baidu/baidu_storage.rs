@@ -1,27 +1,24 @@
 use std::time::Duration;
 
+use async_trait::async_trait;
 use bytes::Bytes;
+use crypto::digest::Digest;
+use crypto::md5::Md5;
 use log::{debug, info};
 use reqwest::Client;
+use reqwest::multipart::{Form, Part};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use serde::Serialize;
+use serde_json::Error;
 use task_local_extensions::Extensions;
 use urlencoding::encode;
 
 use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use crate::error::ErrorInfo;
 use crate::error::ErrorInfo::{Http, Http302};
-use crate::storage::baidu::baidu_authorization_middleware::{BaiduAuthMiddleware, Token};
-use crate::storage::baidu::vo::{
-    AsyncType, BaiduCreate, BaiduFileManagerResult, BaiduOpera, BaiduPreCreate, BaiduQuota,
-    BaiduUser, FileMetas, Query, Search,
-};
-use crate::storage::storage::{CloudStorageFile, CreateResponse, FileInfo, FileItemWrapper, Network, OAuthStorageFile, Quota, ResponseResult, SearchResponse, Storage, StorageFile, User};
-use async_trait::async_trait;
-use crypto::digest::Digest;
-use crypto::md5::Md5;
-use reqwest::multipart::{Form, Part};
-use serde::Serialize;
-use serde_json::Error;
+use crate::storage::baidu::baidu_authorization_middleware::{BaiduAuthMiddleware};
+use crate::storage::baidu::vo::{AsyncType, BaiduCreate, BaiduFileManagerResult, BaiduOpera, BaiduPreCreate, BaiduQuota, FileMetas, Token};
+use crate::storage::storage::{CreateResponse, FileInfo, Network, OAuthStorageFile, Quota, ResponseResult, Storage, TokenProvider, User};
 use crate::util::IntoOne;
 
 // const CHUNK_SIZE: usize = 10485760;
@@ -45,17 +42,15 @@ pub struct BaiduStorage {
 }
 
 impl BaiduStorage {
-    async fn get_drive_id(&mut self, cloud_meta: CloudMeta) -> ResponseResult<String> {
-        let option = self.inner.user.clone();
-        let user = match option {
-            None => self.user_info(cloud_meta).await?,
-            Some(u) => u.clone(),
-        };
-        return Ok(user.default_drive_id.unwrap());
-    }
-}
+    // async fn get_drive_id(&mut self, cloud_meta: CloudMeta) -> ResponseResult<String> {
+    //     let option = self.inner.user.clone();
+    //     let user = match option {
+    //         None => self.user_info(cloud_meta).await?,
+    //         Some(u) => u.clone(),
+    //     };
+    //     return Ok(user.default_drive_id.unwrap());
+    // }
 
-impl BaiduStorage {
     pub fn new() -> Self {
         let auth_middleware = BaiduAuthMiddleware::new();
         let client = Client::builder()
@@ -81,13 +76,69 @@ impl BaiduStorage {
             },
         }
     }
-}
+    // async fn user_info(&mut self, cloud_meta: CloudMeta) -> ResponseResult<User> {
+    //     self.inner.user_info(cloud_meta).await
+    // }
+    // async fn list(
+    //     &mut self,
+    //     parent_file_id: &str,
+    //     cloud_meta: CloudMeta,
+    // ) -> ResponseResult<FileItemWrapper> {
+    //     let drive_id = self.get_drive_id(cloud_meta).await?;
+    //     let query = Query {
+    //         drive_id,
+    //         parent_file_id: parent_file_id.to_string(),
+    //         limit: 100,
+    //         all: false,
+    //         url_expire_sec: 1600,
+    //         image_thumbnail_process: "image/resize,w_400/format,jpeg".to_string(),
+    //         image_url_process: "image/resize,w_1920/format,jpeg".to_string(),
+    //         video_thumbnail_process: "video/snapshot,t_1000,f_jpg,ar_auto,w_300".to_string(),
+    //         fields: "*".to_string(),
+    //         order_by: "updated_at".to_string(),
+    //         order_direction: "DESC".to_string(),
+    //     };
+    //
+    //     let resp_result = self
+    //         .inner
+    //         .api_client
+    //         .post(format!("{}/{}", API_DOMAIN_PREFIX, "adrive/v3/file/list"))
+    //         .json(&query)
+    //         .send();
+    //
+    //     let json = self.inner.get_response_text(resp_result).await?;
+    //     // println!("{:?}", json);
+    //     let result = serde_json::from_str(json.as_str());
+    //     return Ok(result.unwrap());
+    // }
 
-#[async_trait::async_trait]
-impl Storage for BaiduStorage {
-    async fn user_info(&mut self, cloud_meta: CloudMeta) -> ResponseResult<User> {
-        self.inner.user_info(cloud_meta).await
-    }
+    // async fn search(
+    //     &mut self,
+    //     parent_file_id: &str,
+    //     name: &str,
+    //     cloud_meta: CloudMeta,
+    // ) -> ResponseResult<SearchResponse> {
+    //     let drive_id = self.get_drive_id(cloud_meta).await?;
+    //     let query = format!(
+    //         "parent_file_id = \"{}\" and (name = \"{}\")",
+    //         parent_file_id, name
+    //     );
+    //     let search = Search {
+    //         drive_id,
+    //         limit: 100,
+    //         order_by: "name ASC".to_string(),
+    //         query,
+    //     };
+    //     let resp_result = self
+    //         .inner
+    //         .api_client
+    //         .post(format!("{}/{}", API_DOMAIN_PREFIX, "adrive/v3/file/search"))
+    //         .json(&search)
+    //         .send();
+    //     let json = self.inner.get_response_text(resp_result).await?;
+    //     let result = serde_json::from_str(json.as_str());
+    //     return Ok(result.unwrap());
+    // }
 }
 
 impl Clone for BaiduStorage {
@@ -128,7 +179,7 @@ impl Network for BaiduStorage {
 }
 
 #[async_trait]
-impl StorageFile for BaiduStorage {
+impl Storage for BaiduStorage {
     async fn upload_content(
         &mut self,
         file_block: &FileBlockMeta,
@@ -321,10 +372,6 @@ impl StorageFile for BaiduStorage {
         let result: BaiduQuota = serde_json::from_str(result.as_str()).unwrap();
         Ok(result.into())
     }
-}
-
-#[async_trait::async_trait]
-impl CloudStorageFile for BaiduStorage {
     async fn info(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
@@ -352,67 +399,6 @@ impl CloudStorageFile for BaiduStorage {
         let meta = file_metas.into_one().unwrap();
         return Ok(meta.into());
     }
-
-    async fn list(
-        &mut self,
-        parent_file_id: &str,
-        cloud_meta: CloudMeta,
-    ) -> ResponseResult<FileItemWrapper> {
-        let drive_id = self.get_drive_id(cloud_meta).await?;
-        let query = Query {
-            drive_id,
-            parent_file_id: parent_file_id.to_string(),
-            limit: 100,
-            all: false,
-            url_expire_sec: 1600,
-            image_thumbnail_process: "image/resize,w_400/format,jpeg".to_string(),
-            image_url_process: "image/resize,w_1920/format,jpeg".to_string(),
-            video_thumbnail_process: "video/snapshot,t_1000,f_jpg,ar_auto,w_300".to_string(),
-            fields: "*".to_string(),
-            order_by: "updated_at".to_string(),
-            order_direction: "DESC".to_string(),
-        };
-
-        let resp_result = self
-            .inner
-            .api_client
-            .post(format!("{}/{}", API_DOMAIN_PREFIX, "adrive/v3/file/list"))
-            .json(&query)
-            .send();
-
-        let json = self.inner.get_response_text(resp_result).await?;
-        // println!("{:?}", json);
-        let result = serde_json::from_str(json.as_str());
-        return Ok(result.unwrap());
-    }
-
-    async fn search(
-        &mut self,
-        parent_file_id: &str,
-        name: &str,
-        cloud_meta: CloudMeta,
-    ) -> ResponseResult<SearchResponse> {
-        let drive_id = self.get_drive_id(cloud_meta).await?;
-        let query = format!(
-            "parent_file_id = \"{}\" and (name = \"{}\")",
-            parent_file_id, name
-        );
-        let search = Search {
-            drive_id,
-            limit: 100,
-            order_by: "name ASC".to_string(),
-            query,
-        };
-        let resp_result = self
-            .inner
-            .api_client
-            .post(format!("{}/{}", API_DOMAIN_PREFIX, "adrive/v3/file/search"))
-            .json(&search)
-            .send();
-        let json = self.inner.get_response_text(resp_result).await?;
-        let result = serde_json::from_str(json.as_str());
-        return Ok(result.unwrap());
-    }
 }
 
 #[async_trait]
@@ -420,10 +406,7 @@ impl OAuthStorageFile for BaiduStorage {
     async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
-
-        let auth_option = cloud_meta.auth.clone();
-        let token = auth_option.unwrap();
-        let token: Token = serde_json::from_str(token.as_str()).unwrap();
+        let token: Token = cloud_meta.get_token().unwrap();
         // let mut refresh_token = HashMap::new();
         // refresh_token.insert("refresh_token", token.refresh_token);
         let url = format!("oauth/2.0/token?grant_type=refresh_token&refresh_token={}&client_id={}&client_secret={}", token.refresh_token, "", "");
@@ -547,18 +530,18 @@ impl Inner {
     ///
     /// 获得用户信息
     ///
-    async fn user_info(&mut self, cloud_meta: CloudMeta) -> ResponseResult<User> {
-        let mut extensions = Extensions::new();
-        extensions.insert(cloud_meta.clone());
-        let json = self
-            .do_get_json("rest/2.0/xpan/nas?method=uinfo", &mut extensions)
-            .await?;
-        debug!("{}", json);
-        let result: BaiduUser = serde_json::from_str(json.as_str()).unwrap();
-        let result: User = result.into();
-        self.user = Some(result.clone());
-        return Ok(result);
-    }
+    // async fn user_info(&mut self, cloud_meta: CloudMeta) -> ResponseResult<User> {
+    //     let mut extensions = Extensions::new();
+    //     extensions.insert(cloud_meta.clone());
+    //     let json = self
+    //         .do_get_json("rest/2.0/xpan/nas?method=uinfo", &mut extensions)
+    //         .await?;
+    //     debug!("{}", json);
+    //     let result: BaiduUser = serde_json::from_str(json.as_str()).unwrap();
+    //     let result: User = result.into();
+    //     self.user = Some(result.clone());
+    //     return Ok(result);
+    // }
     ///
     /// 管理文件
     ///

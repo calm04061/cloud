@@ -1,10 +1,11 @@
-use crate::domain::table::tables::CloudMeta;
 use reqwest::{Request, Response};
 use reqwest_middleware::{Middleware, Next};
 use task_local_extensions::Extensions;
 
+use crate::domain::table::tables::CloudMeta;
 use crate::error::ErrorInfo;
 use crate::storage::onedrive::vo::AuthorizationToken;
+use crate::storage::storage::TokenProvider;
 
 pub struct OneDriveAuthMiddleware {}
 
@@ -29,15 +30,14 @@ impl Middleware for OneDriveAuthMiddleware {
             return Err(middleware);
         }
         let meta = option.unwrap();
-        let auth_option = meta.auth.clone();
-        if let None = auth_option {
-            let err = anyhow::Error::msg(ErrorInfo::NotFoundConfig("token没有配置".to_string()));
+        let auth_option = meta.get_token();
+        if let Err(e) = auth_option {
+            let err = anyhow::Error::msg(e);
             let middleware = reqwest_middleware::Error::Middleware(err);
             return Err(middleware);
         }
 
-        let token = auth_option.unwrap();
-        let token: AuthorizationToken = serde_json::from_str(token.as_str()).unwrap();
+        let token: AuthorizationToken = auth_option.unwrap();
 
         let header_map = req.headers_mut();
         let authorization = format!("{} {}", token.token_type, token.access_token);

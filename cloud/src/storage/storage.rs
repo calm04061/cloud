@@ -1,14 +1,14 @@
 use std::future::Future;
 
-use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use bytes::Bytes;
 use log::{debug, error, info};
 use reqwest::{Body, Response, StatusCode};
 use reqwest_middleware::{ClientWithMiddleware, Error};
 use serde::{Deserialize, Serialize};
 use task_local_extensions::Extensions;
-use crate::database::meta::cloud::MetaStatus;
 
+use crate::database::meta::cloud::MetaStatus;
+use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use crate::error::ErrorInfo;
 
 pub type ResponseResult<T> = Result<T, ErrorInfo>;
@@ -179,13 +179,17 @@ pub struct User {
     pub(crate) updated_at: Option<i64>,
 }
 
+pub trait TokenProvider<T> {
+    fn get_token(&self) -> ResponseResult<T>;
+}
+
 pub trait TokenManager {
     fn get_token(&self) -> String;
     fn refresh_token(&self);
 }
 
 #[async_trait::async_trait]
-pub trait StorageFile {
+pub trait Storage {
     /**
      * 上传body
      **/
@@ -203,27 +207,32 @@ pub trait StorageFile {
      * 获得容量
      **/
     async fn drive_quota(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<Quota>;
-}
-#[async_trait::async_trait]
-pub trait CloudStorageFile{
+    ///
+    /// 文件信息
+    ///
     async fn info(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo>;
-    async fn list(
-        &mut self,
-        parent_file_id: &str,
-        cloud_meta: CloudMeta,
-    ) -> ResponseResult<FileItemWrapper>;
-    /**
-     * 搜索
-     **/
-    async fn search(
-        &mut self,
-        parent_file_id: &str,
-        name: &str,
-        cloud_meta: CloudMeta,
-    ) -> ResponseResult<SearchResponse>;
 }
+
+// #[async_trait::async_trait]
+// pub trait CloudStorageFile {
+// async fn list(
+//     &mut self,
+//     parent_file_id: &str,
+//     cloud_meta: CloudMeta,
+// ) -> ResponseResult<FileItemWrapper>;
+// /**
+//  * 搜索
+//  **/
+// async fn search(
+//     &mut self,
+//     parent_file_id: &str,
+//     name: &str,
+//     cloud_meta: CloudMeta,
+// ) -> ResponseResult<SearchResponse>;
+// }
+
 #[async_trait::async_trait]
-pub trait OAuthStorageFile :StorageFile{
+pub trait OAuthStorageFile: Storage {
     async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String>;
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String>;
     async fn callback(&self, server: String, code: String, cloud_meta: &mut CloudMeta) -> ResponseResult<String>;
@@ -235,10 +244,11 @@ pub trait OAuthStorageFile :StorageFile{
     fn client_id(&self) -> String;
     fn client_secret(&self) -> String;
 }
-#[async_trait::async_trait]
-pub trait Storage {
-    async fn user_info(&mut self, cloud_meta: CloudMeta) -> ResponseResult<User>;
-}
+//
+// #[async_trait::async_trait]
+// pub trait Storage {
+//     async fn user_info(&mut self, cloud_meta: CloudMeta) -> ResponseResult<User>;
+// }
 
 #[async_trait::async_trait]
 pub trait Network {
@@ -397,7 +407,7 @@ pub trait Network {
                     return Err(ErrorInfo::Http401(
                         format!("状态码是{},body:{}", code, body),
                     ));
-                }else if code == StatusCode::UNAUTHORIZED {
+                } else if code == StatusCode::UNAUTHORIZED {
                     info!("UNAUTHORIZED");
                     let body = resp.text().await.unwrap();
                     return Err(ErrorInfo::Http401(

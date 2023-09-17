@@ -1,17 +1,12 @@
-use crate::domain::table::tables::CloudMeta;
-use crate::error::ErrorInfo;
 use reqwest::{Request, Response};
 use reqwest_middleware::{Middleware, Next};
-use serde::{Deserialize, Serialize};
 use task_local_extensions::Extensions;
 
-//{"expires_in":2592000,"refresh_token":"122.6d27d0dac1f3e497a2c5ea18b9bb87be.YGOBz1S9vUHf0FjrFG-XFBS2lSxXVDQ9L5UZZUn.l1Imbw","access_token":"121.fc08dafbfbb8fe068a85bccae729cbc7.YgnZRGeB3OdpwwfnkWhUf3rS9WZ-o7ehMBH_5w-.V8c1Iw","session_secret":"","session_key":"","scope":"basic netdisk"}
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct Token {
-    pub(crate) expires_in: u32,
-    pub(crate) refresh_token: String,
-    access_token: String,
-}
+use crate::domain::table::tables::CloudMeta;
+use crate::error::ErrorInfo;
+use crate::storage::baidu::vo::Token;
+use crate::storage::storage::TokenProvider;
+
 pub struct BaiduAuthMiddleware {}
 
 impl BaiduAuthMiddleware {
@@ -35,15 +30,14 @@ impl Middleware for BaiduAuthMiddleware {
             return Err(middleware);
         }
         let meta = option.unwrap();
-        let auth_option = meta.auth.clone();
-        if let None = auth_option {
-            let err = anyhow::Error::msg(ErrorInfo::NotFoundConfig("token没有配置".to_string()));
+        let result = meta.get_token();
+        if let Err(e) = result {
+            let err = anyhow::Error::msg(e);
             let middleware = reqwest_middleware::Error::Middleware(err);
             return Err(middleware);
         }
 
-        let token = auth_option.unwrap();
-        let token: Token = serde_json::from_str(token.as_str()).unwrap();
+        let token: Token = result.unwrap();
         let url = req.url_mut();
         let mut query = String::from(url.query().unwrap_or(""));
         if url.to_string().contains("?") {

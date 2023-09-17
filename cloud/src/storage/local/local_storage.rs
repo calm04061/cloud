@@ -1,12 +1,11 @@
-use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
-use crate::storage::storage::{
-    CreateResponse, Quota, ResponseResult,
-    StorageFile,
-};
+use std::path::Path;
+
 use bytes::Bytes;
 use log::info;
-use std::path::Path;
 use tokio::fs;
+
+use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
+use crate::storage::storage::{CreateResponse, FileInfo, Quota, ResponseResult, Storage};
 
 pub struct LocalStorage {}
 
@@ -15,13 +14,6 @@ impl LocalStorage {
         LocalStorage {}
     }
 }
-// #[async_trait::async_trait]
-// impl Storage for LocalStorage {
-//
-//     async fn user_info(&mut self, _cloud_meta: CloudMeta) -> ResponseResult<User> {
-//         todo!()
-//     }
-// }
 
 impl Clone for LocalStorage {
     fn clone(&self) -> Self {
@@ -30,7 +22,7 @@ impl Clone for LocalStorage {
 }
 
 #[async_trait::async_trait]
-impl StorageFile for LocalStorage {
+impl Storage for LocalStorage {
     async fn upload_content(
         &mut self,
         file_block: &FileBlockMeta,
@@ -81,5 +73,9 @@ impl StorageFile for LocalStorage {
             used: 0,
             remaining: 1024 * 1024 * 1024,
         })
+    }
+
+    async fn info(&mut self, _file_id: &str, _cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
+        todo!()
     }
 }

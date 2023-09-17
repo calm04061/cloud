@@ -1,8 +1,8 @@
 use bytes::Bytes;
 use log::info;
 
-use crate::database::meta::cloud::MetaStatus;
 use crate::database::meta::{CloudMetaManager, CloudType};
+use crate::database::meta::cloud::MetaStatus;
 use crate::domain::table::tables::{CloudFileBlock, CloudMeta, FileBlockMeta};
 use crate::error::ErrorInfo;
 use crate::error::ErrorInfo::Http401;
@@ -12,7 +12,7 @@ use crate::storage::ali::ali_storage::AliStorage;
 use crate::storage::baidu::baidu_storage::BaiduStorage;
 use crate::storage::local::local_storage::LocalStorage;
 use crate::storage::onedrive::onedrive_storage::OneDriveStorage;
-use crate::storage::storage::{CreateResponse, OAuthStorageFile, ResponseResult, StorageFile};
+use crate::storage::storage::{CreateResponse, OAuthStorageFile, ResponseResult, Storage};
 use crate::util::IntoOne;
 use crate::web::vo::auth::Callback;
 
@@ -184,8 +184,8 @@ impl StorageFacade {
 }
 
 impl Inner {
-    fn get_cloud(&mut self, cloud_type: CloudType) -> Result<Box<dyn StorageFile + Send>, &str> {
-        let cloud: Result<Box<(dyn StorageFile + Send)>, &str> = match cloud_type {
+    fn get_cloud(&mut self, cloud_type: CloudType) -> Result<Box<dyn Storage + Send>, &str> {
+        let cloud: Result<Box<(dyn Storage + Send)>, &str> = match cloud_type {
             CloudType::AliYun => Ok(Box::new(AliStorage::new())),
             CloudType::Baidu => Ok(Box::new(BaiduStorage::new())),
             CloudType::Local => Ok(Box::new(LocalStorage::new())),
@@ -202,7 +202,7 @@ impl Inner {
             CloudType::Baidu => Ok(Box::new(BaiduStorage::new())),
             CloudType::OneDrive => Ok(Box::new(OneDriveStorage::new())),
             _ => {
-                Err("unsupporttd type")
+                Err("unsupported type")
             }
         };
         return cloud;

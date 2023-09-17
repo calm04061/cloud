@@ -1,6 +1,7 @@
 use bytes::Bytes;
+
 use crate::domain::table::tables::CloudMeta;
-use crate::storage::storage::{StorageFile, CreateResponse, FileInfo, FileItemWrapper, Quota, ResponseResult, SearchResponse, Storage, User};
+use crate::storage::storage::{CreateResponse, FileInfo, FileItemWrapper, Quota, ResponseResult, SearchResponse, Storage, StorageFile, User};
 
 pub struct LocalStorage {}
 #[async_trait::async_trait]

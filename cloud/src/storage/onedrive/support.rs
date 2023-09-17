@@ -1,5 +1,6 @@
-use crate::storage::onedrive::vo::{DriveItem, OneDriveQuota, OneDriveUser};
-use crate::storage::storage::{CreateResponse, FileInfo, Quota, User};
+use crate::domain::table::tables::CloudMeta;
+use crate::storage::onedrive::vo::{AuthorizationToken, DriveItem, OneDriveQuota, OneDriveUser};
+use crate::storage::storage::{CreateResponse, FileInfo, Quota, ResponseResult, TokenProvider, User};
 
 impl From<OneDriveQuota> for Quota {
     fn from(one: OneDriveQuota) -> Self {
@@ -10,6 +11,7 @@ impl From<OneDriveQuota> for Quota {
         }
     }
 }
+
 impl From<OneDriveUser> for User {
     fn from(one: OneDriveUser) -> Self {
         User {
@@ -34,7 +36,7 @@ impl From<OneDriveUser> for User {
 
 impl From<DriveItem> for CreateResponse {
     fn from(item: DriveItem) -> Self {
-        CreateResponse{
+        CreateResponse {
             domain_id: "".to_string(),
             drive_id: "".to_string(),
             encrypt_mode: "".to_string(),
@@ -51,7 +53,7 @@ impl From<DriveItem> for CreateResponse {
 
 impl From<DriveItem> for FileInfo {
     fn from(item: DriveItem) -> Self {
-        FileInfo{
+        FileInfo {
             create_at: None,
             creator_id: None,
             creator_name: None,
@@ -84,7 +86,15 @@ impl From<DriveItem> for FileInfo {
             upload_id: None,
             status: None,
             punish_flag: None,
-            parent_file_id: None
+            parent_file_id: None,
         }
+    }
+}
+
+impl TokenProvider<AuthorizationToken> for CloudMeta {
+    fn get_token(&self) -> ResponseResult<AuthorizationToken> {
+        let auth_option = self.auth.clone();
+        let token = auth_option.unwrap();
+        Ok(serde_json::from_str(token.as_str()).unwrap())
     }
 }

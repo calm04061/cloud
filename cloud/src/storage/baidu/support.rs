@@ -1,5 +1,6 @@
-use crate::storage::baidu::vo::{AsyncType, BaiduFileMeta, BaiduOpera, BaiduQuota, BaiduUser};
-use crate::storage::storage::{FileInfo, Quota, User};
+use crate::domain::table::tables::CloudMeta;
+use crate::storage::baidu::vo::{AsyncType, BaiduFileMeta, BaiduOpera, BaiduQuota, BaiduUser, Token};
+use crate::storage::storage::{FileInfo, Quota, ResponseResult, TokenProvider, User};
 
 impl From<BaiduUser> for User {
     fn from(baidu: BaiduUser) -> Self {
@@ -89,5 +90,13 @@ impl From<BaiduQuota> for Quota {
             used: baidu.used,
             remaining: baidu.total - baidu.used,
         }
+    }
+}
+
+impl TokenProvider<Token> for CloudMeta{
+    fn get_token(&self) -> ResponseResult<Token> {
+        let auth_option = self.auth.clone();
+        let token = auth_option.unwrap();
+        Ok(serde_json::from_str(token.as_str()).unwrap())
     }
 }

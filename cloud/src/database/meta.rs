@@ -30,6 +30,7 @@ pub enum CloudType {
     Local,
     OneDrive,
     Sftp,
+    ChinaMobile,
 }
 pub(crate) enum EventType {
     UploadFileBlock

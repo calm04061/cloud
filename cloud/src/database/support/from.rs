@@ -128,6 +128,7 @@ impl From<&CloudType> for i8 {
             CloudType::OneDrive => 4,
             #[cfg(not(windows))]
             CloudType::Sftp => 5,
+            CloudType::ChinaMobile => 6
         }
     }
 }

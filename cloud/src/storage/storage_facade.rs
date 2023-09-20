@@ -10,6 +10,7 @@ use crate::pool;
 use crate::service::CONTEXT;
 use crate::storage::ali::ali_storage::AliStorage;
 use crate::storage::baidu::baidu_storage::BaiduStorage;
+use crate::storage::china_mobile::china_mobile_storage::ChinaMobileStorage;
 use crate::storage::local::local_storage::LocalStorage;
 use crate::storage::onedrive::onedrive_storage::OneDriveStorage;
 use crate::storage::sftp::sftp_storage::SftpStorage;
@@ -186,6 +187,7 @@ impl Inner {
             CloudType::Local => Ok(Box::new(LocalStorage::new())),
             CloudType::OneDrive => Ok(Box::new(OneDriveStorage::new())),
             CloudType::Sftp => Ok(Box::new(SftpStorage::new())),
+            CloudType::ChinaMobile => Ok(Box::new(ChinaMobileStorage::new())),
             // _ => {
             //     Err("unsupported type")
             // }

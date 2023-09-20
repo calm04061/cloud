@@ -1,16 +1,19 @@
 use std::collections::HashMap;
+use std::time::Duration;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use log::info;
-use reqwest::Body;
+use reqwest::{Body, Client};
 use reqwest::header::HeaderMap;
-use reqwest_middleware::ClientWithMiddleware;
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use serde::Deserialize;
 use urlencoding::encode;
+
 use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use crate::error::ErrorInfo;
-use crate::storage::china_mobile::vo::{AccessToken, ChinaMobileResult, ContentInfo, DelCatalogContent, DelContentCatalogRes, DiskInfo, GetContentInfo, PcUploadFileRequest, UploadContentInfo, UploadResult};
-use crate::storage::storage::{CreateResponse, FileInfo, Network, OAuthStorageFile, Quota, ResponseResult, Storage, TokenProvider};
+use crate::storage::china_mobile::vo::{AccessToken, ChinaMobileResult, DelCatalogContent, DelContentCatalogRes, DiskInfo, PcUploadFileRequest, UploadContentInfo, UploadResult};
+use crate::storage::storage::{CreateResponse, Network, OAuthStorageFile, Quota, ResponseResult, Storage, TokenProvider};
 use crate::util::{from_xml_default, ToXml};
 
 const CHANNEL_ID: &str = "10009";
@@ -34,6 +37,20 @@ pub struct ChinaMobileStorage {
 }
 
 impl ChinaMobileStorage {
+    pub(crate) fn new() ->Self{
+        let content_client = Client::builder()
+            // .proxy(reqwest::Proxy::https("http://127.0.0.1:8888").unwrap())
+            .timeout(Duration::from_secs(300))
+            .connect_timeout(Duration::from_secs(300))
+            .build()
+            .unwrap();
+        let content_client = ClientBuilder::new(content_client).build();
+        ChinaMobileStorage{
+            inner: Inner{
+                api_client: content_client,
+            }
+        }
+    }
     async fn post_xml<T>(&self, path: &str, cloud_meta: &CloudMeta) -> ResponseResult<T>
         where T: for<'de> Deserialize<'de> {
         return self.post_xml_with_body(path, cloud_meta, None).await;
@@ -145,7 +162,7 @@ impl Storage for ChinaMobileStorage {
         Ok(())
     }
 
-    async fn content(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
+    async fn content(&mut self, _file_id: &str, _cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
         todo!()
     }
 
@@ -155,14 +172,14 @@ impl Storage for ChinaMobileStorage {
         Ok(disk_info.into())
     }
 
-    async fn info(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
-        let req = GetContentInfo {};
-        let mut xml = String::new();
-        req.to_xml_with_header(&mut xml);
-        let result: ChinaMobileResult<ContentInfo> = self.post_xml_with_body("/richlifeApp/devapp/IUploadAndDownload", cloud_meta, Some(xml)).await.unwrap();
-        let content_info = result.data.unwrap();
-        Ok(content_info.into())
-    }
+    // async fn info(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
+    //     let req = GetContentInfo {};
+    //     let mut xml = String::new();
+    //     req.to_xml_with_header(&mut xml);
+    //     let result: ChinaMobileResult<ContentInfo> = self.post_xml_with_body("/richlifeApp/devapp/IUploadAndDownload", cloud_meta, Some(xml)).await.unwrap();
+    //     let content_info = result.data.unwrap();
+    //     Ok(content_info.into())
+    // }
 }
 
 #[async_trait::async_trait]

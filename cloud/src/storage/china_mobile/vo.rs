@@ -79,3 +79,10 @@ pub(crate) struct DelCatalogContent {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct DelContentCatalogRes {}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub(crate) struct DownloadRequest {
+    contentID: String,
+    OwnerMSISDN: String,
+    entryShareCatalogID: String,
+}

@@ -251,30 +251,30 @@ impl Inner {
 
     pub(crate) async fn delete(
         &mut self,
-        file_id: &str,
+        cloud_file_id: &str,
         cloud_meta: &CloudMeta,
     ) -> ResponseResult<()> {
         let cloud_type = cloud_meta.cloud_type.into();
 
-        info!("delete {} from {:?}({})", file_id,cloud_type, cloud_meta.name);
+        info!("delete {} from {:?}({})", cloud_file_id,cloud_type, cloud_meta.name);
 
         let mut cloud = self.get_cloud(cloud_type).unwrap();
         // let mut cloud = cloud.lock().unwrap();
-        let result = cloud.delete(file_id, &cloud_meta).await;
+        let result = cloud.delete(cloud_file_id, &cloud_meta).await;
 
         return result;
     }
     // #[async_recursion::async_recursion]
     pub(crate) async fn content(
         &mut self,
-        file_id: &str,
+        cloud_file_id: &str,
         cloud_meta: &CloudMeta,
     ) -> ResponseResult<Bytes> {
         // let cloud_meta = self.get_token(1).await.unwrap();
 
         let mut cloud = self.get_cloud(cloud_meta.cloud_type.into()).unwrap();
         // let mut cloud = cloud.lock().unwrap();
-        return cloud.content(file_id, &cloud_meta).await;
+        return cloud.content(cloud_file_id, &cloud_meta).await;
     }
 
     pub(crate) async fn authorize(&mut self, server: &str, id: i32) -> String {

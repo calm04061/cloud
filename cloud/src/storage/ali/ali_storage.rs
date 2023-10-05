@@ -383,14 +383,14 @@ impl Storage for AliStorage {
     }
 
 
-    async fn delete(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {
+    async fn delete(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {
         let extra = cloud_meta.extra.as_ref().unwrap();
         let extra: AliExtra = serde_json::from_str(extra.as_str()).unwrap();
 
         let drive_id = extra.drive_id.unwrap();
         let scores = DriveFile {
             drive_id,
-            file_id: file_id.to_string(),
+            file_id: cloud_file_id.to_string(),
         };
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
@@ -413,7 +413,7 @@ impl Storage for AliStorage {
         }
     }
 
-    async fn content(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
+    async fn content(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
         debug!("get_drive_id");
         let extra = cloud_meta.extra.as_ref().unwrap();
         let extra: AliExtra = serde_json::from_str(extra.as_str()).unwrap();
@@ -421,7 +421,7 @@ impl Storage for AliStorage {
         let drive_id = extra.drive_id.unwrap();
         let scores = DriveFile {
             drive_id,
-            file_id: file_id.to_string(),
+            file_id: cloud_file_id.to_string(),
         };
         debug!("get_download_url");
         let mut extensions = Extensions::new();
@@ -476,14 +476,14 @@ impl Storage for AliStorage {
         let result: DevicePersonalInfo = result.unwrap();
         return Ok(result.personal_space_info.into());
     }
-    async fn info(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
+    async fn info(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
         let extra = cloud_meta.extra.clone().unwrap();
         let extra: AliExtra = serde_json::from_str(extra.as_str()).unwrap();
 
         let drive_id = extra.drive_id.unwrap();
         let scores = DriveFile {
             drive_id,
-            file_id: file_id.to_string(),
+            file_id: cloud_file_id.to_string(),
         };
         let resp_result = self
             .inner.api_client
@@ -501,24 +501,6 @@ impl OAuthStorageFile for AliStorage {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
 
-        let token_option = cloud_meta.clone().auth;
-        let token = token_option.unwrap();
-        let token: Token = serde_json::from_str(token.as_str()).unwrap();
-        let mut refresh_token = HashMap::new();
-        refresh_token.insert("refresh_token", token.refresh_token);
-
-        let resp_result = self
-            .inner.api_client
-            .post(format!("{}/{}", API_DOMAIN_PREFIX, "token/refresh"))
-            .json(&refresh_token)
-            .build()
-            .unwrap();
-        let resp_result = self
-            .inner.api_client
-            .execute_with_extensions(resp_result, &mut extensions);
-        let json = self.get_response_text(resp_result).await?;
-        Ok(json)
-    }
 
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String> {
         let callback = format!("http://{}/api/cloud/callback", server);

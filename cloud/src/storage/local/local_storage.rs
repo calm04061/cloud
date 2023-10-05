@@ -46,9 +46,9 @@ impl Storage for LocalStorage {
         })
     }
 
-    async fn delete(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {
+    async fn delete(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {
         let data_root = cloud_meta.data_root.clone().unwrap();
-        let path_str = format!("{}/{}", data_root, file_id);
+        let path_str = format!("{}/{}", data_root, cloud_file_id);
         let path = Path::new(path_str.as_str());
         if path.exists() {
             fs::remove_file(path).await.ok();
@@ -58,9 +58,9 @@ impl Storage for LocalStorage {
         Ok(())
     }
 
-    async fn content(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
+    async fn content(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
         let data_root = cloud_meta.data_root.clone().unwrap();
-        let path_str = format!("{}/{}", data_root, file_id);
+        let path_str = format!("{}/{}", data_root, cloud_file_id);
         let result = fs::read(path_str).await;
         let vec = result.unwrap();
         let bytes = Bytes::from(vec);
@@ -75,7 +75,7 @@ impl Storage for LocalStorage {
         })
     }
 
-    async fn info(&mut self, _file_id: &str, _cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
+    async fn info(&mut self, _cloud_file_id: &str, _cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
         todo!()
     }
 }

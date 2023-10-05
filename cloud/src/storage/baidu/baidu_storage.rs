@@ -303,8 +303,8 @@ impl Storage for BaiduStorage {
     }
 
 
-    async fn delete(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {
-        let result = self.info(file_id, cloud_meta).await;
+    async fn delete(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {
+        let result = self.info(cloud_file_id, cloud_meta).await;
         if let Err(e) = result {
             return if e == Http(404) { Ok(()) } else { Err(e) };
         }
@@ -332,11 +332,11 @@ impl Storage for BaiduStorage {
         }
     }
 
-    async fn content(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
+    async fn content(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
         debug!("get_download_url");
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
-        let file_info = self.info(file_id, cloud_meta).await;
+        let file_info = self.info(cloud_file_id, cloud_meta).await;
         let info = file_info.unwrap();
         let mut download_url = info.download_url.unwrap();
         loop {
@@ -372,11 +372,11 @@ impl Storage for BaiduStorage {
         let result: BaiduQuota = serde_json::from_str(result.as_str()).unwrap();
         Ok(result.into())
     }
-    async fn info(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
+    async fn info(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         let mut fsids = vec![];
-        fsids.push(file_id.parse::<i64>().unwrap());
+        fsids.push(cloud_file_id.parse::<i64>().unwrap());
         let fsids = serde_json::to_string(&fsids).unwrap();
         let result = self
             .inner
@@ -394,7 +394,7 @@ impl Storage for BaiduStorage {
         let result: FileMetas = serde_json::from_str(result.as_str()).unwrap();
         let file_metas = result.list;
         if file_metas.is_empty() {
-            return Err(ErrorInfo::FileNotFound(format!("{}不存在", file_id)));
+            return Err(ErrorInfo::FileNotFound(format!("{}不存在", cloud_file_id)));
         }
         let meta = file_metas.into_one().unwrap();
         return Ok(meta.into());

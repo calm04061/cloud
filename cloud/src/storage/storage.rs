@@ -200,8 +200,8 @@ pub trait Storage {
         cloud_meta: &CloudMeta,
     ) -> ResponseResult<CreateResponse>;
 
-    async fn delete(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()>;
-    async fn content(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes>;
+    async fn delete(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()>;
+    async fn content(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes>;
 
     /**
      * 获得容量
@@ -210,7 +210,7 @@ pub trait Storage {
     ///
     /// 文件信息
     ///
-    async fn info(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo>;
+    async fn info(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo>;
 }
 
 // #[async_trait::async_trait]

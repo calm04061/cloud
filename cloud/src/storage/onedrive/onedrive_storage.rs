@@ -100,18 +100,18 @@ impl Storage for OneDriveStorage {
     }
 
 
-    async fn delete(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {
+    async fn delete(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
-        self.do_delete(format!("me/drive/items/{}", file_id).as_str(), &mut extensions).await.unwrap();
+        self.do_delete(format!("me/drive/items/{}", cloud_file_id).as_str(), &mut extensions).await.unwrap();
         Ok(())
     }
 
-    async fn content(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
+    async fn content(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         let result = self
-            .do_get_bytes(format!("me/drive/items/{}/content", file_id).as_str(), &mut extensions)
+            .do_get_bytes(format!("me/drive/items/{}/content", cloud_file_id).as_str(), &mut extensions)
             .await;
         if let Ok(bo) = result {
             return Ok(bo);
@@ -146,11 +146,11 @@ impl Storage for OneDriveStorage {
         self.inner.user = Some(user.into());
         return Ok(quota.into());
     }
-    async fn info(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
+    async fn info(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         let json = self
-            .do_get_json(format!("me/drive/items/{}", file_id).as_str(), &mut extensions)
+            .do_get_json(format!("me/drive/items/{}", cloud_file_id).as_str(), &mut extensions)
             .await
             .unwrap();
         let drive: DriveItem = serde_json::from_str(&json).unwrap();

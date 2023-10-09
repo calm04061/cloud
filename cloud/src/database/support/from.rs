@@ -1,9 +1,11 @@
+use rbatis::rbdc::Error;
 use crate::database::meta::cloud::MetaStatus;
 use crate::database::meta::cloud::MetaStatus::{
     Disabled, Enable, InvalidRefresh, WaitDataRoot, WaitInit,
 };
 use crate::database::meta::FileMetaType::{DIR, FILE, SYMLINK};
-use crate::database::meta::{CloudType, FileMetaType, FileStatus};
+use crate::database::meta::{CloudType, EventResult, EventType, FileMetaType, FileStatus};
+use crate::error::ErrorInfo;
 
 impl From<i8> for MetaStatus {
     fn from(value: i8) -> Self {
@@ -133,4 +135,27 @@ impl From<CloudType> for i8 {
     fn from(value: CloudType) -> Self {
         return i8::from(&value);
     }
+}
+
+impl From<EventType> for i8 {
+    fn from(value: EventType) -> Self {
+        match value {
+            EventType::UploadFileBlock => 1,
+        }
+    }
+}
+
+impl From<EventResult> for i8 {
+    fn from(value: EventResult) -> Self {
+        match value {
+            EventResult::Fail => 0,
+            EventResult::Success => 1,
+        }
+    }
+}
+
+impl From<Error> for ErrorInfo{
+    fn from(value: Error) -> Self {
+        ErrorInfo::new(1,value.to_string().as_str())
+     }
 }

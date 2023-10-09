@@ -66,3 +66,12 @@ pub struct Config {
     pub(crate) property: String,
     pub(crate) value: String,
 }
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct EventMessage {
+    pub(crate) id: Option<i32>,
+    pub(crate) event_type: i8,
+    pub(crate) event_result: i8,
+    pub(crate) message: String,
+    pub(crate) create_time: DateTime,
+}

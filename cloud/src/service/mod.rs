@@ -10,7 +10,7 @@ use rbatis::{RBatis};
 use rbatis::table_sync::{SqliteTableSync, TableSync};
 use rbs::to_value;
 use crate::database::meta::{FileMetaType, FileStatus};
-use crate::domain::table::tables::{CloudFileBlock, CloudMeta, Config, FileBlockMeta, FileMeta};
+use crate::domain::table::tables::{CloudFileBlock, CloudMeta, Config, FileBlockMeta, FileMeta, EventMessage};
 
 pub(crate) static CONTEXT: Lazy<ServiceContext> = Lazy::new(|| ServiceContext::default());
 #[macro_export]
@@ -56,6 +56,7 @@ impl ServiceContext {
         s.sync(self.rb.acquire().await.unwrap(), to_value!(FileMeta::sync_default()), "file_meta").await.unwrap();
         s.sync(self.rb.acquire().await.unwrap(), to_value!(CloudFileBlock::sync_default()), "cloud_file_block").await.unwrap();
         s.sync(self.rb.acquire().await.unwrap(), to_value!(FileBlockMeta::sync_default()), "file_block_meta").await.unwrap();
+        s.sync(self.rb.acquire().await.unwrap(), to_value!(EventMessage::sync_default()), "event_message").await.unwrap();
         let vec = FileMeta::select_by_column(pool!(), "id", 1).await.unwrap();
         if vec.is_empty() {
             let file_meta = FileMeta{

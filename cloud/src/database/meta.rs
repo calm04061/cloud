@@ -3,7 +3,6 @@ use crate::storage::storage::ResponseResult;
 
 pub mod cloud;
 pub mod file;
-
 pub(crate) enum FileStatus {
     Init,
     Uploading,
@@ -33,7 +32,13 @@ pub enum CloudType {
     #[cfg(not(windows))]
     Sftp,
 }
-
+pub(crate) enum EventType {
+    UploadFileBlock
+}
+pub(crate) enum EventResult {
+    Success,
+    Fail,
+}
 #[async_trait::async_trait]
 pub trait CloudMetaManager {
     async fn add(&self, meta: &CloudMeta) -> ResponseResult<CloudMeta>;

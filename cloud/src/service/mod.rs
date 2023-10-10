@@ -1,16 +1,18 @@
 use std::fs;
+
 use once_cell::sync::Lazy;
+use rbatis::RBatis;
+use rbatis::table_sync::{SqliteTableSync, TableSync};
+use rbs::to_value;
+
 use crate::config::ApplicationConfig;
 use crate::database::config::ConfigManager;
+use crate::database::meta::{FileMetaType, FileStatus};
 use crate::database::meta::cloud::SimpleCloudMetaManager;
 use crate::database::meta::file::file_block_meta::SimpleFileBlockMetaManager;
 use crate::database::meta::file::file_meta::SimpleFileMetaManager;
 use crate::database::meta::file::SimpleFileManager;
-use rbatis::{RBatis};
-use rbatis::table_sync::{SqliteTableSync, TableSync};
-use rbs::to_value;
-use crate::database::meta::{FileMetaType, FileStatus};
-use crate::domain::table::tables::{CloudFileBlock, CloudMeta, Config, FileBlockMeta, FileMeta, EventMessage};
+use crate::domain::table::tables::{CloudFileBlock, CloudMeta, Config, EventMessage, FileBlockMeta, FileMeta};
 
 pub(crate) static CONTEXT: Lazy<ServiceContext> = Lazy::new(|| ServiceContext::default());
 #[macro_export]

@@ -1,10 +1,10 @@
 use std::ffi::OsString;
 use std::sync::Mutex;
 
-use actix_web::web::{Data, Json, Path};
 use actix_web::{delete, get, Responder, Result};
-use fuser::MountOption::{AllowOther, AutoUnmount};
+use actix_web::web::{Data, Json, Path};
 use fuser::{BackgroundSession, MountOption};
+use fuser::MountOption::{AllowOther, AutoUnmount};
 use log::info;
 
 use crate::database::meta::CloudMetaManager;

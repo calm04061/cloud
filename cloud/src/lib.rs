@@ -1,6 +1,6 @@
+extern crate core;
 #[macro_use]
 extern crate rbatis;
-extern crate core;
 
 mod config;
 pub mod database;

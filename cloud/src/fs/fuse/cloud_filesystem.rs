@@ -2,7 +2,7 @@ use std::ffi::OsStr;
 use std::time::SystemTime;
 
 use fuser::{
-    FileType, Filesystem, ReplyAttr, ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyWrite,
+    Filesystem, FileType, ReplyAttr, ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyWrite,
     Request, TimeOrNow,
 };
 use libc::{EEXIST, ENOENT, ENOSYS};

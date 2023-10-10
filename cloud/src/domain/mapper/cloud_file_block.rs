@@ -1,6 +1,8 @@
-use crate::domain::table::tables::CloudFileBlock;
 use rbatis::{crud, Error, impl_update, RBatis};
 use rbatis::rbdc::datetime::DateTime;
+
+use crate::domain::table::tables::CloudFileBlock;
+
 crud!(CloudFileBlock {});
 impl_update!(CloudFileBlock{update_by_status(id: i32,status :i8) =>"` where id=#{id} and status=#{status}`"});
 

@@ -64,19 +64,13 @@ impl StorageFacade {
         let result = self
             .inner
             .callback(server, callback, &mut cloud_meta)
-            .await;
-        let result = match result {
-            Ok(e) => { e }
-            Err(e) => {
-                return Err(e);
-            }
-        };
+            .await?;
         info!("result:{}",result);
         cloud_meta.auth = Some(result);
         cloud_meta.status = MetaStatus::WaitDataRoot.into();
-        self.inner.update_meta_info(&cloud_meta).await.unwrap();
+        self.inner.update_meta_info(&cloud_meta).await?;
         self.inner.after_callback(&mut cloud_meta).await;
-        self.inner.update_meta_info(&cloud_meta).await.unwrap();
+        self.inner.update_meta_info(&cloud_meta).await?;
         info!("end");
         Ok(())
     }
@@ -228,9 +222,9 @@ impl Inner {
             .unwrap();
         let mut cloud = self.get_oauth_cloud(cloud_meta.cloud_type.into()).unwrap();
         // let mut cloud = cloud.lock().unwrap();
-        let result = cloud.refresh_token(&mut cloud_meta).await.unwrap();
+        let result = cloud.refresh_token(&mut cloud_meta).await?;
         cloud_meta.auth = Some(result.clone());
-        self.update_meta_info(&cloud_meta).await.unwrap();
+        self.update_meta_info(&cloud_meta).await?;
         Ok(result)
     }
 

@@ -16,7 +16,7 @@ use urlencoding::encode;
 use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use crate::error::ErrorInfo;
 use crate::error::ErrorInfo::{Http, Http302};
-use crate::storage::baidu::baidu_authorization_middleware::{BaiduAuthMiddleware};
+use crate::storage::baidu::baidu_authorization_middleware::BaiduAuthMiddleware;
 use crate::storage::baidu::vo::{AsyncType, BaiduCreate, BaiduFileManagerResult, BaiduOpera, BaiduPreCreate, BaiduQuota, FileMetas, Token};
 use crate::storage::storage::{CreateResponse, FileInfo, Network, OAuthStorageFile, Quota, ResponseResult, Storage, TokenProvider, User};
 use crate::util::IntoOne;
@@ -76,69 +76,32 @@ impl BaiduStorage {
             },
         }
     }
-    // async fn user_info(&mut self, cloud_meta: CloudMeta) -> ResponseResult<User> {
-    //     self.inner.user_info(cloud_meta).await
-    // }
-    // async fn list(
-    //     &mut self,
-    //     parent_file_id: &str,
-    //     cloud_meta: CloudMeta,
-    // ) -> ResponseResult<FileItemWrapper> {
-    //     let drive_id = self.get_drive_id(cloud_meta).await?;
-    //     let query = Query {
-    //         drive_id,
-    //         parent_file_id: parent_file_id.to_string(),
-    //         limit: 100,
-    //         all: false,
-    //         url_expire_sec: 1600,
-    //         image_thumbnail_process: "image/resize,w_400/format,jpeg".to_string(),
-    //         image_url_process: "image/resize,w_1920/format,jpeg".to_string(),
-    //         video_thumbnail_process: "video/snapshot,t_1000,f_jpg,ar_auto,w_300".to_string(),
-    //         fields: "*".to_string(),
-    //         order_by: "updated_at".to_string(),
-    //         order_direction: "DESC".to_string(),
-    //     };
-    //
-    //     let resp_result = self
-    //         .inner
-    //         .api_client
-    //         .post(format!("{}/{}", API_DOMAIN_PREFIX, "adrive/v3/file/list"))
-    //         .json(&query)
-    //         .send();
-    //
-    //     let json = self.inner.get_response_text(resp_result).await?;
-    //     // println!("{:?}", json);
-    //     let result = serde_json::from_str(json.as_str());
-    //     return Ok(result.unwrap());
-    // }
+    async fn info(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
+        let mut extensions = Extensions::new();
+        extensions.insert(cloud_meta.clone());
+        let mut fsids = vec![];
+        fsids.push(cloud_file_id.parse::<i64>().unwrap());
+        let fsids = serde_json::to_string(&fsids)?;
+        let result = self
+            .inner
+            .do_get_json(
+                format!(
+                    "rest/2.0/xpan/multimedia?method=filemetas&dlink=1&fsids={}",
+                    fsids
+                )
+                    .as_str(),
+                &mut extensions,
+            )
+            .await?;
 
-    // async fn search(
-    //     &mut self,
-    //     parent_file_id: &str,
-    //     name: &str,
-    //     cloud_meta: CloudMeta,
-    // ) -> ResponseResult<SearchResponse> {
-    //     let drive_id = self.get_drive_id(cloud_meta).await?;
-    //     let query = format!(
-    //         "parent_file_id = \"{}\" and (name = \"{}\")",
-    //         parent_file_id, name
-    //     );
-    //     let search = Search {
-    //         drive_id,
-    //         limit: 100,
-    //         order_by: "name ASC".to_string(),
-    //         query,
-    //     };
-    //     let resp_result = self
-    //         .inner
-    //         .api_client
-    //         .post(format!("{}/{}", API_DOMAIN_PREFIX, "adrive/v3/file/search"))
-    //         .json(&search)
-    //         .send();
-    //     let json = self.inner.get_response_text(resp_result).await?;
-    //     let result = serde_json::from_str(json.as_str());
-    //     return Ok(result.unwrap());
-    // }
+        let result: FileMetas = serde_json::from_str(result.as_str())?;
+        let file_metas = result.list;
+        if file_metas.is_empty() {
+            return Err(ErrorInfo::FileNotFound(format!("{}不存在", cloud_file_id)));
+        }
+        let meta = file_metas.into_one().unwrap();
+        return Ok(meta.into());
+    }
 }
 
 impl Clone for BaiduStorage {
@@ -208,8 +171,7 @@ impl Storage for BaiduStorage {
         let size = len.to_string();
         let size = size.as_str();
 
-        let block_list = serde_json::to_string(&md5s);
-        let block_list = block_list.unwrap();
+        let block_list = serde_json::to_string(&md5s)?;
         let block_list = block_list.as_str();
         let path = format!("{}/{}", cloud_meta.data_root.as_ref().unwrap(), file_block.file_part_id);
         let mut par = vec![];
@@ -224,14 +186,13 @@ impl Storage for BaiduStorage {
         info!("block_list:{}", block_list);
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
-        let result = self
+        let json = self
             .inner
             .do_post_form("rest/2.0/xpan/file?method=precreate", &par, &mut extensions)
-            .await;
+            .await?;
 
-        let json = result.unwrap();
         debug!("precreate:{}", json);
-        let result: BaiduPreCreate = serde_json::from_str(json.as_str()).unwrap();
+        let result: BaiduPreCreate = serde_json::from_str(json.as_str())?;
         for (index, block) in blocks.iter_mut().enumerate() {
             let upload_id = result.uploadid.clone();
             let upload_id = upload_id.unwrap();
@@ -241,7 +202,7 @@ impl Storage for BaiduStorage {
             let bio = Part::bytes(x)
                 .file_name("1")
                 .mime_str("application/octet-stream")
-                .unwrap();
+                ?;
             // let index = index.to_string();
             // let index = index.clone().as_str();
             let form = Form::new().part("file", bio);
@@ -256,8 +217,7 @@ impl Storage for BaiduStorage {
                 .api_client
                 .post(format!("{}/{}", FILE_DOMAIN_PREFIX, requet_query.as_str()))
                 .multipart(form)
-                .build()
-                .unwrap();
+                .build()?;
             let resp_result = self
                 .inner
                 .api_client
@@ -278,16 +238,12 @@ impl Storage for BaiduStorage {
         vec1.push(("uploadid", uploadid.as_str()));
         debug!("start create");
 
-        let result = self
+        let json = self
             .inner
             .do_post_form("rest/2.0/xpan/file?method=create", &vec1, &mut extensions)
-            .await;
-        if let Err(e) = result {
-            return Err(e);
-        }
-        let json = result.unwrap();
+            .await?;
         debug!("create:{}", json);
-        let result: BaiduCreate = serde_json::from_str(json.as_str()).unwrap();
+        let result: BaiduCreate = serde_json::from_str(json.as_str())?;
         return Ok(CreateResponse {
             domain_id: "".to_string(),
             drive_id: "".to_string(),
@@ -336,8 +292,7 @@ impl Storage for BaiduStorage {
         debug!("get_download_url");
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
-        let file_info = self.info(cloud_file_id, cloud_meta).await;
-        let info = file_info.unwrap();
+        let info = self.info(cloud_file_id, cloud_meta).await?;
         let mut download_url = info.download_url.unwrap();
         loop {
             let result = self
@@ -366,39 +321,12 @@ impl Storage for BaiduStorage {
                 format!("api/quota?checkfree=1&checkexpire=1").as_str(),
                 &mut extensions,
             )
-            .await
-            .unwrap();
+            .await?;
 
-        let result: BaiduQuota = serde_json::from_str(result.as_str()).unwrap();
+        let result: BaiduQuota = serde_json::from_str(result.as_str())?;
         Ok(result.into())
     }
-    async fn info(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
-        let mut extensions = Extensions::new();
-        extensions.insert(cloud_meta.clone());
-        let mut fsids = vec![];
-        fsids.push(cloud_file_id.parse::<i64>().unwrap());
-        let fsids = serde_json::to_string(&fsids).unwrap();
-        let result = self
-            .inner
-            .do_get_json(
-                format!(
-                    "rest/2.0/xpan/multimedia?method=filemetas&dlink=1&fsids={}",
-                    fsids
-                )
-                    .as_str(),
-                &mut extensions,
-            )
-            .await
-            .unwrap();
 
-        let result: FileMetas = serde_json::from_str(result.as_str()).unwrap();
-        let file_metas = result.list;
-        if file_metas.is_empty() {
-            return Err(ErrorInfo::FileNotFound(format!("{}不存在", cloud_file_id)));
-        }
-        let meta = file_metas.into_one().unwrap();
-        return Ok(meta.into());
-    }
 }
 
 #[async_trait]
@@ -406,7 +334,7 @@ impl OAuthStorageFile for BaiduStorage {
     async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
-        let token: Token = cloud_meta.get_token().unwrap();
+        let token: Token = cloud_meta.get_token()?;
         // let mut refresh_token = HashMap::new();
         // refresh_token.insert("refresh_token", token.refresh_token);
         let url = format!("oauth/2.0/token?grant_type=refresh_token&refresh_token={}&client_id={}&client_secret={}", token.refresh_token, "", "");
@@ -431,17 +359,17 @@ impl OAuthStorageFile for BaiduStorage {
         // let callback = format!("http://{}/api/cloud/callback", server);
         let encoded = encode("https://cloud.calm0406.tk/callback.html");
         let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, format!("oauth/2.0/token?grant_type=authorization_code&code={}&client_id={}&client_secret={}&redirect_uri={}", code, self.client_id(), self.client_secret(), encoded));
-        info!("{}", token_url);
+        // info!("{}", token_url);
         let resp_result = self.inner.content_client.get(token_url).send();
-        info!("{}", "send");
-        let json_text = self.inner.get_response_text(resp_result).await;
-        info!("{}", "get_response_text");
-        let json_text = match json_text {
-            Ok(e) => { e }
-            Err(e) => {
-                return Err(e);
-            }
-        };
+        // info!("{}", "send");
+        let json_text = self.inner.get_response_text(resp_result).await?;
+        // info!("{}", "get_response_text");
+        // let json_text = match json_text {
+        //     Ok(e) => { e }
+        //     Err(e) => {
+        //         return Err(e);
+        //     }
+        // };
         info!("{}", json_text);
         let token: Result<Token, Error> = serde_json::from_str(json_text.as_str());
         let token = match token {
@@ -558,8 +486,7 @@ impl Inner {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         let mut parameter = vec![];
-        let file_list = serde_json::to_string(file_list);
-        let file_list = file_list.unwrap();
+        let file_list = serde_json::to_string(file_list)?;
         let file_list = file_list.as_str();
 
         parameter.push(("filelist", file_list));
@@ -570,7 +497,7 @@ impl Inner {
             .do_post_form(url.as_str(), &parameter, &mut extensions)
             .await?;
         debug!("{}", json);
-        let result: BaiduFileManagerResult = serde_json::from_str(json.as_str()).unwrap();
+        let result: BaiduFileManagerResult = serde_json::from_str(json.as_str())?;
         return Ok(result);
     }
     async fn download(&mut self, dlink: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {

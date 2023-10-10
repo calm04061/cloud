@@ -1,7 +1,7 @@
 use log::info;
 
-use crate::database::meta::FileMetaType::DIR;
 use crate::database::meta::{FileMetaType, FileStatus};
+use crate::database::meta::FileMetaType::DIR;
 use crate::domain::table::tables::FileMeta;
 use crate::pool;
 use crate::storage::storage::ResponseResult;

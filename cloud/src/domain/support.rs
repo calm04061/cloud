@@ -1,6 +1,7 @@
+use rbatis::rbdc::datetime::DateTime;
+
 use crate::database::meta::{EventResult, EventType, FileStatus};
 use crate::domain::table::tables::{CloudFileBlock, CloudMeta, Config, EventMessage, FileBlockMeta, FileMeta};
-use rbatis::rbdc::datetime::{DateTime};
 
 impl CloudFileBlock {
     pub(crate) fn init(file_block_meta_id: i32, cloud_meta_id: i32) -> Self {

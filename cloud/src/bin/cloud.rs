@@ -6,7 +6,7 @@ use std::thread;
 
 use actix_web::dev::ServerHandle;
 use actix_web::rt;
-use log::{info};
+use log::info;
 
 use cloud::task::task_init;
 use cloud::web::run_web;
@@ -55,7 +55,7 @@ fn sigint_handler(server_handle: ServerHandle) {
 
 #[cfg(not(windows))]
 fn sigint_handler(server_handle: ServerHandle) {
-    use log::{error};
+    use log::error;
     let signals = signal_hook::iterator::Signals::new(&[
         signal_hook::consts::SIGINT,
         signal_hook::consts::SIGTERM,

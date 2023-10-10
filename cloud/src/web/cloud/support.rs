@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+
 use actix_web::{get, Responder};
+
 use crate::web::common::WebResult;
 
 #[get("/support/cloud/types")]

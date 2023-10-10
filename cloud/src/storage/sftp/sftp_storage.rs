@@ -1,13 +1,15 @@
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::str::FromStr;
-use async_ssh2_lite::{AsyncSession};
-use bytes::Bytes;
-use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
-use crate::storage::storage::{CreateResponse, FileInfo, Quota, ResponseResult, Storage};
+
+use async_ssh2_lite::AsyncSession;
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures_util::{AsyncReadExt, AsyncWriteExt};
+
+use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use crate::storage::sftp::vo::HostUser;
+use crate::storage::storage::{CreateResponse, Quota, ResponseResult, Storage};
 
 ///
 /// 存储文件到sftp
@@ -87,7 +89,7 @@ impl Storage for SftpStorage {
         let remote_path = PathBuf::from(cloud_file_id);
         let (mut remote_file, _stat) = session.scp_recv(remote_path.as_path()).await?;
         let mut buf = vec![];
-        remote_file.read_to_end(&mut buf).await.unwrap();
+        remote_file.read_to_end(&mut buf).await?;
 
         remote_file.send_eof().await?;
         remote_file.wait_eof().await?;
@@ -103,10 +105,6 @@ impl Storage for SftpStorage {
             used: 10000,
             remaining: 10000000000,
         })
-    }
-
-    async fn info(&mut self, _cloud_file_id: &str, _cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
-        todo!()
     }
 }
 

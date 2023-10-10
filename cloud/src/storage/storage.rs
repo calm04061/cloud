@@ -207,10 +207,6 @@ pub trait Storage {
      * 获得容量
      **/
     async fn drive_quota(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<Quota>;
-    ///
-    /// 文件信息
-    ///
-    async fn info(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo>;
 }
 
 // #[async_trait::async_trait]

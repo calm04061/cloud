@@ -1,8 +1,8 @@
-use actix_web::web::{Json, Path};
 use actix_web::{delete, get, post, Responder, Result};
+use actix_web::web::{Json, Path};
 
-use crate::database::meta::cloud::{MetaStatus};
 use crate::database::meta::{CloudMetaManager, CloudType};
+use crate::database::meta::cloud::MetaStatus;
 use crate::database::meta::CloudType::{Local, Sftp};
 use crate::domain::table::tables::CloudMeta;
 use crate::service::CONTEXT;

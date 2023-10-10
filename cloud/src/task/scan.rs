@@ -1,16 +1,18 @@
-use crate::database::meta::cloud::MetaStatus;
-use crate::database::meta::{CloudMetaManager, EventType, FileManager, FileStatus};
-use crate::domain::table::tables::{CloudFileBlock, EventMessage};
-use crate::pool;
-use crate::service::CONTEXT;
-use crate::storage::storage_facade::StorageFacade;
-use log::{debug, info};
-use quartz_sched::SchedulerHandle;
 use std::fs::File;
 use std::io::{ErrorKind, Read};
+
+use log::{debug, info};
+use quartz_sched::SchedulerHandle;
 use rbatis::rbdc::datetime::DateTime;
+
+use crate::database::meta::{CloudMetaManager, EventType, FileManager, FileStatus};
+use crate::database::meta::cloud::MetaStatus;
+use crate::domain::table::tables::{CloudFileBlock, EventMessage};
 use crate::error::ErrorInfo;
+use crate::pool;
+use crate::service::CONTEXT;
 use crate::storage::storage::ResponseResult;
+use crate::storage::storage_facade::StorageFacade;
 
 pub(crate) struct Scan {
     cache_file: String,

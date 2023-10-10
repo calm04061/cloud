@@ -12,7 +12,7 @@ use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use crate::error::ErrorInfo;
 use crate::storage::onedrive::one_drive_authorization_middleware::OneDriveAuthMiddleware;
 use crate::storage::onedrive::vo::{AuthorizationToken, Drive, DriveItem};
-use crate::storage::storage::{CreateResponse, FileInfo, Network, OAuthStorageFile, Quota, ResponseResult, Storage, User};
+use crate::storage::storage::{CreateResponse, Network, OAuthStorageFile, Quota, ResponseResult, Storage, User};
 
 pub const API_DOMAIN_PREFIX: &str = "https://graph.microsoft.com/v1.0";
 const AUTH_DOMAIN_PREFIX: &str = "https://login.microsoftonline.com";
@@ -53,6 +53,16 @@ impl OneDriveStorage {
             },
         }
     }
+    // async fn info(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
+    //     let mut extensions = Extensions::new();
+    //     extensions.insert(cloud_meta.clone());
+    //     let json = self
+    //         .do_get_json(format!("me/drive/items/{}", cloud_file_id).as_str(), &mut extensions)
+    //         .await
+    //         .unwrap();
+    //     let drive: DriveItem = serde_json::from_str(&json).unwrap();
+    //     Ok(drive.into())
+    // }
 }
 
 impl Network for OneDriveStorage {
@@ -88,14 +98,8 @@ impl Storage for OneDriveStorage {
         };
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
-        let x = self.do_put_bytes(path.as_str(), content, &mut extensions).await;
-        let x = match x {
-            Ok(v) => { v }
-            Err(e) => {
-                return Err(e);
-            }
-        };
-        let drive: DriveItem = serde_json::from_str(&x).unwrap();
+        let x = self.do_put_bytes(path.as_str(), content, &mut extensions).await?;
+        let drive: DriveItem = serde_json::from_str(&x)?;
         Ok(drive.into())
     }
 
@@ -103,7 +107,7 @@ impl Storage for OneDriveStorage {
     async fn delete(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
-        self.do_delete(format!("me/drive/items/{}", cloud_file_id).as_str(), &mut extensions).await.unwrap();
+        self.do_delete(format!("me/drive/items/{}", cloud_file_id).as_str(), &mut extensions).await?;
         Ok(())
     }
 
@@ -140,22 +144,13 @@ impl Storage for OneDriveStorage {
             .do_get_json("me/drive", &mut extensions)
             .await?;
         info!("{}", json);
-        let result: Drive = serde_json::from_str(json.as_str()).unwrap();
+        let result: Drive = serde_json::from_str(json.as_str())?;
         let quota = result.quota;
         let user = result.owner.user;
         self.inner.user = Some(user.into());
         return Ok(quota.into());
     }
-    async fn info(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
-        let mut extensions = Extensions::new();
-        extensions.insert(cloud_meta.clone());
-        let json = self
-            .do_get_json(format!("me/drive/items/{}", cloud_file_id).as_str(), &mut extensions)
-            .await
-            .unwrap();
-        let drive: DriveItem = serde_json::from_str(&json).unwrap();
-        Ok(drive.into())
-    }
+
 }
 
 #[async_trait]
@@ -167,7 +162,7 @@ impl OAuthStorageFile for OneDriveStorage {
         let client_secret = self.client_secret().clone();
         let mut form = vec![];
         let token = cloud_meta.clone().auth.unwrap();
-        let token: AuthorizationToken = serde_json::from_str(token.as_str()).unwrap();
+        let token: AuthorizationToken = serde_json::from_str(token.as_str())?;
         let refresh_token = token.refresh_token.unwrap();
         form.push(("grant_type", "refresh_token"));
         form.push(("refresh_token", refresh_token.as_str()));
@@ -179,7 +174,7 @@ impl OAuthStorageFile for OneDriveStorage {
             .send();
         let json_text = self.get_response_text(resp_result).await?;
         info!("{}", json_text);
-        let token: AuthorizationToken = serde_json::from_str(json_text.as_str()).unwrap();
+        let token: AuthorizationToken = serde_json::from_str(json_text.as_str())?;
         cloud_meta.expires_in = Some(token.expires_in - 10);
         Ok(String::from(json_text))
     }
@@ -215,7 +210,7 @@ impl OAuthStorageFile for OneDriveStorage {
             .send();
         let json_text = self.get_response_text(resp_result).await?;
         info!("{}", json_text);
-        let token: AuthorizationToken = serde_json::from_str(json_text.as_str()).unwrap();
+        let token: AuthorizationToken = serde_json::from_str(json_text.as_str())?;
         cloud_meta.expires_in = Some(token.expires_in - 10);
         Ok(String::from(json_text))
     }

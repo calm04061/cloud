@@ -5,22 +5,6 @@ const apiInstance = axios.create({
     timeout: 100000,
 });
 
-// apiInstance.interceptors.response.use(
-//   (response) => {
-//     return response;
-//   },
-//   (error) => {
-//     const snackbarStore = useSnackbarStore();
-//     if (error.response) {
-//       // const status = error.response.status;
-//       const data = error.response.data;
-//       snackbarStore.showErrorMessage(data.error);
-//     } else {
-//       snackbarStore.showErrorMessage("Network Error");
-//     }
-//     return Promise.reject(error);
-//   }
-// );
 
 // Get all models.
 export const getSupportCloud = () => {

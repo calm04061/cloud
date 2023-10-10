@@ -1,0 +1,20 @@
+// tsconfig.node.json
+{
+  // 继承了npm包，ts默认的配置，ctrl+鼠标左键，可以跳过去
+//  "extends": "@tsconfig/node18/tsconfig.json",
+  // 需要编译的文件
+  "include": [
+    "vite.config.*",
+    "vitest.config.*",
+    "cypress.config.*",
+    "nightwatch.conf.*",
+    "playwright.config.*"
+  ],
+  // 编译配置项
+  "compilerOptions": {
+    "composite": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["node"]
+  }
+}

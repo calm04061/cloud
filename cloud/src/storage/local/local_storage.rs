@@ -5,7 +5,7 @@ use log::info;
 use tokio::fs;
 
 use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
-use crate::storage::storage::{CreateResponse, FileInfo, Quota, ResponseResult, Storage};
+use crate::storage::storage::{CreateResponse, Quota, ResponseResult, Storage};
 
 pub struct LocalStorage {}
 
@@ -75,7 +75,4 @@ impl Storage for LocalStorage {
         })
     }
 
-    async fn info(&mut self, _cloud_file_id: &str, _cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
-        todo!()
-    }
 }

@@ -1,10 +1,10 @@
 use std::{fmt, i8};
 
-use serde::de::{Error, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::{Error, Visitor};
 
-use crate::database::meta::cloud::MetaStatus;
 use crate::database::meta::{CloudType, FileMetaType};
+use crate::database::meta::cloud::MetaStatus;
 
 impl Serialize for MetaStatus {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

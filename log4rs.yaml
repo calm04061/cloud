@@ -27,3 +27,5 @@ loggers:
     level: info
   rbatis::plugin::intercept_log:
     level: warn
+  actix_web::middleware::logger:
+    level: warn

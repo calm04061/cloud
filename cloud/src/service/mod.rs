@@ -1,16 +1,18 @@
 use std::fs;
+
 use once_cell::sync::Lazy;
+use rbatis::RBatis;
+use rbatis::table_sync::{SqliteTableMapper, sync};
+use rbs::to_value;
+
 use crate::config::ApplicationConfig;
 use crate::database::config::ConfigManager;
+use crate::database::meta::{FileMetaType, FileStatus};
 use crate::database::meta::cloud::SimpleCloudMetaManager;
 use crate::database::meta::file::file_block_meta::SimpleFileBlockMetaManager;
 use crate::database::meta::file::file_meta::SimpleFileMetaManager;
 use crate::database::meta::file::SimpleFileManager;
-use rbatis::{RBatis};
-use rbatis::table_sync::{SqliteTableSync, TableSync};
-use rbs::to_value;
-use crate::database::meta::{FileMetaType, FileStatus};
-use crate::domain::table::tables::{CloudFileBlock, CloudMeta, Config, FileBlockMeta, FileMeta, EventMessage};
+use crate::domain::table::tables::{CloudFileBlock, CloudMeta, Config, EventMessage, FileBlockMeta, FileMeta};
 
 pub(crate) static CONTEXT: Lazy<ServiceContext> = Lazy::new(|| ServiceContext::default());
 #[macro_export]
@@ -45,18 +47,19 @@ impl ServiceContext {
         ));
         log::info!(
             "rbatis pool init success! pool state = {:?}",
-            self.rb.get_pool().expect("pool not init!").status()
+            self.rb.get_pool().expect("pool not init!").state().await
         );
     }
     pub async fn upgrade(&self) {
-        let mut s = SqliteTableSync::default();
-        s.sql_id = " PRIMARY KEY AUTOINCREMENT NOT NULL ".to_string();
-        s.sync(self.rb.acquire().await.unwrap(), to_value!(Config::sync_default()), "config").await.unwrap();
-        s.sync(self.rb.acquire().await.unwrap(), to_value!(CloudMeta::sync_default()), "cloud_meta").await.unwrap();
-        s.sync(self.rb.acquire().await.unwrap(), to_value!(FileMeta::sync_default()), "file_meta").await.unwrap();
-        s.sync(self.rb.acquire().await.unwrap(), to_value!(CloudFileBlock::sync_default()), "cloud_file_block").await.unwrap();
-        s.sync(self.rb.acquire().await.unwrap(), to_value!(FileBlockMeta::sync_default()), "file_block_meta").await.unwrap();
-        s.sync(self.rb.acquire().await.unwrap(), to_value!(EventMessage::sync_default()), "event_message").await.unwrap();
+        // s.sql_id = " PRIMARY KEY AUTOINCREMENT NOT NULL ".to_string();
+       let sqlite_table_mapper =  SqliteTableMapper{};
+        let conn = self.rb.acquire().await.unwrap();
+        sync(&conn, &sqlite_table_mapper,to_value!(Config::sync_default()), "config").await.unwrap();
+        sync(&conn, &sqlite_table_mapper, to_value!(CloudMeta::sync_default()), "cloud_meta").await.unwrap();
+        sync(&conn, &sqlite_table_mapper,to_value!(FileMeta::sync_default()), "file_meta").await.unwrap();
+        sync(&conn, &sqlite_table_mapper,to_value!(CloudFileBlock::sync_default()), "cloud_file_block").await.unwrap();
+        sync(&conn, &sqlite_table_mapper, to_value!(FileBlockMeta::sync_default()), "file_block_meta").await.unwrap();
+        sync(&conn, &sqlite_table_mapper, to_value!(EventMessage::sync_default()), "event_message").await.unwrap();
         let vec = FileMeta::select_by_column(pool!(), "id", 1).await.unwrap();
         if vec.is_empty() {
             let file_meta = FileMeta{

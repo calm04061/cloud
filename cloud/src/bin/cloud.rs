@@ -2,13 +2,14 @@ extern crate core;
 
 use std::error::Error;
 use std::sync::mpsc::channel;
-use std::thread;
 
 use actix_web::dev::ServerHandle;
 use actix_web::rt;
-use log::{info};
+use log::info;
+use tokio::runtime::Builder;
+use tokio_cron_scheduler::JobScheduler;
+use cloud::task::task;
 
-use cloud::task::task_init;
 use cloud::web::run_web;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -22,21 +23,21 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let (tx, rx) = channel();
     info!("spawning thread for server");
-    thread::spawn(move || {
-        let server_future = run_web(tx);
-        rt::System::new().block_on(server_future)
+    let runtime = Builder::new_multi_thread().
+        enable_all().
+        build().
+        expect("create tokio runtime failed");
+    runtime.spawn(async {
+        run_web(tx).await.unwrap();
+    });
+    runtime.spawn(async {
+        let sched = JobScheduler::new().await.unwrap();
+        task(&sched).await;
+        sched.start().await.unwrap();
     });
 
     let server_handle = rx.recv().unwrap();
-    let mut sched: quartz_sched::Scheduler = quartz_sched::Scheduler::new();
-    info!("task_start");
-    sched.start();
-    info!("task_init");
-    task_init(&sched);
-    info!("task_init end");
     sigint_handler(server_handle);
-    info!("stop sched");
-    sched.stop();
     Ok(())
 }
 
@@ -55,7 +56,7 @@ fn sigint_handler(server_handle: ServerHandle) {
 
 #[cfg(not(windows))]
 fn sigint_handler(server_handle: ServerHandle) {
-    use log::{error};
+    use log::error;
     let signals = signal_hook::iterator::Signals::new(&[
         signal_hook::consts::SIGINT,
         signal_hook::consts::SIGTERM,

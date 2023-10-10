@@ -1,10 +1,11 @@
 use rbatis::rbdc::Error;
+
+use crate::database::meta::{CloudType, EventResult, EventType, FileMetaType, FileStatus};
 use crate::database::meta::cloud::MetaStatus;
 use crate::database::meta::cloud::MetaStatus::{
     Disabled, Enable, InvalidRefresh, WaitDataRoot, WaitInit,
 };
 use crate::database::meta::FileMetaType::{DIR, FILE, SYMLINK};
-use crate::database::meta::{CloudType, EventResult, EventType, FileMetaType, FileStatus};
 use crate::error::ErrorInfo;
 
 impl From<i8> for MetaStatus {

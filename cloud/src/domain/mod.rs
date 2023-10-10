@@ -1,9 +1,10 @@
+use rbatis::RBatis;
+
+use crate::config::ApplicationConfig;
+
 mod mapper;
 mod support;
 pub(crate) mod table;
-
-use crate::config::ApplicationConfig;
-use rbatis::RBatis;
 
 pub(crate) fn init_rbatis(config: &ApplicationConfig) -> RBatis {
     let rbatis = RBatis::new();

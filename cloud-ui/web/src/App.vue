@@ -1,48 +1,52 @@
+<script setup lang="ts">
+import {ref} from 'vue'
+import router, {routes} from "./route";
+import {Route} from "./inter/type.ts";
+
+const appTitle = ref("Cloud");
+const drawer = ref(true);
+const itemClick = (route: Route) => {
+  appTitle.value = route.title;
+  router.push(route.path)
+
+}
+</script>
 <template>
-  <v-app id="app" :theme="customizeTheme.darkTheme ? 'dark' : 'light'">
-    <component :is="currentLayout" v-if="isRouterLoaded">
-      <router-view> </router-view>
-    </component>
-    <CustomizationMenu />
-    <BackToTop />
-    <Snackbar />
+  <v-app>
+    <v-theme-provider theme="high-contrast">
+
+      <v-navigation-drawer location="left" v-model="drawer">
+        <v-list>
+          <v-list-item prepend-avatar="https://randomuser.me/api/portraits/women/85.jpg"
+                       title="Sandra Adams" subtitle="sandra_a88@gmailcom"></v-list-item>
+        </v-list>
+
+        <v-divider></v-divider>
+
+        <v-list density="compact">
+          <v-list-item v-for="r in routes" prepend-icon="mdi-folder" value="myfiles"
+                       @click="itemClick(r)">{{ r.title }}
+          </v-list-item>
+        </v-list>
+        <!--      <template v-slot:append>-->
+        <!--        <v-divider></v-divider>-->
+        <!--        <v-list >-->
+        <!--          <v-list-item prepend-icon="mdi-star" title="Starred" value="starred"></v-list-item>-->
+        <!--        </v-list>-->
+        <!--      </template>-->
+        <!--  -->
+      </v-navigation-drawer>
+      <v-app-bar>
+        <v-app-bar-nav-icon variant="text" @click.stop="drawer = !drawer"></v-app-bar-nav-icon>
+        <v-app-bar-title>{{ appTitle }}</v-app-bar-title>
+
+      </v-app-bar>
+      <v-main>
+        <router-view></router-view>
+      </v-main>
+    </v-theme-provider>
   </v-app>
 </template>
 
-<script setup lang="ts">
-import UILayout from "@/layouts/UILayout.vue";
-import LandingLayout from "@/layouts/LandingLayout.vue";
-import DefaultLayout from "@/layouts/DefaultLayout.vue";
-import AuthLayout from "@/layouts/AuthLayout.vue";
-import CustomizationMenu from "@/components/CustomizationMenu.vue";
-import { useCustomizeThemeStore } from "@/stores/customizeTheme";
-import BackToTop from "@/components/common/BackToTop.vue";
-import Snackbar from "@/components/common/Snackbar.vue";
-
-const customizeTheme = useCustomizeThemeStore();
-const route = useRoute();
-
-const isRouterLoaded = computed(() => {
-  if (route.name !== null) return true;
-  return false;
-});
-
-const layouts = {
-  default: DefaultLayout,
-  ui: UILayout,
-  landing: LandingLayout,
-  auth: AuthLayout,
-};
-
-type LayoutName = "default" | "ui" | "landing" | "auth" | "error";
-
-const currentLayout = computed(() => {
-  const layoutName = route.meta.layout as LayoutName;
-  if (!layoutName) {
-    return DefaultLayout;
-  }
-  return layouts[layoutName];
-});
-</script>
-
-<style scoped></style>
+<style scoped>
+</style>

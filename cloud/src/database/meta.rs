@@ -29,7 +29,6 @@ pub enum CloudType {
     Baidu,
     Local,
     OneDrive,
-    #[cfg(not(windows))]
     Sftp,
 }
 pub(crate) enum EventType {

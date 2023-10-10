@@ -1,9 +1,10 @@
-use crate::web::vo::auth::Callback;
-use crate::web::AppState;
-use actix_web::web::{Data, Path, Query};
 use actix_web::{get, HttpRequest, HttpResponse, Responder};
 use actix_web::http::header::HeaderMap;
+use actix_web::web::{Data, Path, Query};
 use log::error;
+
+use crate::web::AppState;
+use crate::web::vo::auth::Callback;
 
 #[get("/authorize/storage/{id}")]
 pub(crate) async fn authorize(

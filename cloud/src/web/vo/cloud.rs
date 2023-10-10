@@ -1,5 +1,6 @@
-use crate::database::meta::CloudType;
 use serde_derive::Deserialize;
+
+use crate::database::meta::CloudType;
 use crate::domain::table::tables::CloudMeta;
 
 #[derive(Deserialize, Clone)]

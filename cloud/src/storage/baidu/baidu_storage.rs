@@ -35,21 +35,10 @@ struct Inner {
 
 /// https://pan.baidu.com/union/doc/jl3rg9m9v
 pub struct BaiduStorage {
-    // api_client: ClientWithMiddleware,
-    // content_client: ClientWithMiddleware,
-    // user: Option<User>,
     inner: Inner,
 }
 
 impl BaiduStorage {
-    // async fn get_drive_id(&mut self, cloud_meta: CloudMeta) -> ResponseResult<String> {
-    //     let option = self.inner.user.clone();
-    //     let user = match option {
-    //         None => self.user_info(cloud_meta).await?,
-    //         Some(u) => u.clone(),
-    //     };
-    //     return Ok(user.default_drive_id.unwrap());
-    // }
 
     pub fn new() -> Self {
         let auth_middleware = BaiduAuthMiddleware::new();
@@ -382,11 +371,11 @@ impl OAuthStorageFile for BaiduStorage {
         Ok(String::from(json_text))
     }
     fn client_id(&self) -> String {
-        "iWjfcOWq0BoUNZABxy4hGtXPdftzPtG8".to_string()
+        dotenv::var("BAIDU_YUN_APP_ID").unwrap()
     }
 
     fn client_secret(&self) -> String {
-        "KqEOL6F9tT2vkeeYRgKqZvyPHlGQnujM".to_string()
+        dotenv::var("BAIDU_YUN_APP_SECRET").unwrap()
     }
 }
 
@@ -400,42 +389,6 @@ impl Network for Inner {
 }
 
 impl Inner {
-    // async fn get_json(
-    //     &mut self,
-    //     path: &str,
-    //     extensions: &mut Extensions,
-    // ) -> ResponseResult<String> {
-    //     let resp_result = self
-    //         .api_client
-    //         .get(format!("{}/{}", API_DOMAIN_PREFIX, path))
-    //         .build()
-    //         .unwrap();
-    //     let resp_result = self
-    //         .api_client
-    //         .execute_with_extensions(resp_result, extensions);
-    //     return self.get_response_text(resp_result).await;
-    // }
-    ///
-    ///
-    ///
-    // async fn post_form(
-    //     &mut self,
-    //     path: &str,
-    //     form: &Vec<(&str, &str)>,
-    //     extensions: &mut Extensions,
-    // ) -> ResponseResult<String> {
-    //     let resp_result = self
-    //         .api_client
-    //         .post(format!("{}/{}", API_DOMAIN_PREFIX, path))
-    //         .form(form)
-    //         .build()
-    //         .unwrap();
-    //     let resp_result = self
-    //         .api_client
-    //         .execute_with_extensions(resp_result, extensions);
-    //     return self.get_response_text(resp_result).await;
-    // }
-
     async fn get_bytes(
         &mut self,
         path: &str,
@@ -455,21 +408,6 @@ impl Inner {
     fn get_client(&self) -> &ClientWithMiddleware {
         &self.api_client
     }
-    ///
-    /// 获得用户信息
-    ///
-    // async fn user_info(&mut self, cloud_meta: CloudMeta) -> ResponseResult<User> {
-    //     let mut extensions = Extensions::new();
-    //     extensions.insert(cloud_meta.clone());
-    //     let json = self
-    //         .do_get_json("rest/2.0/xpan/nas?method=uinfo", &mut extensions)
-    //         .await?;
-    //     debug!("{}", json);
-    //     let result: BaiduUser = serde_json::from_str(json.as_str()).unwrap();
-    //     let result: User = result.into();
-    //     self.user = Some(result.clone());
-    //     return Ok(result);
-    // }
     ///
     /// 管理文件
     ///

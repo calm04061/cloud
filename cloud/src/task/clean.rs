@@ -24,28 +24,6 @@ pub async fn clean() {
     debug!("clean finish");
 }
 
-// impl quartz_sched::Job for Box<Clean> {
-//     fn execute(&self, _engine: Option<SchedulerHandle>) {
-//         tokio::runtime::Builder::new_current_thread()
-//             .enable_all()
-//             .build()
-//             .unwrap()
-//             .block_on(async {
-//                 // info!("clean start");
-//                 clean().await
-//                 // info!("clean end");
-//             });
-//     }
-//
-//     fn description(&self) -> String {
-//         String::from("清理")
-//     }
-//
-//     fn key(&self) -> i64 {
-//         2
-//     }
-// }
-
 async fn clean_file_block(file_meta: &mut FileMeta, cloud: &mut StorageFacade, cache_file: &str) {
     let file_block_metas = CONTEXT
         .file_manager

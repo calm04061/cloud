@@ -53,16 +53,7 @@ impl OneDriveStorage {
             },
         }
     }
-    // async fn info(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
-    //     let mut extensions = Extensions::new();
-    //     extensions.insert(cloud_meta.clone());
-    //     let json = self
-    //         .do_get_json(format!("me/drive/items/{}", cloud_file_id).as_str(), &mut extensions)
-    //         .await
-    //         .unwrap();
-    //     let drive: DriveItem = serde_json::from_str(&json).unwrap();
-    //     Ok(drive.into())
-    // }
+
 }
 
 impl Network for OneDriveStorage {
@@ -215,11 +206,11 @@ impl OAuthStorageFile for OneDriveStorage {
         Ok(String::from(json_text))
     }
     fn client_id(&self) -> String {
-        "2ef3cc2e-2309-4bf4-afb6-918d8177540e".to_string()
+        dotenv::var("ONE_DRIVE_APP_ID").unwrap()
     }
 
     fn client_secret(&self) -> String {
-        "iZx8Q~uobOdiWmCdaPIVB4oWfrTAFw5xJ8jXbaXf".to_string()
+        dotenv::var("ONE_DRIVE_APP_SECRET").unwrap()
     }
 }
 

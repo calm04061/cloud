@@ -236,12 +236,13 @@ impl Inner {
     ) -> ResponseResult<CreateResponse> {
         // let cloud_meta = self.get_token(1).await.unwrap();
         let cloud_type = cloud_meta.cloud_type.into();
-        info!("start upload {} to {:?}({})", block_meta.file_part_id,cloud_type, cloud_meta.name);
+        info!("upload start {} to {:?}({})", block_meta.file_part_id,cloud_type, cloud_meta.name);
         let mut cloud = self.get_cloud(cloud_type).unwrap();
         // let mut cloud = cloud.lock().unwrap();
         let result = cloud
             .upload_content(&block_meta, &content, &cloud_meta)
             .await;
+        info!("upload finish {} to {:?}({})", block_meta.file_part_id,cloud_type, cloud_meta.name);
         return result;
     }
 

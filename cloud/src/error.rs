@@ -59,6 +59,7 @@ impl Display for ErrorInfo {
             ErrorInfo::OTHER(code, msg) => (6000 + code, msg.clone()),
             ErrorInfo::NoneCloudFileId(cloud_meta_id) => (7000, format!("未找到云文件ID:{}", cloud_meta_id)),
             ErrorInfo::NoneCloudMeta(cloud_meta_id) => (7000, format!("云配置：{},没有找到", cloud_meta_id)),
+            // _ => (8000, "系统错误".to_string()),
         };
         let string = format!("{}:{}", code, message);
         f.write_str(string.as_str())

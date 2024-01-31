@@ -1,8 +1,10 @@
 use std::fs::File;
 use std::io::{ErrorKind, Read};
+use std::sync::Arc;
 
 use log::{debug, info};
 use rbatis::rbdc::datetime::DateTime;
+use tokio::sync::Semaphore;
 
 use crate::database::meta::{CloudMetaManager, EventType, FileManager, FileStatus};
 use crate::database::meta::cloud::MetaStatus;
@@ -14,7 +16,7 @@ use crate::storage::storage::ResponseResult;
 use crate::storage::storage_facade::StorageFacade;
 
 
-pub(crate) async fn scan(){
+pub(crate) async fn scan(semaphore: Arc<Semaphore>){
     let cloud_file_block = CloudFileBlock::select_to_upload(pool!()).await.unwrap();
     for mut file_block in cloud_file_block {
         let origin_status = file_block.status;
@@ -25,16 +27,20 @@ pub(crate) async fn scan(){
         if count == 0 {
             continue;
         }
-        let result = do_execute_one_block(&mut file_block).await;
-        let message= match result {
-            Ok(_) => {
-                EventMessage::success(EventType::UploadFileBlock, format!("{} upload success", file_block.id.unwrap()))
-            }
-            Err(e) => {
-                EventMessage::fail(EventType::UploadFileBlock, format!("{} upload fail:{}", file_block.id.unwrap(), e.to_string()))
-            }
-        };
-        EventMessage::insert(pool!(),&message).await.unwrap();
+        let semaphore = semaphore.clone();
+        tokio::spawn(async move {//创建任务
+            let _semaphore_permit = semaphore.acquire().await.unwrap(); // 通过信号量控制并发
+            let result = do_execute_one_block(&mut file_block).await;
+            let message = match result {
+                Ok(_) => {
+                    EventMessage::success(EventType::UploadFileBlock, format!("{} upload success", file_block.id.unwrap()))
+                }
+                Err(e) => {
+                    EventMessage::fail(EventType::UploadFileBlock, format!("{} upload fail:{}", file_block.id.unwrap(), e.to_string()))
+                }
+            };
+            EventMessage::insert(pool!(), &message).await.unwrap();
+        });
     }
 }
 async fn do_execute_one_block( file_block: &mut CloudFileBlock) -> ResponseResult<()> {

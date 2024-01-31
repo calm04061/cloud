@@ -12,54 +12,55 @@ name = "cloud"
 test = false
 bench = false
 [dependencies]
-actix-web = "4.4.0"
-actix-files = "0.6.2"
-actix-cors = "0.6.5"
+actix-web = "4.4.1"
+actix-files = "0.6.5"
+actix-cors = "0.7.0"
 mime = "0.3.17"
-actix-identity = "0.6.0"
+actix-identity = "0.7.0"
 rand = "0.8.5"
-async-trait = "0.1.74"
+async-trait = "0.1.77"
 reqwest-middleware = "0.2.4"
-reqwest = { version = "0.11.22", features = ["stream", "multipart", "json"] }
-serde_json = "1.0.108"
-serde_yaml = "0.9.27"
-serde = { version = "1.0.193", features = ["derive"] }
-serde_derive = "1.0.193"
+reqwest = { version = "0.11.23", features = ["stream", "multipart", "json"] }
+serde_json = "1.0.113"
+serde_yaml = "0.9.31"
+serde = { version = "1.0.196", features = ["derive"] }
+serde_derive = "1.0.196"
 task-local-extensions = "0.1.4"
-tokio = { version = "1.35.0", features = ["rt-multi-thread", "signal", "rt", "macros"] }
-chrono = { version = "0.4.31", features = ["serde"] }
-futures = "0.3.29"
-anyhow = "1.0.75"
-uuid = "1.6.1"
+tokio = { version = "1.35.1", features = ["rt-multi-thread", "signal", "rt", "macros"] }
+chrono = { version = "0.4.33", features = ["serde"] }
+futures = "0.3.30"
+anyhow = "1.0.79"
+uuid = "1.7.0"
 log = "0.4.20"
 log4rs = "1.2.0"
 rust-crypto = "0.2.36"
-libc = "0.2.149"
+libc = "0.2.152"
 bytes = "1.5.0"
 thread_local = "1.1.7"
 dotenv = "0.15.0"
-openssl = { version = "0.10.61" }
+openssl = { version = "0.10.63", features = ["vendored"] }
 rbs = { version = "4.5.2" }
 rbatis = { version = "4.5.6" }
 rbdc-sqlite = { version = "4.5.2" }
+fastdate="0.3.28"
 #threads_pool = "^0.2.0"
 #lru = "0.7.5"
 signal-hook = "0.3.17"
-tokio-cron-scheduler = "0.9.4"
+tokio-cron-scheduler = "0.10.0"
 urlencoding = "2.1.3"
 once_cell = "1.19.0"
 async-recursion = "1.0.5"
-dav-server = { version = "0.5.7", features = ["actix-compat"] }
-futures-util = { version = "0.3.29" }
+dav-server = { version = "0.5.8", features = ["actix-compat"] }
+futures-util = { version = "0.3.30" }
 cloud-ui = { path = "../cloud-ui" }
 async-ssh2-lite = { version = "0.4.7", features = ["tokio", "async-io"] }
 [target.'cfg(not(windows))'.dependencies]
 fuser = { version = "0.14.0" }
 users = "0.11.0"
 openssh-sftp-client = { version = "0.14.1", features = ["openssh"] }
-openssh = { version = "0.10.1", features = ["native-mux"] }
+openssh = { version = "0.10.3", features = ["native-mux"] }
 [target.'cfg(windows)'.dependencies]
-ctrlc = "3.4.1"
+ctrlc = "3.4.2"
 [build-dependencies]
 vcpkg = "0.2.15"
 

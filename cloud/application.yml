@@ -1,4 +1,4 @@
 #debug模式，true输出控制台日志，false只输出文件日志.生产环境需要关闭debug，rbatis也需移除"debug_mode"
 #Debug mode, true for outputting console log, false for only outputting file log. Debug mode should be turned off in production, and "debug_mode" should also be removed from rbatis.
-debug: false
+debug: true
 database_url: "sqlite://./data/file.db"

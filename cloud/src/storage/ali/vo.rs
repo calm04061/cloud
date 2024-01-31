@@ -1,4 +1,18 @@
 use serde::{Deserialize, Serialize};
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub(crate) struct ErrorMessage {
+    pub(crate) code: Option<String>,
+    pub(crate) message: Option<String>,
+
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub(crate) struct FileInfo {
+    pub(crate) drive_id: Option<String>,
+    pub(crate) file_id: Option<String>,
+    pub(crate) parent_file_id: Option<String>,
+    pub(crate) name: Option<String>,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct DriveCapacity {
@@ -19,6 +33,7 @@ pub(crate) struct ErrorResult {
     #[serde(rename(serialize = "requestId", deserialize = "requestId"))]
     request_id: Option<String>,
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct DriveInfo {
     pub(crate) default_drive_id: String,
@@ -27,4 +42,5 @@ pub(crate) struct DriveInfo {
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct AliExtra {
     pub(crate) drive_id: Option<String>,
+    pub(crate) root_file_id: Option<String>,
 }

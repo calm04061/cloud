@@ -16,7 +16,7 @@ appenders:
         level: info
 # 对全局 log 进行配置
 root:
-  level: info
+  level: debug
   appenders:
     - stdout
     - file
@@ -26,6 +26,6 @@ loggers:
   fuser::request:
     level: info
   rbatis::plugin::log:
-    level: warn
+    level: debug
   rbatis::plugin::intercept_log:
-    level: warn
+    level: debug

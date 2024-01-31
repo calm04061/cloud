@@ -5,6 +5,7 @@ use std::sync::mpsc::channel;
 
 use actix_web::dev::ServerHandle;
 use actix_web::rt;
+use dotenv::dotenv;
 use log::info;
 use tokio::runtime::Builder;
 use tokio_cron_scheduler::JobScheduler;
@@ -13,6 +14,7 @@ use cloud::task::task;
 use cloud::web::run_web;
 
 fn main() -> Result<(), Box<dyn Error>> {
+    dotenv().expect(".env不存在");
     let result = log4rs::init_file("log4rs.yaml", Default::default()); //.unwrap();
     match result {
         Ok(_) => {}

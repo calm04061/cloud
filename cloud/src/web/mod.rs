@@ -65,8 +65,8 @@ pub async fn run_web(tx: mpsc::Sender<ServerHandle>) -> std::io::Result<()> {
     .keep_alive(Duration::from_secs(120))
     .bind(("0.0.0.0", port))
     .unwrap()
-    .bind(("::", port))
-    .unwrap()
+    // .bind(("::", port))
+    // .unwrap()
     .run();
     let _ = tx.send(server.handle());
 

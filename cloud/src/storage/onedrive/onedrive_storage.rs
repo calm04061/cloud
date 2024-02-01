@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use dotenv_codegen::dotenv;
 use log::info;
 use reqwest::Client;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
@@ -12,14 +13,15 @@ use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use crate::error::ErrorInfo;
 use crate::storage::onedrive::one_drive_authorization_middleware::OneDriveAuthMiddleware;
 use crate::storage::onedrive::vo::{AuthorizationToken, Drive, DriveItem};
-use crate::storage::storage::{CreateResponse, Network, OAuthStorageFile, Quota, ResponseResult, Storage, User};
+use crate::storage::storage::{CreateResponse, Network,  Quota, ResponseResult, Storage, User};
 
+const ONE_DRIVE_APP_SECRET: &str = dotenv!("ONE_DRIVE_APP_SECRET");
+const ONE_DRIVE_APP_ID: &str = dotenv!("ONE_DRIVE_APP_ID");
 pub const API_DOMAIN_PREFIX: &str = "https://graph.microsoft.com/v1.0";
 const AUTH_DOMAIN_PREFIX: &str = "https://login.microsoftonline.com";
 
 struct Inner {
     api_client: ClientWithMiddleware,
-    content_client: ClientWithMiddleware,
     user: Option<User>,
 }
 
@@ -38,32 +40,15 @@ impl OneDriveStorage {
             .unwrap();
         let api_client = ClientBuilder::new(client).with(auth_middleware).build();
 
-        let content_client = Client::builder()
-            // .proxy(reqwest::Proxy::https("http://127.0.0.1:8888").unwrap())
-            .timeout(Duration::from_secs(300))
-            .connect_timeout(Duration::from_secs(300))
-            .build()
-            .unwrap();
-        let content_client = ClientBuilder::new(content_client).build();
         OneDriveStorage {
             inner: Inner {
                 api_client,
-                content_client,
                 user: None,
             },
         }
     }
-
 }
 
-impl Network for OneDriveStorage {
-    fn get_client(&self) -> &ClientWithMiddleware {
-        &self.inner.api_client
-    }
-    fn get_api_prefix(&self) -> String {
-        API_DOMAIN_PREFIX.to_string()
-    }
-}
 
 #[async_trait]
 impl Storage for OneDriveStorage {
@@ -114,7 +99,7 @@ impl Storage for OneDriveStorage {
         let e = result.unwrap_err();
         return if let ErrorInfo::Http302(url) = e {
             let resp_result = self
-                .inner.content_client
+                .inner.api_client
                 .get(url.as_str())
                 .build()
                 .unwrap();
@@ -142,12 +127,8 @@ impl Storage for OneDriveStorage {
         return Ok(quota.into());
     }
 
-}
-
-#[async_trait]
-impl OAuthStorageFile for OneDriveStorage {
     async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
-        let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, format!("consumers/oauth2/v2.0/token"));
+        let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, "consumers/oauth2/v2.0/token".to_string());
         // debug!("{}", token_url);
         let client_id = self.client_id().clone();
         let client_secret = self.client_secret().clone();
@@ -160,7 +141,7 @@ impl OAuthStorageFile for OneDriveStorage {
         form.push(("client_id", client_id.as_str()));
         form.push(("client_secret", client_secret.as_str()));
         let form = form.as_slice();
-        let resp_result = self.inner.content_client.post(token_url)
+        let resp_result = self.inner.api_client.post(token_url)
             .form(form)
             .send();
         let json_text = self.get_response_text(resp_result).await?;
@@ -174,7 +155,7 @@ impl OAuthStorageFile for OneDriveStorage {
     /// https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id={client_id}&scope={scope}
     ///     &response_type=token&redirect_uri={redirect_uri}
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String> {
-        let callback = format!("http://{}/api/cloud/callback", server);
+        let callback = format!("{}/api/cloud/callback", server);
         let target = encode(callback.as_str());
 
         let scope = encode("offline_access files.readwrite.all");
@@ -185,7 +166,7 @@ impl OAuthStorageFile for OneDriveStorage {
         Ok(result_url)
     }
     async fn callback(&self, _server: String, code: String, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
-        let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, format!("consumers/oauth2/v2.0/token"));
+        let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, "consumers/oauth2/v2.0/token");
         // debug!("{}", token_url);
         let client_id = self.client_id().clone();
         let client_secret = self.client_secret().clone();
@@ -196,7 +177,7 @@ impl OAuthStorageFile for OneDriveStorage {
         form.push(("client_secret", client_secret.as_str()));
         form.push(("redirect_uri", "https://cloud.calm0406.tk/callback.html"));
         let form = form.as_slice();
-        let resp_result = self.inner.content_client.post(token_url)
+        let resp_result = self.inner.api_client.post(token_url)
             .form(form)
             .send();
         let json_text = self.get_response_text(resp_result).await?;
@@ -206,12 +187,21 @@ impl OAuthStorageFile for OneDriveStorage {
         Ok(String::from(json_text))
     }
     fn client_id(&self) -> String {
-        dotenv::var("ONE_DRIVE_APP_ID").unwrap()
+        ONE_DRIVE_APP_ID.to_string()
     }
 
     fn client_secret(&self) -> String {
-        dotenv::var("ONE_DRIVE_APP_SECRET").unwrap()
+        ONE_DRIVE_APP_SECRET.to_string()
     }
 }
 
 impl Inner {}
+
+impl Network for OneDriveStorage {
+    fn get_client(&self) -> &ClientWithMiddleware {
+        &self.inner.api_client
+    }
+    fn get_api_prefix(&self) -> String {
+        API_DOMAIN_PREFIX.to_string()
+    }
+}

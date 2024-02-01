@@ -131,6 +131,18 @@ impl From<&CloudType> for i8 {
         }
     }
 }
+impl From<&CloudType> for String {
+    fn from(value: &CloudType) -> Self {
+        match value {
+            CloudType::AliYun => "阿里云盘".to_string(),
+            CloudType::Baidu => "百度云盘".to_string(),
+            CloudType::Local => "本地磁盘".to_string(),
+            CloudType::OneDrive => "OneDrive".to_string(),
+            #[cfg(not(windows))]
+            CloudType::Sftp => "Sftp".to_string(),
+        }
+    }
+}
 
 impl From<CloudType> for i8 {
     fn from(value: CloudType) -> Self {

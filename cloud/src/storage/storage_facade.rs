@@ -1,5 +1,8 @@
+use std::collections::HashMap;
+use std::sync::Arc;
 use bytes::Bytes;
 use log::info;
+use tokio::sync::Mutex;
 
 use crate::database::meta::{CloudMetaManager, CloudType};
 use crate::database::meta::cloud::MetaStatus;
@@ -13,25 +16,23 @@ use crate::storage::baidu::baidu_storage::BaiduStorage;
 use crate::storage::local::local_storage::LocalStorage;
 use crate::storage::onedrive::onedrive_storage::OneDriveStorage;
 use crate::storage::sftp::sftp_storage::SftpStorage;
-use crate::storage::storage::{CreateResponse, OAuthStorageFile, ResponseResult, Storage};
+use crate::storage::storage::{AuthMethod, CreateResponse, ResponseResult, Storage};
 use crate::util::IntoOne;
 use crate::web::vo::auth::Callback;
 
-#[derive(Clone)]
 pub struct StorageFacade {
     inner: Inner,
 }
 
-#[derive(Clone)]
 struct Inner {
-    // holder: HashMap<CloudType, Arc<Mutex<dyn StorageFile + Send>>>,
+    holder: HashMap<CloudType, Box<Arc<Mutex<dyn Storage + Send>>>>,
 }
 
 impl StorageFacade {
     pub fn new() -> StorageFacade {
         StorageFacade {
             inner: Inner {
-                // holder: HashMap::<CloudType, Arc<Mutex<dyn StorageFile + Send>>>::new(),
+                holder: HashMap::<CloudType, Box<Arc<Mutex<dyn Storage + Send>>>>::new(),
             },
         }
     }
@@ -75,6 +76,12 @@ impl StorageFacade {
         Ok(())
     }
     ///
+    /// 获得支持的授权方式
+    ///
+    pub(crate) async fn get_auth_methods(&mut self, id: i32) -> Vec<AuthMethod> {
+        self.inner.get_auth_methods(id).await
+    }
+    ///
     /// 上传文件
     ///
     pub(crate) async fn upload_content(
@@ -100,6 +107,7 @@ impl StorageFacade {
     }
     ///
     /// 删除文件
+    ///
     pub(crate) async fn delete(&mut self, cloud_file_block: &CloudFileBlock) -> ResponseResult<()> {
         let cloud_meta = self
             .inner
@@ -165,9 +173,9 @@ impl StorageFacade {
             .await
             .unwrap();
         for mut meta in all {
-            let mut cloud = self.inner.get_cloud(meta.cloud_type.into()).unwrap();
+            let cloud = self.inner.get_cloud(meta.cloud_type.into()).unwrap();
             // let mut guard = cloud.lock().unwrap();
-            let result = cloud.drive_quota(&meta).await.unwrap();
+            let result = cloud.lock().await.drive_quota(&meta).await.unwrap();
             meta.used_quota = Some(result.used);
             meta.total_quota = Some(result.total);
             meta.remaining_quota = Some(result.remaining);
@@ -179,33 +187,31 @@ impl StorageFacade {
 }
 
 impl Inner {
-    fn get_cloud(&mut self, cloud_type: CloudType) -> Result<Box<dyn Storage + Send>, &str> {
-        let cloud: Result<Box<(dyn Storage + Send)>, &str> = match cloud_type {
-            CloudType::AliYun => Ok(Box::new(AliStorage::new())),
-            CloudType::Baidu => Ok(Box::new(BaiduStorage::new())),
-            CloudType::Local => Ok(Box::new(LocalStorage::new())),
-            CloudType::OneDrive => Ok(Box::new(OneDriveStorage::new())),
-            CloudType::Sftp => Ok(Box::new(SftpStorage::new())),
-            // _ => {
-            //     Err("unsupported type")
-            // }
-        };
-        return cloud;
+    ///
+    /// 获得云存储
+    ///
+    fn get_cloud(&mut self, cloud_type: CloudType) -> Result<Box<Arc<Mutex<dyn Storage + Send>>>, &str> {
+        let x = self.holder.entry(cloud_type).or_insert_with_key(|key| {
+            let cloud: Result<Box<Arc<Mutex<dyn Storage + Send>>>, &str> = match key {
+                CloudType::AliYun => Ok(Box::new(Arc::new(Mutex::new(AliStorage::new())))),
+                CloudType::Baidu => Ok(Box::new(Arc::new(Mutex::new(BaiduStorage::new())))),
+                CloudType::Local => Ok(Box::new(Arc::new(Mutex::new(LocalStorage::new())))),
+                CloudType::OneDrive => Ok(Box::new(Arc::new(Mutex::new(OneDriveStorage::new())))),
+                CloudType::Sftp => Ok(Box::new(Arc::new(Mutex::new(SftpStorage::new())))),
+            };
+            cloud.unwrap()
+        });
+        Ok(x.clone())
     }
-    fn get_oauth_cloud(&mut self, cloud_type: CloudType) -> Result<Box<dyn OAuthStorageFile + Send>, &str> {
-        let cloud: Result<Box<dyn OAuthStorageFile + Send>, &str> = match cloud_type {
-            CloudType::AliYun => Ok(Box::new(AliStorage::new())),
-            CloudType::Baidu => Ok(Box::new(BaiduStorage::new())),
-            CloudType::OneDrive => Ok(Box::new(OneDriveStorage::new())),
-            _ => {
-                Err("unsupported type")
-            }
-        };
-        return cloud;
-    }
+    ///
+    /// 获得元信息
+    ///
     async fn get_meta_info(&self, id: i32) -> Option<CloudMeta> {
         return CONTEXT.cloud_meta_manager.info(id).await;
     }
+    ///
+    /// 更新元信息
+    ///
     async fn update_meta_info(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<CloudMeta> {
         CONTEXT
             .cloud_meta_manager
@@ -214,20 +220,25 @@ impl Inner {
             .unwrap();
         Ok(cloud_meta.clone())
     }
+    ///
+    /// 刷新token
+    ///
     async fn refresh_token(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<String> {
         let mut cloud_meta = CONTEXT
             .cloud_meta_manager
             .info(cloud_meta.id.unwrap())
             .await
             .unwrap();
-        let mut cloud = self.get_oauth_cloud(cloud_meta.cloud_type.into()).unwrap();
-        // let mut cloud = cloud.lock().unwrap();
+        let cloud = self.get_cloud(cloud_meta.cloud_type.into()).unwrap();
+        let mut cloud = cloud.lock().await;
         let result = cloud.refresh_token(&mut cloud_meta).await?;
         cloud_meta.auth = Some(result.clone());
         self.update_meta_info(&cloud_meta).await?;
         Ok(result)
     }
-
+    ///
+    /// 上传文件
+    ///
     pub(crate) async fn upload_content(
         &mut self,
         cloud_meta: &CloudMeta,
@@ -237,15 +248,17 @@ impl Inner {
         // let cloud_meta = self.get_token(1).await.unwrap();
         let cloud_type = cloud_meta.cloud_type.into();
         info!("upload start {} to {:?}({})", block_meta.file_part_id,cloud_type, cloud_meta.name);
-        let mut cloud = self.get_cloud(cloud_type).unwrap();
+        let cloud = self.get_cloud(cloud_type).unwrap();
         // let mut cloud = cloud.lock().unwrap();
-        let result = cloud
+        let result = cloud.lock().await
             .upload_content(&block_meta, &content, &cloud_meta)
             .await;
         info!("upload finish {} to {:?}({})", block_meta.file_part_id,cloud_type, cloud_meta.name);
         return result;
     }
-
+    ///
+    /// 删除文件
+    ///
     pub(crate) async fn delete(
         &mut self,
         cloud_file_id: &str,
@@ -255,13 +268,15 @@ impl Inner {
 
         info!("delete {} from {:?}({})", cloud_file_id,cloud_type, cloud_meta.name);
 
-        let mut cloud = self.get_cloud(cloud_type).unwrap();
+        let cloud = self.get_cloud(cloud_type).unwrap();
         // let mut cloud = cloud.lock().unwrap();
-        let result = cloud.delete(cloud_file_id, &cloud_meta).await;
+        let result = cloud.lock().await.delete(cloud_file_id, &cloud_meta).await;
 
         return result;
     }
-    // #[async_recursion::async_recursion]
+    ///
+    /// 读取文件内容
+    ///
     pub(crate) async fn content(
         &mut self,
         cloud_file_id: &str,
@@ -269,35 +284,51 @@ impl Inner {
     ) -> ResponseResult<Bytes> {
         // let cloud_meta = self.get_token(1).await.unwrap();
 
-        let mut cloud = self.get_cloud(cloud_meta.cloud_type.into()).unwrap();
+        let cloud = self.get_cloud(cloud_meta.cloud_type.into()).unwrap();
         // let mut cloud = cloud.lock().unwrap();
-        return cloud.content(cloud_file_id, &cloud_meta).await;
+        return cloud.lock().await.content(cloud_file_id, &cloud_meta).await;
     }
-
+    ///
+    /// 获得支持的授权方式
+    ///
+    async fn get_auth_methods(&mut self, id: i32) -> Vec<AuthMethod> {
+        let cloud_meta = CONTEXT.cloud_meta_manager.info(id).await.unwrap();
+        let cloud = self.get_cloud(cloud_meta.cloud_type.into()).unwrap();
+        let cloud = cloud.lock().await;
+        cloud.get_auth_methods()
+    }
+    ///
+    /// 获得授权地址
+    ///
     pub(crate) async fn authorize(&mut self, server: &str, id: i32) -> String {
         let cloud_meta = CONTEXT.cloud_meta_manager.info(id).await.unwrap();
-        let cloud = self.get_oauth_cloud(cloud_meta.cloud_type.into()).unwrap();
-        // let cloud = cloud.lock().unwrap();
+        let cloud = self.get_cloud(cloud_meta.cloud_type.into()).unwrap();
+        let cloud = cloud.lock().await;
         cloud.authorize(server, id).unwrap()
     }
-
+    ///
+    /// oauth2回调
+    ///
     pub(crate) async fn callback(
         &mut self,
         server: &str,
         callback: &Callback,
         cloud_meta: &mut CloudMeta,
     ) -> ResponseResult<String> {
-        let cloud = self.get_oauth_cloud(cloud_meta.cloud_type.into()).unwrap();
-        // let cloud = cloud.lock().unwrap();
+        let cloud = self.get_cloud(cloud_meta.cloud_type.into()).unwrap();
+        let cloud = cloud.lock().await;
         let result = cloud
             .callback(server.to_string(), callback.code.clone(), cloud_meta)
             .await;
 
         result
     }
+    ///
+    /// 回调后处理
+    ///
     pub(crate) async fn after_callback(&mut self, cloud_meta: &mut CloudMeta) {
-        let mut cloud = self.get_oauth_cloud(cloud_meta.cloud_type.into()).unwrap();
-        // let mut cloud = cloud.lock().unwrap();
+        let cloud = self.get_cloud(cloud_meta.cloud_type.into()).unwrap();
+        let mut cloud = cloud.lock().await;
         cloud.after_callback(cloud_meta).await.ok();
         let quota = cloud.drive_quota(cloud_meta).await.unwrap();
         cloud_meta.total_quota = Some(quota.total);

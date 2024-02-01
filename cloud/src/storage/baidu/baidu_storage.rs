@@ -1,9 +1,11 @@
 use std::time::Duration;
 
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use crypto::digest::Digest;
 use crypto::md5::Md5;
+use dotenv_codegen::dotenv;
 use log::{debug, info};
 use reqwest::Client;
 use reqwest::multipart::{Form, Part};
@@ -18,8 +20,11 @@ use crate::error::ErrorInfo;
 use crate::error::ErrorInfo::{Http, Http302};
 use crate::storage::baidu::baidu_authorization_middleware::BaiduAuthMiddleware;
 use crate::storage::baidu::vo::{AsyncType, BaiduCreate, BaiduFileManagerResult, BaiduOpera, BaiduPreCreate, BaiduQuota, FileMetas, Token};
-use crate::storage::storage::{CreateResponse, FileInfo, Network, OAuthStorageFile, Quota, ResponseResult, Storage, TokenProvider, User};
+use crate::storage::storage::{CreateResponse, FileInfo, Network, Quota, ResponseResult, Storage, TokenProvider, User};
 use crate::util::IntoOne;
+
+const BAIDU_YUN_APP_SECRET: &str = dotenv!("BAIDU_YUN_APP_SECRET");
+const BAIDU_YUN_APP_ID: &str = dotenv!("BAIDU_YUN_APP_ID");
 
 // const CHUNK_SIZE: usize = 10485760;
 const BLOCK_SIZE: usize = 1024 * 1024 * 4;
@@ -29,7 +34,6 @@ pub const FILE_DOMAIN_PREFIX: &str = "https://d.pcs.baidu.com";
 
 struct Inner {
     api_client: ClientWithMiddleware,
-    content_client: ClientWithMiddleware,
     user: Option<User>,
 }
 
@@ -50,17 +54,9 @@ impl BaiduStorage {
             .unwrap();
         let api_client = ClientBuilder::new(client).with(auth_middleware).build();
 
-        let content_client = Client::builder()
-            // .proxy(reqwest::Proxy::https("http://127.0.0.1:8888").unwrap())
-            .timeout(Duration::from_secs(300))
-            .connect_timeout(Duration::from_secs(300))
-            .build()
-            .unwrap();
-        let content_client = ClientBuilder::new(content_client).build();
         BaiduStorage {
             inner: Inner {
                 api_client,
-                content_client,
                 user: None,
             },
         }
@@ -103,18 +99,9 @@ impl Clone for BaiduStorage {
             .build()
             .unwrap();
         let api_client = ClientBuilder::new(client).with(auth_middleware).build();
-
-        let content_client = Client::builder()
-            // .proxy(reqwest::Proxy::https("http://127.0.0.1:8888").unwrap())
-            .timeout(Duration::from_secs(300))
-            .connect_timeout(Duration::from_secs(300))
-            .build()
-            .unwrap();
-        let content_client = ClientBuilder::new(content_client).build();
         BaiduStorage {
             inner: Inner {
                 api_client,
-                content_client,
                 user: self.inner.user.clone(),
             },
         }
@@ -301,7 +288,7 @@ impl Storage for BaiduStorage {
         let result = self
             .inner
             .do_get_json(
-                format!("api/quota?checkfree=1&checkexpire=1").as_str(),
+                "api/quota?checkfree=1&checkexpire=1".to_string().as_str(),
                 &mut extensions,
             )
             .await?;
@@ -310,16 +297,10 @@ impl Storage for BaiduStorage {
         Ok(result.into())
     }
 
-}
-
-#[async_trait]
-impl OAuthStorageFile for BaiduStorage {
     async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         let token: Token = cloud_meta.get_token()?;
-        // let mut refresh_token = HashMap::new();
-        // refresh_token.insert("refresh_token", token.refresh_token);
         let url = format!("oauth/2.0/token?grant_type=refresh_token&refresh_token={}&client_id={}&client_secret={}", token.refresh_token, "", "");
 
         let resp_result = self
@@ -332,27 +313,17 @@ impl OAuthStorageFile for BaiduStorage {
     }
 
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String> {
-        let callback = format!("http://{}/api/cloud/callback", server);
+        let callback = format!("{}/api/cloud/callback", server);
         let encoded = encode(callback.as_str());
         let string = format!("{}/oauth/2.0/authorize?response_type=code&client_id={}&scope=basic,netdisk&state={}", AUTH_DOMAIN_PREFIX, self.client_id(), id);
         let call = format!("https://cloud.calm0406.tk/callback.html?target={}&redirect_uri={}", encoded, encode(string.as_str()));
         Ok(call)
     }
     async fn callback(&self, _server: String, code: String, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
-        // let callback = format!("http://{}/api/cloud/callback", server);
         let encoded = encode("https://cloud.calm0406.tk/callback.html");
         let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, format!("oauth/2.0/token?grant_type=authorization_code&code={}&client_id={}&client_secret={}&redirect_uri={}", code, self.client_id(), self.client_secret(), encoded));
-        // info!("{}", token_url);
-        let resp_result = self.inner.content_client.get(token_url).send();
-        // info!("{}", "send");
+        let resp_result = self.inner.api_client.get(token_url).send();
         let json_text = self.inner.get_response_text(resp_result).await?;
-        // info!("{}", "get_response_text");
-        // let json_text = match json_text {
-        //     Ok(e) => { e }
-        //     Err(e) => {
-        //         return Err(e);
-        //     }
-        // };
         info!("{}", json_text);
         let token: Result<Token, Error> = serde_json::from_str(json_text.as_str());
         let token = match token {
@@ -365,11 +336,11 @@ impl OAuthStorageFile for BaiduStorage {
         Ok(String::from(json_text))
     }
     fn client_id(&self) -> String {
-        dotenv::var("BAIDU_YUN_APP_ID").unwrap()
+       BAIDU_YUN_APP_ID.to_string()
     }
 
     fn client_secret(&self) -> String {
-        dotenv::var("BAIDU_YUN_APP_SECRET").unwrap()
+        BAIDU_YUN_APP_SECRET.to_string()
     }
 }
 

@@ -6,7 +6,7 @@ use std::sync::mpsc::channel;
 
 use actix_web::dev::ServerHandle;
 use actix_web::rt;
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use log::info;
 use tokio::runtime::Builder;
 use tokio_cron_scheduler::JobScheduler;

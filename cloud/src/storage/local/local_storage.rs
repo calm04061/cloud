@@ -5,7 +5,7 @@ use log::info;
 use tokio::fs;
 
 use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
-use crate::storage::storage::{CreateResponse, Quota, ResponseResult, Storage};
+use crate::storage::storage::{AuthMethod, CreateResponse, Quota, ResponseResult, Storage};
 
 pub struct LocalStorage {}
 
@@ -68,5 +68,19 @@ impl Storage for LocalStorage {
             remaining: 1024 * 1024 * 1024,
         })
     }
+    fn get_auth_methods(&self) -> Vec<AuthMethod> {
+        vec![]
+    }
 
+    async fn refresh_token(&mut self, _cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
+        todo!()
+    }
+
+    fn authorize(&self, _server: &str, _id: i32) -> ResponseResult<String> {
+        todo!()
+    }
+
+    async fn callback(&self, _server: String, _code: String, _cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
+        todo!()
+    }
 }

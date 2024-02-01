@@ -9,7 +9,7 @@ use futures_util::{AsyncReadExt, AsyncWriteExt};
 
 use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use crate::storage::sftp::vo::HostUser;
-use crate::storage::storage::{CreateResponse, Quota, ResponseResult, Storage};
+use crate::storage::storage::{AuthMethod, CreateResponse, Quota, ResponseResult, Storage};
 
 ///
 /// 存储文件到sftp
@@ -99,6 +99,21 @@ impl Storage for SftpStorage {
             used: 10000,
             remaining: 10000000000,
         })
+    }
+    fn get_auth_methods(&self) -> Vec<AuthMethod> {
+        vec![AuthMethod::UsernamePassword]
+    }
+
+    async fn refresh_token(&mut self, _cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
+        todo!()
+    }
+
+    fn authorize(&self, _server: &str, _id: i32) -> ResponseResult<String> {
+        todo!()
+    }
+
+    async fn callback(&self, _server: String, _code: String, _cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
+        todo!()
     }
 }
 

@@ -63,7 +63,7 @@ async fn do_execute_one_block( file_block: &mut CloudFileBlock) -> ResponseResul
         .file_block_meta_info_by_id(file_block.file_block_id)
         .await
         .unwrap();
-    let cache_file = dotenv::var("TEMP_PATH").unwrap_or(String::from("/var/lib/storage/temp"));
+    let cache_file = dotenvy::var("TEMP_PATH").unwrap_or(String::from("/var/lib/storage/temp"));
 
     let cache_file = format!("{}/{}", cache_file, file_block_meta.file_part_id);
     debug!("upload {}", cache_file);

@@ -44,3 +44,11 @@ pub(crate) struct AliExtra {
     pub(crate) drive_id: Option<String>,
     pub(crate) root_file_id: Option<String>,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub(crate) struct AuthToken {
+    pub(crate) token_type: String,
+    pub(crate) access_token: String,
+    pub(crate) refresh_token: Option<String>,
+    pub(crate) expires_in: i32,
+}

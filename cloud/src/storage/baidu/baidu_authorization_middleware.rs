@@ -3,7 +3,6 @@ use reqwest_middleware::{Middleware, Next};
 use task_local_extensions::Extensions;
 
 use crate::domain::table::tables::CloudMeta;
-use crate::error::ErrorInfo;
 use crate::storage::baidu::vo::Token;
 use crate::storage::storage::TokenProvider;
 
@@ -24,30 +23,26 @@ impl Middleware for BaiduAuthMiddleware {
         next: Next<'_>,
     ) -> reqwest_middleware::Result<Response> {
         let option: Option<&CloudMeta> = extensions.get();
-        if let None = option {
-            let err = anyhow::Error::msg(ErrorInfo::NotFoundConfig("db token没有配置".to_string()));
-            let middleware = reqwest_middleware::Error::Middleware(err);
-            return Err(middleware);
-        }
-        let meta = option.unwrap();
-        let result = meta.get_token();
-        if let Err(e) = result {
-            let err = anyhow::Error::msg(e);
-            let middleware = reqwest_middleware::Error::Middleware(err);
-            return Err(middleware);
-        }
+        if let Some(meta) = option{
+            let result = meta.get_token();
+            if let Err(e) = result {
+                let err = anyhow::Error::msg(e);
+                let middleware = reqwest_middleware::Error::Middleware(err);
+                return Err(middleware);
+            }
+            let token: Token = result.unwrap();
+            let url = req.url_mut();
+            let mut query = String::from(url.query().unwrap_or(""));
+            if url.to_string().contains("?") {
+                query.push_str("&");
+            } else {
+                query.push_str("?");
+            }
+            query.push_str("access_token=");
+            query.push_str(token.access_token.as_str());
+            url.set_query(Some(query.as_str()));
 
-        let token: Token = result.unwrap();
-        let url = req.url_mut();
-        let mut query = String::from(url.query().unwrap_or(""));
-        if url.to_string().contains("?") {
-            query.push_str("&");
-        } else {
-            query.push_str("?");
         }
-        query.push_str("access_token=");
-        query.push_str(token.access_token.as_str());
-        url.set_query(Some(query.as_str()));
         next.run(req, extensions).await
     }
 }

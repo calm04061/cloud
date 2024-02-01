@@ -4,10 +4,12 @@ use std::fs::File;
 use std::io::{Read, Seek, Write};
 use std::io::SeekFrom::Start;
 use std::path::Path;
+use std::sync::Arc;
 
 use crypto::digest::Digest;
 use crypto::md5::Md5;
 use log::{debug, error, info};
+use tokio::sync::RwLock;
 
 use crate::database::meta::{FileManager, FileMetaType, FileStatus};
 use crate::domain::table::tables::{FileBlockMeta, FileMeta};
@@ -28,7 +30,7 @@ pub(crate) struct VirtualFileSystem {
 
 #[derive(Clone)]
 struct Inner {
-    pub(crate) facade_cloud: StorageFacade,
+    pub(crate) facade_cloud: Arc<RwLock<StorageFacade>>,
     pub cache_file: String,
 }
 
@@ -44,7 +46,7 @@ impl VirtualFileSystem {
     pub(crate) fn new(cache_file: &str) -> VirtualFileSystem {
         VirtualFileSystem {
             inner: Inner {
-                facade_cloud: StorageFacade::new(),
+                facade_cloud: Arc::new(RwLock::new(StorageFacade::new())),
                 cache_file: String::from(cache_file),
             },
         }
@@ -440,7 +442,7 @@ impl Inner {
     async fn read_content_from_cloud(&mut self, file_block_id: i32) -> ResponseResult<Vec<u8>> {
         // let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
         info!("read from file_block_id:{}", file_block_id);
-        let result = self.facade_cloud.content(file_block_id).await;
+        let result = self.facade_cloud.write().await.content(file_block_id).await;
 
         let a = match result {
             Ok(result) => {

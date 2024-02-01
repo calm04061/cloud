@@ -29,7 +29,7 @@ pub(crate) struct AppState {
 pub async fn run_web(tx: mpsc::Sender<ServerHandle>, plugin_arc: Arc<Vec<PluginMetaInfo>>) -> std::io::Result<()> {
     CONTEXT.init_pool().await;
     CONTEXT.upgrade().await;
-    let port = dotenv::var("HTTP_PORT")
+    let port = dotenvy::var("HTTP_PORT")
         .unwrap_or("8088".to_string())
         .parse::<u16>()
         .unwrap_or(8088);

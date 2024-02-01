@@ -10,8 +10,15 @@ use task_local_extensions::Extensions;
 use crate::database::meta::cloud::MetaStatus;
 use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use crate::error::ErrorInfo;
+use crate::storage::storage::AuthMethod::OAuth2;
 
 pub type ResponseResult<T> = Result<T, ErrorInfo>;
+
+#[derive(PartialEq)]
+pub(crate) enum AuthMethod {
+    OAuth2,
+    UsernamePassword,
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FileItemWrapper {
@@ -201,44 +208,27 @@ pub trait Storage {
      * 获得容量
      **/
     async fn drive_quota(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<Quota>;
-}
-
-// #[async_trait::async_trait]
-// pub trait CloudStorageFile {
-// async fn list(
-//     &mut self,
-//     parent_file_id: &str,
-//     cloud_meta: CloudMeta,
-// ) -> ResponseResult<FileItemWrapper>;
-// /**
-//  * 搜索
-//  **/
-// async fn search(
-//     &mut self,
-//     parent_file_id: &str,
-//     name: &str,
-//     cloud_meta: CloudMeta,
-// ) -> ResponseResult<SearchResponse>;
-// }
-
-#[async_trait::async_trait]
-pub trait OAuthStorageFile: Storage {
+    /**
+     * 获得支持的认证方法
+     **/
+    fn get_auth_methods(&self) -> Vec<AuthMethod> {
+        vec![OAuth2]
+    }
     async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String>;
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String>;
-    async fn callback(&self, server: String, code: String, cloud_meta: &mut CloudMeta) -> ResponseResult<String>;
+    async fn callback(&self, _server: String, code: String, cloud_meta: &mut CloudMeta) -> ResponseResult<String>;
     async fn after_callback(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<()> {
         cloud_meta.data_root = Some("/app/share-desk".to_string());
         cloud_meta.status = MetaStatus::Enable.into();
         Ok(())
     }
-    fn client_id(&self) -> String;
-    fn client_secret(&self) -> String;
+    fn client_id(&self) -> String {
+        "client_id".to_string()
+    }
+    fn client_secret(&self) -> String {
+        "client_secret".to_string()
+    }
 }
-//
-// #[async_trait::async_trait]
-// pub trait Storage {
-//     async fn user_info(&mut self, cloud_meta: CloudMeta) -> ResponseResult<User>;
-// }
 
 #[async_trait::async_trait]
 pub trait Network {
@@ -352,9 +342,6 @@ pub trait Network {
             return Err(ErrorInfo::Http302(location.to_string()));
         }
         let body = response.bytes().await;
-        // let result: Result<Response, Error> = self.run(future);
-        // let future = response.bytes();
-        // let result: Result<Bytes, reqwest::Error> = self.run(future);
         match body {
             Ok(bytes) => Ok(bytes),
             Err(e) => {

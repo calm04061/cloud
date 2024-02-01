@@ -1,6 +1,7 @@
 extern crate core;
 #[macro_use]
 extern crate rbatis;
+extern crate dotenv_codegen;
 
 mod config;
 pub mod database;

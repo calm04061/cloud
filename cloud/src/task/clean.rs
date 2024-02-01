@@ -10,7 +10,7 @@ use crate::storage::storage_facade::StorageFacade;
 
 pub async fn clean() {
     debug!("start clean");
-    let cache_file = dotenv::var("TEMP_PATH").unwrap_or(String::from("/var/lib/storage/temp"));
+    let cache_file = dotenvy::var("TEMP_PATH").unwrap_or(String::from("/var/lib/storage/temp"));
 
     let mut cloud = StorageFacade::new();
 

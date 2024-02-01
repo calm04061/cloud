@@ -10,7 +10,6 @@ use bytes::BytesMut;
 #[derive(Debug, PartialEq, Clone, serde_derive::Serialize)]
 pub enum ErrorInfo {
     Retry,
-    NotFoundConfig(String),
     FileNotFound(String),
     FileAlreadyExist(String),
     Http302(String),
@@ -49,7 +48,6 @@ impl Display for ErrorInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let (code, message) = match self {
             ErrorInfo::Retry => (3000, String::from("retry")),
-            ErrorInfo::NotFoundConfig(m) => (4000, m.clone()),
             ErrorInfo::FileNotFound(f) => (4000, f.clone()),
             ErrorInfo::FileAlreadyExist(f) => (4001, f.clone()),
             ErrorInfo::Http302(url) => (5302, url.clone()),

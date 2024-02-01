@@ -2,8 +2,9 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use bytes::Bytes;
+use dotenv_codegen::dotenv;
 use log::{debug, info};
-use reqwest::{Body, Client};
+use reqwest::{Body, Client, IntoUrl};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use serde::{Deserialize, Serialize};
 use task_local_extensions::Extensions;
@@ -12,18 +13,19 @@ use crate::database::meta::cloud::MetaStatus;
 
 use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use crate::error::ErrorInfo;
-use crate::storage::ali::ali_authorization_middleware::{AliAuthMiddleware, AuthToken};
-use crate::storage::ali::vo::{AliExtra, DevicePersonalInfo, DriveInfo, ErrorMessage, FileInfo};
-use crate::storage::storage::{CreateResponse, Network, OAuthStorageFile, Quota, ResponseResult, Storage};
+use crate::storage::ali::ali_authorization_middleware::{AliAuthMiddleware};
+use crate::storage::ali::vo::{AliExtra, AuthToken, DevicePersonalInfo, DriveInfo, ErrorMessage, FileInfo};
+use crate::storage::storage::{CreateResponse, Network, Quota, ResponseResult, Storage, TokenProvider};
 
-const CHUNK_SIZE: usize = 134217728; //128mb
+//128mb
+const CHUNK_SIZE: usize = 134217728;
+const ALI_YUN_APP_SECRET: &str = dotenv!("ALI_YUN_APP_SECRET");
+const ALI_YUN_APP_ID: &str = dotenv!("ALI_YUN_APP_ID");
+
 pub const API_DOMAIN_PREFIX: &str = "https://openapi.alipan.com";
-const AUTH_DOMAIN_PREFIX: &str = "https://openapi.alipan.com";
-
 
 struct Inner {
     api_client: ClientWithMiddleware,
-    content_client: ClientWithMiddleware,
 }
 
 pub struct AliStorage {
@@ -69,7 +71,7 @@ struct CompleteRequest {
     upload_id: String,
 }
 
-impl From<CompleteRequest> for CreateResponse{
+impl From<CompleteRequest> for CreateResponse {
     fn from(value: CompleteRequest) -> Self {
         CreateResponse {
             encrypt_mode: "".to_string(),
@@ -79,12 +81,13 @@ impl From<CompleteRequest> for CreateResponse{
         }
     }
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 struct UploadPreResult {
     parent_file_id: String,
     upload_id: Option<String>,
     rapid_upload: bool,
-    exist: bool,
+    exist: Option<bool>,
     #[serde(rename(serialize = "type", deserialize = "type"))]
     file_type: String,
     file_id: String,
@@ -104,8 +107,8 @@ impl From<UploadPreResult> for CreateResponse {
             file_type: value.file_type,
         }
     }
-
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 struct DownloadUrl {
     expiration: String,
@@ -114,21 +117,8 @@ struct DownloadUrl {
 }
 
 impl AliStorage {
-    async fn get_drive_id(&mut self, cloud_meta: CloudMeta) -> ResponseResult<String> {
-        let mut extensions = Extensions::new();
-        extensions.insert(cloud_meta.clone());
-        let resp_result = self
-            .inner.api_client
-            .post(format!("{}/{}", API_DOMAIN_PREFIX, "adrive/v1.0/user/getDriveInfo"))
-            .body("{}")
-            .build()
-            .unwrap();
-        let resp_result = self
-            .inner.api_client
-            .execute_with_extensions(resp_result, &mut extensions);
-        // let resp_result = self.run(resp_result);
-        // debug!("{:?}", resp_result);
-        let json = self.inner.get_response_text(resp_result).await?;
+    async fn get_drive_id(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<String> {
+        let json = self.inner.post_api_json("adrive/v1.0/user/getDriveInfo", &(), Some(cloud_meta)).await?;
         debug!("{}", json);
         let result: DriveInfo = serde_json::from_str(json.as_str()).unwrap();
         return Ok(result.default_drive_id);
@@ -144,18 +134,9 @@ impl AliStorage {
             .build()
             .unwrap();
         let api_client = ClientBuilder::new(client).with(AliAuthMiddleware).build();
-
-        let content_client = Client::builder()
-            // .proxy(reqwest::Proxy::https("http://127.0.0.1:8888").unwrap())
-            .timeout(Duration::from_secs(5))
-            .connect_timeout(Duration::from_secs(5))
-            .build()
-            .unwrap();
-        let content_client = ClientBuilder::new(content_client).build();
         AliStorage {
             inner: Inner {
                 api_client,
-                content_client,
             },
         }
     }
@@ -208,7 +189,7 @@ impl Storage for AliStorage {
         if extra.root_file_id.is_none() {
             root_file_id = self.resolve_root_dir_not_exist(&cloud_meta.clone()).await?;
         } else {
-             root_file_id = extra.root_file_id.unwrap();
+            root_file_id = extra.root_file_id.unwrap();
         }
         let drive_id = extra.drive_id.unwrap();
 
@@ -245,26 +226,11 @@ impl Storage for AliStorage {
             proof_code: None,
             proof_version: None,
         };
-        let mut extensions = Extensions::new();
-        extensions.insert(cloud_meta.clone());
-        let resp_result = self
-            .inner.api_client
-            .post(format!(
-                "{}/{}",
-                API_DOMAIN_PREFIX, "adrive/v1.0/openFile/create"
-            ))
-            .json(&create_file)
-            .build()
-            ?;
-        let resp_result = self
-            .inner.api_client
-            .execute_with_extensions(resp_result, &mut extensions);
-        // let resp_result = self.run(resp_result);
-        let json = self.inner.get_response_text(resp_result).await?;
+        let json = self.inner.post_api_json("adrive/v1.0/openFile/create", &create_file, Some(cloud_meta)).await?;
         info!("openFile/create:{}", json);
         let result: UploadPreResult = serde_json::from_str(json.as_str())?;
-        if result.exist {
-           return Ok(result.into());
+        if let Some(true) = result.exist {
+            return Ok(result.into());
         }
 
         let part_info_list = result.part_info_list.unwrap();
@@ -280,7 +246,7 @@ impl Storage for AliStorage {
             let b = (&copy[start..end]).to_vec();
             let body = Body::from(b);
             let response = self
-                .inner.content_client
+                .inner.api_client
                 .put(part_info.upload_url.unwrap())
                 .body(body)
                 .send();
@@ -293,22 +259,7 @@ impl Storage for AliStorage {
             file_id: result.file_id,
             upload_id: result.upload_id.unwrap(),
         };
-        let mut extensions = Extensions::new();
-        extensions.insert(cloud_meta.clone());
-        let resp_result = self
-            .inner.api_client
-            .post(format!(
-                "{}/{}",
-                API_DOMAIN_PREFIX, "adrive/v1.0/openFile/complete"
-            ))
-            .json(&complete)
-            .build()
-            .unwrap();
-        let resp_result = self
-            .inner.api_client
-            .execute_with_extensions(resp_result, &mut extensions);
-        // let resp_result = self.run(resp_result);
-        let json = self.inner.get_response_text(resp_result).await?;
+        let json = self.inner.post_api_json("adrive/v1.0/openFile/complete", &complete, Some(cloud_meta)).await?;
         debug!("complete:{}", json);
         // print!("{:#?}",result);
         return Ok(complete.into());
@@ -324,17 +275,7 @@ impl Storage for AliStorage {
             drive_id,
             file_id: cloud_file_id.to_string(),
         };
-        let mut extensions = Extensions::new();
-        extensions.insert(cloud_meta.clone());
-        let resp_result = self
-            .inner.api_client
-            .post(format!("{}/{}", API_DOMAIN_PREFIX, "v2/recyclebin/trash"))
-            .json(&scores)
-            .build()?;
-        let resp_result = self
-            .inner.api_client
-            .execute_with_extensions(resp_result, &mut extensions);
-        let result = self.inner.get_response_text(resp_result).await;
+        let result = self.inner.post_api_json("v2/recyclebin/trash", &scores, Some(cloud_meta)).await;
         match result {
             Ok(str) => {
                 debug!("delete file result :{}", str);
@@ -355,24 +296,11 @@ impl Storage for AliStorage {
             file_id: cloud_file_id.to_string(),
         };
         debug!("get_download_url");
-        let mut extensions = Extensions::new();
-        extensions.insert(cloud_meta.clone());
-        let resp_result = self
-            .inner.api_client
-            .post(format!(
-                "{}/{}",
-                API_DOMAIN_PREFIX, "adrive/v1.0/openFile/getDownloadUrl"
-            ))
-            .json(&scores)
-            .build()?;
-        let resp_result = self
-            .inner.api_client
-            .execute_with_extensions(resp_result, &mut extensions);
-        let json = self.inner.get_response_text(resp_result).await?;
+        let json = self.inner.post_api_json("adrive/v1.0/openFile/getDownloadUrl", &scores, Some(cloud_meta)).await?;
         let url: DownloadUrl = serde_json::from_str(json.as_str())?;
         debug!("get_content:{:?}", url);
         let body = self
-            .inner.content_client
+            .inner.api_client
             .get(url.url)
             .header("Referer", "https://www.aliyundrive.com/")
             .send();
@@ -381,36 +309,15 @@ impl Storage for AliStorage {
 
 
     async fn drive_quota(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<Quota> {
-        let empty: HashMap<String, String> = HashMap::new();
-        let resp_result = self
-            .inner.api_client
-            .post(format!(
-                "{}/{}",
-                API_DOMAIN_PREFIX, "adrive/v1.0/user/getSpaceInfo"
-            ))
-            .json(&empty)
-            .build()?;
-        let mut extensions = Extensions::new();
-        extensions.insert(cloud_meta.clone());
-        let resp_result = self
-            .inner.api_client.execute_with_extensions(resp_result, &mut extensions);
-        let json = self.inner.get_response_text(resp_result).await?;
+        let json = self.inner.post_api_json("adrive/v1.0/user/getSpaceInfo", &(), Some(cloud_meta)).await?;
 
         // println!("{:?}", json);
         let result: DevicePersonalInfo = serde_json::from_str(json.as_str())?;
         return Ok(result.personal_space_info.into());
     }
-}
 
-#[async_trait::async_trait]
-impl OAuthStorageFile for AliStorage {
     async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
-        let mut extensions = Extensions::new();
-        extensions.insert(cloud_meta.clone());
-
-        let token_option = cloud_meta.clone().auth;
-        let token = token_option.unwrap();
-        let token: AuthToken = serde_json::from_str(token.as_str())?;
+        let token: AuthToken = cloud_meta.get_token().unwrap();
         let mut refresh_token = HashMap::new();
         refresh_token.insert("refresh_token", token.refresh_token.unwrap());
         let client_id = self.client_id();
@@ -418,31 +325,22 @@ impl OAuthStorageFile for AliStorage {
         refresh_token.insert("client_id", client_id);
         refresh_token.insert("client_secret", client_secret);
         refresh_token.insert("grant_type", "refresh_token".to_string());
-
-        let resp_result = self
-            .inner.api_client
-            .post(format!("{}/{}", API_DOMAIN_PREFIX, "oauth/access_token"))
-            .json(&refresh_token)
-            .build()?;
-        let resp_result = self
-            .inner.api_client
-            .execute(resp_result);
-        let json = self.inner.get_response_text(resp_result).await?;
+        let json = self.inner.post_api_json("oauth/access_token", &refresh_token, None).await?;
         info!("refresh_token result {:?}",json);
         Ok(json)
     }
 
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String> {
-        let callback = format!("http://{}/api/cloud/callback", server);
+        let callback = format!("{}/api/cloud/callback", server);
         let encoded = encode(callback.as_str());
-        let string = format!("{}/oauth/authorize?response_type=code&client_id={}&scope=user:base,file:all:read,file:all:write&state={}", AUTH_DOMAIN_PREFIX, self.client_id(), id);
+        let string = format!("{}/oauth/authorize?response_type=code&client_id={}&scope=user:base,file:all:read,file:all:write&state={}", API_DOMAIN_PREFIX, self.client_id(), id);
         let call = format!("https://cloud.calm0406.tk/callback.html?target={}&redirect_uri={}", encoded, encode(string.as_str()));
         Ok(call)
     }
     async fn callback(&self, server: String, code: String, _cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
-        let callback = format!("http://{}/api/cloud/callback", server);
+        let callback = format!("{}/api/cloud/callback", server);
         let encoded = encode(callback.as_str());
-        let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, format!("oauth/access_token?grant_type=authorization_code&code={}&client_id={}&client_secret={}&redirect_uri={}", code, self.client_id(), self.client_secret(), encoded));
+        let token_url = format!("oauth/access_token?grant_type=authorization_code&code={}&client_id={}&client_secret={}&redirect_uri={}", code, self.client_id(), self.client_secret(), encoded);
         info!("{}", token_url);
         let mut body = HashMap::new();
         let client_id = self.client_id();
@@ -451,13 +349,12 @@ impl OAuthStorageFile for AliStorage {
         body.insert("client_secret", client_secret.as_str());
         body.insert("grant_type", "authorization_code");
         body.insert("code", code.as_str());
-        let resp_result = self.inner.content_client.post(token_url).json(&body).send();
-        let json_text = self.inner.get_response_text(resp_result).await?;
+        let json_text = self.inner.post_api_json(&token_url, &body, None).await?;
         info!("{}", json_text);
         Ok(String::from(json_text))
     }
     async fn after_callback(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<()> {
-        let result = self.get_drive_id(cloud_meta.clone()).await?;
+        let result = self.get_drive_id(cloud_meta).await?;
         let extra = AliExtra {
             drive_id: Some(result),
             root_file_id: None,
@@ -470,13 +367,11 @@ impl OAuthStorageFile for AliStorage {
     }
 
     fn client_id(&self) -> String {
-        // "386116d55b634aa6be1379ded9e4fdd5".to_string()
-        dotenv::var("ALI_YUN_APP_ID").unwrap()
+        ALI_YUN_APP_ID.to_string()
     }
 
     fn client_secret(&self) -> String {
-        // "2fb2bc1a240e47ff909c6721c9efe9e7".to_string()
-        dotenv::var("ALI_YUN_APP_SECRET").unwrap()
+        ALI_YUN_APP_SECRET.to_string()
     }
 }
 
@@ -496,25 +391,10 @@ impl Inner {
         let extra: AliExtra = serde_json::from_str(extra.as_str())?;
         let drive_id = extra.drive_id.unwrap();
 
-        let mut extensions = Extensions::new();
-        extensions.insert(cloud_meta.clone());
         let mut parameter = HashMap::new();
         parameter.insert("drive_id", drive_id);
         parameter.insert("file_path", path.to_string());
-        let resp_result = self
-            .api_client
-            .post(format!(
-                "{}/{}",
-                API_DOMAIN_PREFIX, "adrive/v1.0/openFile/get_by_path"
-            ))
-            .json(&parameter)
-            .build()
-            ?;
-        let resp_result = self
-            .api_client
-            .execute_with_extensions(resp_result, &mut extensions);
-        // let resp_result = self.run(resp_result);
-        let json = self.get_response_text(resp_result).await?;
+        let json = self.post_api_json("adrive/v1.0/openFile/get_by_path", &parameter, Some(&cloud_meta.clone())).await?;
         let result: ErrorMessage = serde_json::from_str(json.as_str())?;
         if let Some(code) = result.code {
             if code.eq("NotFound.File") {
@@ -527,7 +407,7 @@ impl Inner {
     }
     async fn create_dir(&mut self, cloud_meta: &CloudMeta, path: &str) -> ResponseResult<FileInfo> {
         let pos = path.rfind('/');
-        let (parent_id,name) = match pos {
+        let (parent_id, name) = match pos {
             None => {
                 ("root".to_string(), path)
             }
@@ -540,17 +420,12 @@ impl Inner {
                 if let Err(e) = result {
                     return Err(e);
                 }
-                (result.unwrap(), &path[(pos+1)..])
-
+                (result.unwrap(), &path[(pos + 1)..])
             }
         };
         let extra = cloud_meta.extra.as_ref().unwrap();
         let extra: AliExtra = serde_json::from_str(extra.as_str())?;
         let drive_id = extra.drive_id.unwrap();
-
-
-        let mut extensions = Extensions::new();
-        extensions.insert(cloud_meta.clone());
 
         let create_file = CreateFile {
             drive_id: drive_id.clone(),
@@ -566,24 +441,30 @@ impl Inner {
             proof_code: None,
             proof_version: None,
         };
-        let mut extensions = Extensions::new();
-        extensions.insert(cloud_meta.clone());
-        let resp_result = self
-            .api_client
-            .post(format!(
-                "{}/{}",
-                API_DOMAIN_PREFIX, "adrive/v1.0/openFile/create"
-            ))
-            .json(&create_file)
-            .build()
-            ?;
-        let resp_result = self
-            .api_client
-            .execute_with_extensions(resp_result, &mut extensions);
-        // let resp_result = self.run(resp_result);
-        let json = self.get_response_text(resp_result).await?;
+        let json = self.post_api_json("adrive/v1.0/openFile/create", &create_file, Some(&cloud_meta.clone())).await?;
         info!("createWithFolders:{}", json);
         let result: FileInfo = serde_json::from_str(json.as_str())?;
         Ok(result)
+    }
+    async fn post_api_json<T: Serialize + ?Sized>(&self, path: &str, body: &T, cloud_meta: Option<&CloudMeta>) -> ResponseResult<String> {
+        return self.post_json(format!("{}/{}", API_DOMAIN_PREFIX, path), body, cloud_meta).await;
+    }
+    async fn post_json<T: Serialize + ?Sized, U: IntoUrl>(&self, url: U, body: &T, cloud_meta: Option<&CloudMeta>) -> ResponseResult<String> {
+        let resp_result = self
+            .api_client
+            .post(url)
+            .json(body)
+            .build()
+            ?;
+        if let Some(cloud_meta) = cloud_meta {
+            let mut extensions = Extensions::new();
+            extensions.insert(cloud_meta.clone());
+            let resp_result = self.api_client
+                .execute_with_extensions(resp_result, &mut extensions);
+            self.get_response_text(resp_result).await
+        } else {
+            let resp_result = self.api_client.execute(resp_result);
+            self.get_response_text(resp_result).await
+        }
     }
 }

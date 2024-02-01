@@ -1,5 +1,6 @@
 use crate::domain::table::tables::{CloudMeta, FileBlockMeta, FileMeta};
 use crate::storage::storage::ResponseResult;
+use strum_macros::EnumIter;
 
 pub mod cloud;
 pub mod file;
@@ -22,8 +23,7 @@ pub enum FileMetaType {
     DIR,
     SYMLINK,
 }
-
-#[derive(Eq, Hash, PartialEq, Clone, Debug, Copy)]
+#[derive(Eq, Hash, PartialEq, Clone, Debug, Copy,EnumIter)]
 pub enum CloudType {
     AliYun,
     Baidu,

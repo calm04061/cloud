@@ -12,3 +12,4 @@ pub(crate) mod storage;
 pub mod task;
 mod util;
 pub mod web;
+pub mod plugin;

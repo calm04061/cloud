@@ -1,4 +1,4 @@
-use std::sync::{mpsc, Mutex};
+use std::sync::{Arc, mpsc, Mutex};
 use std::time::Duration;
 
 use actix_cors::Cors;
@@ -7,9 +7,12 @@ use actix_web::dev::ServerHandle;
 use actix_web::http::{header, StatusCode};
 use actix_web::middleware::ErrorHandlers;
 use actix_web::web::{Data, scope};
+use libloading::{Error, Symbol};
 use log::info;
+use api::Capacity;
 
 use crate::fs::dav::dav::DAV_PREFIX;
+use crate::plugin::PluginMetaInfo;
 use crate::service::CONTEXT;
 use crate::storage::storage_facade::StorageFacade;
 use crate::web::common::add_error_header;
@@ -23,7 +26,7 @@ pub(crate) struct AppState {
     facade_cloud: Mutex<StorageFacade>, // <- Mutex is necessary to mutate safely across threads
 }
 
-pub async fn run_web(tx: mpsc::Sender<ServerHandle>) -> std::io::Result<()> {
+pub async fn run_web(tx: mpsc::Sender<ServerHandle>, plugin_arc: Arc<Vec<PluginMetaInfo>>) -> std::io::Result<()> {
     CONTEXT.init_pool().await;
     CONTEXT.upgrade().await;
     let port = dotenv::var("HTTP_PORT")
@@ -43,7 +46,7 @@ pub async fn run_web(tx: mpsc::Sender<ServerHandle>) -> std::io::Result<()> {
                 .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
                 .allowed_header(header::CONTENT_TYPE)
                 .max_age(3600);
-            App::new()
+            let mut app = App::new()
                 .wrap(middleware::Logger::default())
                 .app_data(state.clone())
                 .wrap(cors)
@@ -58,8 +61,27 @@ pub async fn run_web(tx: mpsc::Sender<ServerHandle>) -> std::io::Result<()> {
                 .service(
                     scope(DAV_PREFIX)
                         .configure(dav::config)
-                )
-                .configure(cloud_ui::config)
+                );
+            // .configure(cloud_ui::config)
+
+            for p in plugin_arc.iter() {
+                let meta_info = &p.meta_info;
+                let cas = meta_info.capacities.iter().clone();
+                for c in cas {
+                    match c {
+                        Capacity::WEB(name) => unsafe {
+                            let web: Result<Symbol<fn(cfg: &mut actix_web::web::ServiceConfig)>, Error> = p.library.get(name.as_bytes());
+                            if web.is_ok() {
+                                let web = web.unwrap();
+                                app = app.configure(|cfg| {
+                                    web(cfg);
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            app
         }
     })
     .keep_alive(Duration::from_secs(120))

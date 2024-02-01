@@ -62,17 +62,11 @@ pub(crate) struct ExFieldsInfo {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CreateResponse {
-    pub(crate) domain_id: String,
-    pub(crate) drive_id: String,
     pub(crate) encrypt_mode: String,
     pub(crate) file_id: String,
     pub(crate) file_name: String,
-    pub(crate) location: String,
-    pub(crate) parent_file_id: String,
-    pub(crate) rapid_upload: bool,
     #[serde(rename(serialize = "type", deserialize = "type"))]
     pub(crate) file_type: String,
-    pub(crate) upload_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

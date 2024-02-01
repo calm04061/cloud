@@ -69,11 +69,22 @@ struct CompleteRequest {
     upload_id: String,
 }
 
+impl From<CompleteRequest> for CreateResponse{
+    fn from(value: CompleteRequest) -> Self {
+        CreateResponse {
+            encrypt_mode: "".to_string(),
+            file_id: value.file_id,
+            file_name: "".to_string(),
+            file_type: "".to_string(),
+        }
+    }
+}
 #[derive(Serialize, Deserialize, Debug)]
 struct UploadPreResult {
     parent_file_id: String,
-    upload_id: String,
+    upload_id: Option<String>,
     rapid_upload: bool,
+    exist: bool,
     #[serde(rename(serialize = "type", deserialize = "type"))]
     file_type: String,
     file_id: String,
@@ -81,9 +92,20 @@ struct UploadPreResult {
     drive_id: String,
     encrypt_mode: String,
     file_name: String,
-    part_info_list: Vec<PartInfo>,
+    part_info_list: Option<Vec<PartInfo>>,
 }
 
+impl From<UploadPreResult> for CreateResponse {
+    fn from(value: UploadPreResult) -> Self {
+        CreateResponse {
+            encrypt_mode: value.encrypt_mode,
+            file_id: value.file_id,
+            file_name: value.file_name,
+            file_type: value.file_type,
+        }
+    }
+
+}
 #[derive(Serialize, Deserialize, Debug)]
 struct DownloadUrl {
     expiration: String,
@@ -191,7 +213,7 @@ impl Storage for AliStorage {
         let drive_id = extra.drive_id.unwrap();
 
         let len = content.len();
-        debug!("content length {}", len);
+        info!("content length {}", len);
         let chunk_count = (len as u64 + CHUNK_SIZE as u64 - 1) / CHUNK_SIZE as u64;
 
         let mut part_infos = vec![];
@@ -239,9 +261,13 @@ impl Storage for AliStorage {
             .execute_with_extensions(resp_result, &mut extensions);
         // let resp_result = self.run(resp_result);
         let json = self.inner.get_response_text(resp_result).await?;
-        debug!("createWithFolders:{}", json);
+        info!("openFile/create:{}", json);
         let result: UploadPreResult = serde_json::from_str(json.as_str())?;
-        let part_info_list = result.part_info_list;
+        if result.exist {
+           return Ok(result.into());
+        }
+
+        let part_info_list = result.part_info_list.unwrap();
 
         let mut index = 0;
         let copy = content.clone();
@@ -265,7 +291,7 @@ impl Storage for AliStorage {
         let complete = CompleteRequest {
             drive_id: drive_id.clone(),
             file_id: result.file_id,
-            upload_id: result.upload_id,
+            upload_id: result.upload_id.unwrap(),
         };
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
@@ -285,18 +311,7 @@ impl Storage for AliStorage {
         let json = self.inner.get_response_text(resp_result).await?;
         debug!("complete:{}", json);
         // print!("{:#?}",result);
-        return Ok(CreateResponse {
-            domain_id: result.domain_id,
-            drive_id: result.drive_id,
-            encrypt_mode: "".to_string(),
-            file_id: complete.file_id,
-            file_name: "".to_string(),
-            location: "".to_string(),
-            parent_file_id: "".to_string(),
-            rapid_upload: false,
-            file_type: "".to_string(),
-            upload_id: "".to_string(),
-        });
+        return Ok(complete.into());
     }
 
 
@@ -413,8 +428,7 @@ impl OAuthStorageFile for AliStorage {
             .inner.api_client
             .execute(resp_result);
         let json = self.inner.get_response_text(resp_result).await?;
-        let token: AuthToken = serde_json::from_str(json.as_str()).unwrap();
-        debug!("{:?}",token);
+        info!("refresh_token result {:?}",json);
         Ok(json)
     }
 
@@ -507,6 +521,7 @@ impl Inner {
                 return Err(ErrorInfo::FileNotFound(path.to_string()));
             }
         }
+        info!("path_file_id:{}", json);
         let result: FileInfo = serde_json::from_str(json.as_str())?;
         Ok(result.file_id.unwrap())
     }
@@ -567,7 +582,7 @@ impl Inner {
             .execute_with_extensions(resp_result, &mut extensions);
         // let resp_result = self.run(resp_result);
         let json = self.get_response_text(resp_result).await?;
-        debug!("createWithFolders:{}", json);
+        info!("createWithFolders:{}", json);
         let result: FileInfo = serde_json::from_str(json.as_str())?;
         Ok(result)
     }

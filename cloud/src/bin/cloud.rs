@@ -1,6 +1,7 @@
 extern crate core;
 
 use std::error::Error;
+use std::sync::Arc;
 use std::sync::mpsc::channel;
 
 use actix_web::dev::ServerHandle;
@@ -9,6 +10,7 @@ use dotenv::dotenv;
 use log::info;
 use tokio::runtime::Builder;
 use tokio_cron_scheduler::JobScheduler;
+use cloud::plugin::load_plugin;
 use cloud::task::task;
 
 use cloud::web::run_web;
@@ -29,8 +31,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         enable_all().
         build().
         expect("create tokio runtime failed");
-    runtime.spawn(async {
-        run_web(tx).await.unwrap();
+    let plugins = load_plugin();
+    let plugin_arc = Arc::new(plugins);
+    runtime.spawn(async move{
+        run_web(tx, plugin_arc.clone()).await.unwrap();
     });
     runtime.spawn(async {
         let sched = JobScheduler::new().await.unwrap();

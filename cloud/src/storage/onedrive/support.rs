@@ -37,16 +37,10 @@ impl From<OneDriveUser> for User {
 impl From<DriveItem> for CreateResponse {
     fn from(item: DriveItem) -> Self {
         CreateResponse {
-            domain_id: "".to_string(),
-            drive_id: "".to_string(),
             encrypt_mode: "".to_string(),
             file_id: item.id,
             file_name: item.name,
-            location: "".to_string(),
-            parent_file_id: "".to_string(),
-            rapid_upload: false,
             file_type: "".to_string(),
-            upload_id: "".to_string(),
         }
     }
 }

@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{ErrorKind, Read};
 use std::sync::Arc;
 
-use log::{debug, info};
+use log::{debug, error, info};
 use rbatis::rbdc::datetime::DateTime;
 use tokio::sync::Semaphore;
 
@@ -36,6 +36,7 @@ pub(crate) async fn scan(semaphore: Arc<Semaphore>){
                     EventMessage::success(EventType::UploadFileBlock, format!("{} upload success", file_block.id.unwrap()))
                 }
                 Err(e) => {
+                    error!("{} upload fail:{}", file_block.id.unwrap(), e.to_string());
                     EventMessage::fail(EventType::UploadFileBlock, format!("{} upload fail:{}", file_block.id.unwrap(), e.to_string()))
                 }
             };

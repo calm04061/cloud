@@ -53,16 +53,10 @@ impl Storage for SftpStorage {
 
         let cloud_file_id = remote_path.display().to_string();
         Ok(CreateResponse {
-            domain_id: "".to_string(),
-            drive_id: "".to_string(),
             encrypt_mode: "".to_string(),
             file_id: cloud_file_id,
             file_name: file_block.file_part_id.clone(),
-            location: "".to_string(),
-            parent_file_id: "".to_string(),
-            rapid_upload: false,
             file_type: "".to_string(),
-            upload_id: "".to_string(),
         })
     }
 

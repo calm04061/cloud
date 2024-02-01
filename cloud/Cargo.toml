@@ -43,6 +43,7 @@ rbs = { version = "4.5.2" }
 rbatis = { version = "4.5.6" }
 rbdc-sqlite = { version = "4.5.2" }
 fastdate="0.3.28"
+libloading="0.8.1"
 #threads_pool = "^0.2.0"
 #lru = "0.7.5"
 signal-hook = "0.3.17"
@@ -52,7 +53,7 @@ once_cell = "1.19.0"
 async-recursion = "1.0.5"
 dav-server = { version = "0.5.8", features = ["actix-compat"] }
 futures-util = { version = "0.3.30" }
-cloud-ui = { path = "../cloud-ui" }
+api = { path = "../api" }
 async-ssh2-lite = { version = "0.4.7", features = ["tokio", "async-io"] }
 [target.'cfg(not(windows))'.dependencies]
 fuser = { version = "0.14.0" }

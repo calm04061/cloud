@@ -50,8 +50,8 @@ fn scan_task(semaphore: Arc<Semaphore>) -> Pin<Box<impl Future<Output=()> + Size
 fn reset_task() -> Pin<Box<impl Future<Output=()> + Sized>> {
     Box::pin({
         async move {
-            reset(FileStatus::Uploading.into(), 30 * 10).await;
-            reset(FileStatus::UploadFail.into(),10).await;
+            reset(FileStatus::Uploading.into(), 60 * 5).await;
+            reset(FileStatus::UploadFail.into(),60).await;
         }
     })
 }

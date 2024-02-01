@@ -33,16 +33,10 @@ impl Storage for LocalStorage {
         let path_str = format!("{}/{}", data_root, file_block.file_part_id);
         fs::write(path_str, content).await.ok();
         Ok(CreateResponse {
-            domain_id: "".to_string(),
-            drive_id: "".to_string(),
             encrypt_mode: "".to_string(),
             file_id: file_block.file_part_id.clone(),
             file_name: file_block.file_part_id.clone(),
-            location: "".to_string(),
-            parent_file_id: "".to_string(),
-            rapid_upload: false,
             file_type: "".to_string(),
-            upload_id: "".to_string(),
         })
     }
 

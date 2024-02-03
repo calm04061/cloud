@@ -7,7 +7,7 @@ use bytes::{Buf, BufMut, Bytes};
 use chrono::{Local, TimeZone};
 use dav_server::fs::{DavDirEntry, DavFile, DavMetaData, FsFuture, FsResult};
 use futures_util::{future, FutureExt};
-use log::info;
+use log::{debug, info};
 
 use crate::database::meta::FileMetaType;
 use crate::domain::table::tables::FileMeta;
@@ -111,7 +111,7 @@ impl DavFile for CloudDavFile {
             self.temp_buf.put_slice(buf.as_ref());
             let temp_size = self.temp_buf.len();
             if temp_size > BLOCK_SIZE {
-                info!("write_block_bytes,{}:{},pos:{},len:{}", id,self.file_meta.name,self.temp_pos,self.temp_buf.len());
+                debug!("write_block_bytes,{}:{},pos:{},len:{}", id,self.file_meta.name,self.temp_pos,self.temp_buf.len());
                 self.fs.write(id as u64, self.temp_pos as i64, self.temp_buf.as_ref()).await.unwrap();
                 self.temp_buf.clear();
                 self.pos += buf.len();
@@ -119,7 +119,7 @@ impl DavFile for CloudDavFile {
             } else {
                 let pre_pos = self.pos;
                 self.pos += buf.len();
-                info!("write_bytes,{}:{},pos:{} + len:{} = {}", id, self.file_meta.name, pre_pos, buf.len(), self.pos);
+                debug!("write_bytes,{}:{},pos:{} + len:{} = {}", id, self.file_meta.name, pre_pos, buf.len(), self.pos);
             }
             Ok(())
         }.boxed()
@@ -128,7 +128,7 @@ impl DavFile for CloudDavFile {
     fn read_bytes(&mut self, count: usize) -> FsFuture<Bytes> {
         async move {
             let id = self.file_meta.id.unwrap();
-            info!("read_bytes,{}:{},pos:{},count:{}", id ,self.file_meta.name ,self.pos,count);
+            debug!("read_bytes,{}:{},pos:{},count:{}", id ,self.file_meta.name ,self.pos,count);
             let result = self.fs.read(id as u64, self.pos as i64, count as u32).await.unwrap();
             let bytes = Bytes::copy_from_slice(result.as_slice());
             self.pos += count;
@@ -145,8 +145,8 @@ impl DavFile for CloudDavFile {
                 }
                 SeekFrom::Current(npos) => (self.pos as u64, npos),
                 SeekFrom::End(npos) => {
-                    let curlen = self.file_meta.file_length as u64;
-                    (curlen, npos)
+                    let cur_len = self.file_meta.file_length as u64;
+                    (cur_len, npos)
                 }
             };
             if offset < 0 {

@@ -1,13 +1,16 @@
 use rbatis::rbdc::datetime::DateTime;
+use rbs::Value;
+// use sqlx::{Error, FromRow, Row};
+// use sqlx::sqlite::SqliteRow;
 
 use crate::database::meta::{EventResult, EventType, FileStatus};
 use crate::domain::table::tables::{CloudFileBlock, CloudMeta, Config, EventMessage, FileBlockMeta, FileMeta};
 
 impl CloudFileBlock {
-    pub(crate) fn init(file_block_meta_id: i32, cloud_meta_id: i32) -> Self {
+    pub(crate) fn init(file_block_id: i32, cloud_meta_id: i32) -> Self {
         CloudFileBlock {
             id: None,
-            file_block_id: file_block_meta_id,
+            file_block_id,
             cloud_meta_id,
             cloud_file_id: None,
             cloud_file_hash: None,
@@ -99,56 +102,98 @@ impl Default for FileBlockMeta {
 }
 
 impl Config {
-    pub fn sync_default() -> Self {
-        let mut config = Self::default();
-        config.id = Some(0);
-        return config;
+    pub fn sync_default() -> Value {
+        let map = rbs::to_value! {
+            "id":"INTEGER PRIMARY KEY AUTOINCREMENT",
+            "property":"TEXT",
+            "value":"TEXT",
+        };
+        return map;
     }
 }
 
 impl CloudMeta {
-    pub fn sync_default() -> Self {
-        let mut config = Self::default();
-        config.id = Some(0);
-        return config;
+    pub fn sync_default()  -> Value {
+        let map = rbs::to_value! {
+            "id":"INTEGER PRIMARY KEY AUTOINCREMENT",
+            "name":"TEXT not null",
+            "auth":"TEXT",
+            "last_work_time":"int8",
+            "data_root":"TEXT",
+            "status":"int  not null",
+            "deleted":"int not null",
+            "cloud_type":"int not null",
+            "total_quota":"int8",
+            "used_quota":"int8",
+            "remaining_quota":"int8",
+            "extra":"TEXT",
+            "expires_in":"int",
+        };
+        return map;
     }
 }
 
 impl FileMeta {
-    pub fn sync_default() -> Self {
-        let mut config = Self::default();
-        config.id = Some(0);
-        return config;
+    pub fn sync_default() -> Value {
+        let map = rbs::to_value! {
+            "id":"INTEGER PRIMARY KEY AUTOINCREMENT",
+            "name":"TEXT not null",
+            "parent_id":"INT not null",
+            "file_type":"int not null",
+            "file_length":"int8 not null",
+            "status":"int not null",
+            "deleted":"int not null",
+            "create_time":"int8 not null",
+            "update_time":"int8 not null",
+        };
+        return map;
     }
 }
 
 impl CloudFileBlock {
-    pub fn sync_default() -> Self {
-        let mut config = Self::default();
-        config.id = Some(0);
-        return config;
+    pub fn sync_default() -> Value {
+        let map = rbs::to_value! {
+            "id":"INTEGER PRIMARY KEY AUTOINCREMENT",
+            "file_block_id":"int not null",
+            "cloud_meta_id":"int not null",
+            "cloud_file_id":"TEXT",
+            "cloud_file_hash":"TEXT",
+            "status":"int not null",
+            "deleted":"int not null",
+            "create_time":"int8 not null",
+            "update_time":"int8 not null",
+        };
+        return map;
     }
 }
 
 impl FileBlockMeta {
-    pub fn sync_default() -> Self {
-        let mut config = Self::default();
-        config.id = Some(0);
-        return config;
+    pub fn sync_default()  -> Value {
+        let map = rbs::to_value! {
+            "id":"INTEGER PRIMARY KEY AUTOINCREMENT",
+            "block_index":"int not null",
+            "file_part_id":"text not null",
+            "update_time":"int8 not null",
+            "file_modify_time":"int8 not null",
+            "deleted":"int not null",
+            "file_meta_id":"int8 not null",
+            "part_hash":"TEXT",
+            "status":"int not null",
+        };
+        return map;
     }
 }
 
 impl EventMessage {
-    pub(crate) fn sync_default() -> Self {
-        let event_message = EventMessage {
-            id: Some(0),
-            event_type: 0,
-            event_result: 0,
-            message: "".to_string(),
-            create_time: DateTime::now(),
-
-        };
-        return event_message;
+    pub(crate) fn sync_default()  -> Value {
+            let map = rbs::to_value! {
+            "id":"INTEGER PRIMARY KEY AUTOINCREMENT",
+            "event_type":"int not null",
+            "event_result":"text not null",
+            "message":"int8 not null",
+            "create_time":"int8 not null",
+            };
+            return map;
     }
     fn new(event_type: EventType, result: EventResult, message: String) -> EventMessage {
         let event_message = EventMessage {
@@ -168,3 +213,19 @@ impl EventMessage {
         return EventMessage::new(event_type, EventResult::Fail, message);
     }
 }
+
+// impl FromRow<'_, SqliteRow > for CloudFileBlock {
+//     fn from_row(row: &'_ SqliteRow) -> Result<Self, Error> {
+//         Ok(CloudFileBlock {
+//             id: row.get("id"),
+//             file_block_id: row.get("file_block_id"),
+//             cloud_meta_id: row.get("cloud_meta_id"),
+//             cloud_file_id: row.get("cloud_file_id"),
+//             cloud_file_hash: row.get("cloud_file_hash"),
+//             status: row.get("status"),
+//             deleted: row.get("deleted"),
+//             create_time: DateTime::now(),
+//             update_time: DateTime::now(),
+//         })
+//     }
+// }

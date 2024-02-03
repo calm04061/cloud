@@ -1,11 +1,10 @@
-FROM ghcr.io/calm04061/rust:ub
-RUN export TEMP_TARGET=`rustup target list |grep install|awk '{print $1}'`&& env
-ENV BUILD_TARGET=$(`rustup target list`)
-RUN env
+FROM alpine:3.19.1
+ARG RUST_VERSION=1.76.0
 WORKDIR /src
-#RUN apt update &&\
-#  apt install -y libfuse3-dev npm &&\
-#  apt autoclean &&\
-#  rm -rf /var/lib/apt/lists/*
-#RUN cargo install cargo-deb
+
+ENV PATH="/root/.cargo/bin:/opt/node/bin:${PATH}"
+RUN apk add --no-cache gcc musl-dev pkgconf curl openssl-dev openssl-libs-static fuse3-dev fuse3-static nodejs npm
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain ${RUST_VERSION}
+
 

@@ -11,5 +11,10 @@ export default defineConfig({
             "@data": fileURLToPath(new URL("./src/data", import.meta.url)),
         },
         extensions: [".js", ".json", ".jsx", ".mjs", ".ts", ".tsx", ".vue"],
+    },
+    server: {
+        proxy: {
+            "/api": "http://192.168.1.199:8088"
+        }
     }
 })

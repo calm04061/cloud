@@ -10,9 +10,11 @@ use serde::{Deserialize, Serialize};
 use task_local_extensions::Extensions;
 use urlencoding::encode;
 use crate::database::meta::cloud::MetaStatus;
+use crate::database::meta::CloudMetaManager;
 
 use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use crate::error::ErrorInfo;
+use crate::service::CONTEXT;
 use crate::storage::ali::ali_authorization_middleware::{AliAuthMiddleware};
 use crate::storage::ali::vo::{AliExtra, AuthToken, DevicePersonalInfo, DriveInfo, ErrorMessage, FileInfo};
 use crate::storage::storage::{CreateResponse, Network, Quota, ResponseResult, Storage, TokenProvider};
@@ -129,8 +131,8 @@ impl AliStorage {
     pub(crate) fn new() -> AliStorage {
         let client = Client::builder()
             // .proxy(reqwest::Proxy::https("http://127.0.0.1:8888").unwrap())
-            .timeout(Duration::from_secs(5))
-            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(60))
+            .connect_timeout(Duration::from_secs(60))
             .build()
             .unwrap();
         let api_client = ClientBuilder::new(client).with(AliAuthMiddleware).build();
@@ -166,12 +168,21 @@ impl AliStorage {
         let info = self.create_dir(&cloud_meta.clone(), &data_root).await?;
         Ok(info.file_id.unwrap())
     }
-}
+    async fn create_file(&mut self, create_file: &CreateFile, cloud_meta: &CloudMeta) -> ResponseResult<UploadPreResult> {
+        let json = self.inner.post_api_json("adrive/v1.0/openFile/create", create_file, Some(cloud_meta)).await?;
+        info!("openFile/create:{}", json);
+        let result: UploadPreResult = serde_json::from_str(json.as_str())?;
+        Ok(result)
+    }
 
-
-impl Clone for AliStorage {
-    fn clone(&self) -> Self {
-        todo!()
+    async fn delete_file(&mut self, file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<String> {
+        let extra = cloud_meta.extra.as_ref().unwrap();
+        let extra: AliExtra = serde_json::from_str(extra.as_str()).unwrap();
+        let drive_id = extra.drive_id.unwrap();
+        let mut body = HashMap::new();
+        body.insert("drive_id", drive_id.as_str());
+        body.insert("file_id", file_id);
+        self.inner.post_api_json("adrive/v1.0/openFile/delete", &body, Some(cloud_meta)).await
     }
 }
 
@@ -184,10 +195,14 @@ impl Storage for AliStorage {
         cloud_meta: &CloudMeta,
     ) -> ResponseResult<CreateResponse> {
         let extra = cloud_meta.extra.as_ref().unwrap();
-        let extra: AliExtra = serde_json::from_str(extra.as_str())?;
+        let mut extra: AliExtra = serde_json::from_str(extra.as_str())?;
         let root_file_id;
         if extra.root_file_id.is_none() {
             root_file_id = self.resolve_root_dir_not_exist(&cloud_meta.clone()).await?;
+            extra.root_file_id = Some(root_file_id.clone());
+            let mut meta = cloud_meta.to_owned();
+            meta.extra = Some(serde_json::to_string(&extra).unwrap());
+            CONTEXT.cloud_meta_manager.update_meta(&meta).await.unwrap();
         } else {
             root_file_id = extra.root_file_id.unwrap();
         }
@@ -226,11 +241,10 @@ impl Storage for AliStorage {
             proof_code: None,
             proof_version: None,
         };
-        let json = self.inner.post_api_json("adrive/v1.0/openFile/create", &create_file, Some(cloud_meta)).await?;
-        info!("openFile/create:{}", json);
-        let result: UploadPreResult = serde_json::from_str(json.as_str())?;
+        let mut result = self.create_file(&create_file, cloud_meta).await?;
         if let Some(true) = result.exist {
-            return Ok(result.into());
+            self.delete_file(&result.file_id, cloud_meta).await?;
+            result = self.create_file(&create_file, cloud_meta).await?;
         }
 
         let part_info_list = result.part_info_list.unwrap();
@@ -261,7 +275,6 @@ impl Storage for AliStorage {
         };
         let json = self.inner.post_api_json("adrive/v1.0/openFile/complete", &complete, Some(cloud_meta)).await?;
         debug!("complete:{}", json);
-        // print!("{:#?}",result);
         return Ok(complete.into());
     }
 

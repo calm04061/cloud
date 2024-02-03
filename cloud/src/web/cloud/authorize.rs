@@ -16,7 +16,7 @@ pub(crate) async fn authorize(
     let headers = request.headers();
     let server = header_value(headers, "Host", "pan.calm0406.com:8080");
     let server= format!("http://{}", server);
-    let mut guard = state.facade_cloud.lock().unwrap();
+    let mut guard = state.facade_cloud.lock().await;
     let id = id.into_inner();
     let vec = guard.get_auth_methods(id).await;
     if vec.contains(&AuthMethod::OAuth2) {
@@ -40,7 +40,7 @@ pub(crate) async fn callback(state: Query<Callback>, app_state: Data<AppState>, 
     let headers = request.headers();
     let server = header_value(headers, "Host", "pan.calm0406.com:8080");
 
-    let mut guard = data.facade_cloud.lock().unwrap();
+    let mut guard = data.facade_cloud.lock().await;
     let url = "/cloud".to_string();
     let result = guard.callback(&server, &state.into_inner()).await;
     match result {

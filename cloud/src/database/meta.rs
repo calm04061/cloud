@@ -4,6 +4,8 @@ use strum_macros::EnumIter;
 
 pub mod cloud;
 pub mod file;
+
+#[derive(Clone, Copy, Debug)]
 pub(crate) enum FileStatus {
     Init,
     Uploading,
@@ -23,7 +25,8 @@ pub enum FileMetaType {
     DIR,
     SYMLINK,
 }
-#[derive(Eq, Hash, PartialEq, Clone, Debug, Copy,EnumIter)]
+
+#[derive(Eq, Hash, PartialEq, Clone, Debug, Copy, EnumIter)]
 pub enum CloudType {
     AliYun,
     Baidu,
@@ -31,13 +34,16 @@ pub enum CloudType {
     OneDrive,
     Sftp,
 }
+
 pub(crate) enum EventType {
     UploadFileBlock
 }
+
 pub(crate) enum EventResult {
     Success,
     Fail,
 }
+
 #[async_trait::async_trait]
 pub trait CloudMetaManager {
     async fn add(&self, meta: &CloudMeta) -> ResponseResult<CloudMeta>;
@@ -77,21 +83,8 @@ pub trait FileManager {
 
     async fn file_block_meta_info_by_id(&self, id: i32) -> Option<FileBlockMeta>;
 
-    async fn update_file_block_meta(
-        &self,
-        meta: FileBlockMeta,
-    ) -> ResponseResult<Option<FileBlockMeta>>;
+    async fn update_file_block_meta(&self, meta: FileBlockMeta) -> ResponseResult<Option<FileBlockMeta>>;
 
-    // fn file_blocks(&self, file_block_meta_id: i64) -> Vec<FileBlock>;
-
-    // async fn new_file_block_meta(
-    //     &self,
-    //     file_meta_id: i32,
-    //     block_index: i64,
-    // ) -> Option<FileBlockMeta>;
-     async fn save_file_block_meta(
-        &self,
-        meta: FileBlockMeta,
-    ) -> Option<FileBlockMeta>;
+    async fn save_file_block_meta(&self, meta: FileBlockMeta) -> Option<FileBlockMeta>;
     async fn modified_blocks(&self, before: i64) -> Vec<FileBlockMeta>;
 }

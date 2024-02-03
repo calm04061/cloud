@@ -1,14 +1,15 @@
-use std::sync::{Arc, mpsc, Mutex};
+use std::sync::{Arc};
 use std::time::Duration;
 
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware};
-use actix_web::dev::ServerHandle;
+use actix_web::dev::{Server};
 use actix_web::http::{header, StatusCode};
 use actix_web::middleware::ErrorHandlers;
 use actix_web::web::{Data, scope};
 use libloading::{Error, Symbol};
 use log::info;
+use tokio::sync::Mutex;
 use api::Capacity;
 
 use crate::fs::dav::dav::DAV_PREFIX;
@@ -23,10 +24,10 @@ pub(crate) mod vo;
 mod dav;
 
 pub(crate) struct AppState {
-    facade_cloud: Mutex<StorageFacade>, // <- Mutex is necessary to mutate safely across threads
+    facade_cloud: Arc<Mutex<StorageFacade>>, // <- Mutex is necessary to mutate safely across threads
 }
 
-pub async fn run_web(tx: mpsc::Sender<ServerHandle>, plugin_arc: Arc<Vec<PluginMetaInfo>>) -> std::io::Result<()> {
+pub async fn run_web(plugin_arc: Arc<Vec<PluginMetaInfo>>, arc: Arc<Mutex<StorageFacade>>) -> Server {
     CONTEXT.init_pool().await;
     CONTEXT.upgrade().await;
     let port = dotenvy::var("HTTP_PORT")
@@ -35,9 +36,8 @@ pub async fn run_web(tx: mpsc::Sender<ServerHandle>, plugin_arc: Arc<Vec<PluginM
         .unwrap_or(8088);
     let server = HttpServer::new({
         move || {
-            let cloud = StorageFacade::new();
             let state = Data::new(AppState {
-                facade_cloud: Mutex::new(cloud),
+                facade_cloud: Arc::clone(&arc),
             });
             let cors = Cors::default()
                 // .allowed_origin("*")
@@ -90,9 +90,9 @@ pub async fn run_web(tx: mpsc::Sender<ServerHandle>, plugin_arc: Arc<Vec<PluginM
     // .bind(("::", port))
     // .unwrap()
     .run();
-    let _ = tx.send(server.handle());
+    // let _ = tx.send(server.handle());
 
     info!("start at http://{}:{}", "0.0.0.0", port);
     info!("start at http://[{}]:{}", "::", port);
-    server.await
+    server
 }

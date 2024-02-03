@@ -1,6 +1,9 @@
+use std::env;
 use actix_web::web;
 use api::{Capacity, Plugin};
 include!(concat!(env!("OUT_DIR"), "/generated.rs"));
+pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/VERSION"));
+
 #[no_mangle]
 pub fn config(cfg: &mut web::ServiceConfig) {
     let generated = generate();
@@ -9,12 +12,13 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 struct CloudUi;
 
 impl Plugin for CloudUi {
-    fn name(&self) -> &'static str {
-        "cloud-ui"
+    fn name(&self) -> String {
+        "cloud-ui".to_string()
     }
 
-    fn version(&self) -> &'static str {
-        "0.0.1"
+    fn version(&self) -> String {
+        // let version = "0.0.1".to_string();
+        VERSION.to_string()
     }
 
     fn capacities(&self) -> Vec<Capacity> {

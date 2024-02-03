@@ -87,15 +87,12 @@ function convertVolume(v: number) {
     return v;
   }
   let i = 0;
-  while (v > 0) {
-    let temp = v / 1024;
-    if (temp <= 2) {
-      return v + unit[i];
-    }
+  v = parseFloat(v.toString());
+  while (v > 1024) {
+    v = v / 1024;
     i++;
-    v = parseInt(temp.toString());
   }
-  return v;
+  return v.toFixed(1) + unit[i];
 }
 
 function convertType(v: number) {

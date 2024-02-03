@@ -2,9 +2,9 @@ use std::fs::File;
 use std::io::{ErrorKind, Read};
 use std::sync::Arc;
 
-use log::{debug, error, info};
+use log::{error, info};
 use rbatis::rbdc::datetime::DateTime;
-use tokio::sync::Semaphore;
+use tokio::sync::{Mutex, Semaphore};
 
 use crate::database::meta::{CloudMetaManager, EventType, FileManager, FileStatus};
 use crate::database::meta::cloud::MetaStatus;
@@ -16,8 +16,10 @@ use crate::storage::storage::ResponseResult;
 use crate::storage::storage_facade::StorageFacade;
 
 
-pub(crate) async fn scan(semaphore: Arc<Semaphore>){
+pub(crate) async fn scan(semaphore: Arc<Semaphore>, facade: Arc<Mutex<StorageFacade>>) {
+    info!("scan");
     let cloud_file_block = CloudFileBlock::select_to_upload(pool!()).await.unwrap();
+    info!("{} block to upload", cloud_file_block.len());
     for mut file_block in cloud_file_block {
         let origin_status = file_block.status;
         file_block.update_time = DateTime::now();
@@ -25,12 +27,17 @@ pub(crate) async fn scan(semaphore: Arc<Semaphore>){
         let count = CloudFileBlock::update_by_status(pool!(), &file_block, file_block.id.unwrap(), origin_status)
             .await.unwrap().rows_affected;
         if count == 0 {
+            info!("block {} unable lock by db", file_block.id.unwrap());
             continue;
         }
         let semaphore = semaphore.clone();
+        let arc = Arc::clone(&facade);
+
         tokio::spawn(async move {//创建任务
+            let arc = Arc::clone(&arc);
             let _semaphore_permit = semaphore.acquire().await.unwrap(); // 通过信号量控制并发
-            let result = do_execute_one_block(&mut file_block).await;
+            info!("upload block {} to cloud", file_block.id.unwrap());
+            let result = do_execute_one_block(&mut file_block, arc).await;
             let message = match result {
                 Ok(_) => {
                     EventMessage::success(EventType::UploadFileBlock, format!("{} upload success", file_block.id.unwrap()))
@@ -44,7 +51,8 @@ pub(crate) async fn scan(semaphore: Arc<Semaphore>){
         });
     }
 }
-async fn do_execute_one_block( file_block: &mut CloudFileBlock) -> ResponseResult<()> {
+
+async fn do_execute_one_block(file_block: &mut CloudFileBlock, facade: Arc<Mutex<StorageFacade>>) -> ResponseResult<()> {
     let cloud_meta = CONTEXT
         .cloud_meta_manager
         .info(file_block.cloud_meta_id)
@@ -66,7 +74,7 @@ async fn do_execute_one_block( file_block: &mut CloudFileBlock) -> ResponseResul
     let cache_file = dotenvy::var("TEMP_PATH").unwrap_or(String::from("/var/lib/storage/temp"));
 
     let cache_file = format!("{}/{}", cache_file, file_block_meta.file_part_id);
-    debug!("upload {}", cache_file);
+    info!("upload {}", cache_file);
     let result = File::open(cache_file.clone());
     if let Err(e) = result {
         let kink = e.kind();
@@ -102,10 +110,10 @@ async fn do_execute_one_block( file_block: &mut CloudFileBlock) -> ResponseResul
             Err(e) => {
                 Err(e)
             }
-        }
+        };
     }
 
-    let mut cloud = StorageFacade::new();
+    let mut cloud = facade.lock().await;
     let result = cloud
         .upload_content(&file_block_meta, &cloud_meta, &body)
         .await;

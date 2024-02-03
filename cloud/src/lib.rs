@@ -9,7 +9,7 @@ mod domain;
 mod error;
 mod fs;
 mod service;
-pub(crate) mod storage;
+pub mod storage;
 pub mod task;
 mod util;
 pub mod web;

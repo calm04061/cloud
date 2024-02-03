@@ -1,5 +1,7 @@
+use std::sync::Arc;
 use log::{debug, error, warn};
 use rbatis::rbdc::datetime::DateTime;
+use tokio::sync::Mutex;
 
 use crate::database::meta::{FileManager, FileStatus};
 use crate::domain::table::tables::{CloudFileBlock, FileBlockMeta, FileMeta};
@@ -8,23 +10,23 @@ use crate::pool;
 use crate::service::CONTEXT;
 use crate::storage::storage_facade::StorageFacade;
 
-pub async fn clean() {
+pub async fn clean(facade: Arc<Mutex<StorageFacade>>) {
     debug!("start clean");
     let cache_file = dotenvy::var("TEMP_PATH").unwrap_or(String::from("/var/lib/storage/temp"));
 
-    let mut cloud = StorageFacade::new();
+    // let mut cloud = StorageFacade::new();
 
     let ten = chrono::Local::now().timestamp_millis() - 10 * 1000;
     let file_metas = CONTEXT.file_manager.list_deleted_file(ten).await;
     debug!("clean file_meta:{}",file_metas.len());
 
     for mut file_meta in file_metas {
-        clean_file_block(&mut file_meta, &mut cloud, &cache_file).await;
+        clean_file_block(&mut file_meta, Arc::clone(&facade), &cache_file).await;
     }
     debug!("clean finish");
 }
 
-async fn clean_file_block(file_meta: &mut FileMeta, cloud: &mut StorageFacade, cache_file: &str) {
+async fn clean_file_block(file_meta: &mut FileMeta, facade: Arc<Mutex<StorageFacade>>, cache_file: &str) {
     let file_block_metas = CONTEXT
         .file_manager
         .file_block_meta(file_meta.id.unwrap())
@@ -39,7 +41,7 @@ async fn clean_file_block(file_meta: &mut FileMeta, cloud: &mut StorageFacade, c
     }
     debug!("file_block_metas size:{}",file_block_metas.len());
     for mut file_block_meta in file_block_metas {
-        let size = delete_cloud_file_block(file_meta, &file_block_meta, cloud).await;
+        let size = delete_cloud_file_block(file_meta, &file_block_meta, Arc::clone(&facade)).await;
         if size == 0 {
             let local_cache_file = format!("{}/{}", cache_file, file_block_meta.file_part_id);
             let result = std::fs::remove_file(local_cache_file.clone());
@@ -55,7 +57,7 @@ async fn clean_file_block(file_meta: &mut FileMeta, cloud: &mut StorageFacade, c
     }
 }
 
-async fn delete_cloud_file_block(file_meta: &mut FileMeta, file_block_meta: &FileBlockMeta, cloud: &mut StorageFacade) -> usize {
+async fn delete_cloud_file_block(file_meta: &mut FileMeta, file_block_meta: &FileBlockMeta, facade: Arc<Mutex<StorageFacade>>) -> usize {
     let cloud_file_blocks = CloudFileBlock::select_by_file_block_id(pool!(), file_block_meta.id.unwrap())
         .await
         .unwrap();
@@ -84,7 +86,8 @@ async fn delete_cloud_file_block(file_meta: &mut FileMeta, file_block_meta: &Fil
         if result == 0 {
             continue;
         }
-        let result = cloud.delete(&cloud_file_block).await;
+        let mut guard = facade.lock().await;
+        let result = guard.delete(&cloud_file_block).await;
         if let Err(e) = result {
             match e {
                 ErrorInfo::FileNotFound(_) => {

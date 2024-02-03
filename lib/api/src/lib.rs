@@ -4,8 +4,8 @@ pub enum Capacity{
     WEB(String)
 }
 pub trait Plugin {
-    fn name(&self) -> &'static str;
-    fn version(&self) -> &'static str;
+    fn name(&self) -> String;
+    fn version(&self) -> String;
     fn capacities(&self) ->Vec<Capacity>;
 }
 #[derive(Serialize, Deserialize)]

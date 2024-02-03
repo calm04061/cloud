@@ -6,13 +6,13 @@ use crate::database::meta::FileStatus;
 use crate::domain::table::tables::CloudFileBlock;
 use crate::pool;
 
-pub(crate) async fn reset(status: i8, sub: u64) {
-    info!("reset status:{} sub:{}", status, sub);
+pub(crate) async fn reset(status: FileStatus, sub: u64) {
+    info!("reset status:{:?} before {}s", status, sub);
     let mut update_time = DateTime::now();
     update_time =  update_time.sub(Duration::from_secs(sub));
-    info!("reset status:{} update_time:{}", status, update_time);
-    let cloud_file_block = CloudFileBlock::select_by_status(pool!(), status, update_time).await.unwrap();
-    info!("select from {} to reset,size:{}",  status, cloud_file_block.len());
+    // info!("reset status:{} update_time:{}", status, update_time);
+    let cloud_file_block = CloudFileBlock::select_by_status(pool!(), status.into(), update_time).await.unwrap();
+    info!("select from {:?} to reset,size:{}",  status, cloud_file_block.len());
     for mut file_block in cloud_file_block {
         file_block.status = FileStatus::Init.into();
         file_block.update_time = DateTime::now();
@@ -21,7 +21,7 @@ pub(crate) async fn reset(status: i8, sub: u64) {
             pool!(),
             &file_block,
             file_block.id.unwrap(),
-            status,
+            status.into(),
         )
             .await
             .unwrap()

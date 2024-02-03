@@ -3,7 +3,6 @@ use std::fs;
 use once_cell::sync::Lazy;
 use rbatis::RBatis;
 use rbatis::table_sync::{SqliteTableMapper, sync};
-use rbs::to_value;
 
 use crate::config::ApplicationConfig;
 use crate::database::config::ConfigManager;
@@ -54,12 +53,12 @@ impl ServiceContext {
         // s.sql_id = " PRIMARY KEY AUTOINCREMENT NOT NULL ".to_string();
        let sqlite_table_mapper =  SqliteTableMapper{};
         let conn = self.rb.acquire().await.unwrap();
-        sync(&conn, &sqlite_table_mapper,to_value!(Config::sync_default()), "config").await.unwrap();
-        sync(&conn, &sqlite_table_mapper, to_value!(CloudMeta::sync_default()), "cloud_meta").await.unwrap();
-        sync(&conn, &sqlite_table_mapper,to_value!(FileMeta::sync_default()), "file_meta").await.unwrap();
-        sync(&conn, &sqlite_table_mapper,to_value!(CloudFileBlock::sync_default()), "cloud_file_block").await.unwrap();
-        sync(&conn, &sqlite_table_mapper, to_value!(FileBlockMeta::sync_default()), "file_block_meta").await.unwrap();
-        sync(&conn, &sqlite_table_mapper, to_value!(EventMessage::sync_default()), "event_message").await.unwrap();
+        sync(&conn, &sqlite_table_mapper,Config::sync_default(), "config").await.unwrap();
+        sync(&conn, &sqlite_table_mapper, CloudMeta::sync_default(), "cloud_meta").await.unwrap();
+        sync(&conn, &sqlite_table_mapper,FileMeta::sync_default(), "file_meta").await.unwrap();
+        sync(&conn, &sqlite_table_mapper,CloudFileBlock::sync_default(), "cloud_file_block").await.unwrap();
+        sync(&conn, &sqlite_table_mapper, FileBlockMeta::sync_default(), "file_block_meta").await.unwrap();
+        sync(&conn, &sqlite_table_mapper, EventMessage::sync_default(), "event_message").await.unwrap();
         let vec = FileMeta::select_by_column(pool!(), "id", 1).await.unwrap();
         if vec.is_empty() {
             let file_meta = FileMeta{

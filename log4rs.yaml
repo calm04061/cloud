@@ -25,7 +25,7 @@ loggers:
     level: info
   fuser::request:
     level: info
-  rbatis::plugin::intercept_log:
-    level: warn
+  rbatis:
+    level: debug
   actix_web::middleware::logger:
     level: warn

@@ -18,15 +18,11 @@ pub struct FileBlockMeta {
     pub(crate) id: Option<i32>,
     pub(crate) block_index: i64,
     pub(crate) file_part_id: String,
-    // #[deprecated]
-    // pub(crate) cloud_file_id: String,
     pub(crate) update_time: i64,
     pub(crate) file_modify_time: i64,
     pub(crate) deleted: i8,
     pub(crate) file_meta_id: i32,
     pub(crate) part_hash: String,
-    // #[deprecated]
-    // pub(crate) cloud_file_hash: Option<String>,
     pub(crate) status: i8,
 }
 
@@ -59,7 +55,6 @@ pub struct CloudMeta {
     pub extra: Option<String>,
     pub expires_in: Option<u32>,
 }
-
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Config {
     pub(crate) id: Option<i32>,

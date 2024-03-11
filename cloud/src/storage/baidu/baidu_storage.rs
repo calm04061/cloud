@@ -169,6 +169,9 @@ impl Storage for BaiduStorage {
 
         debug!("precreate:{}", json);
         let result: BaiduPreCreate = serde_json::from_str(json.as_str())?;
+        if result.errno != 0 {
+            return Err(ErrorInfo::Http401("认证失败".to_string()));
+        }
         for (index, block) in blocks.iter_mut().enumerate() {
             let upload_id = result.uploadid.clone();
             let upload_id = upload_id.unwrap();

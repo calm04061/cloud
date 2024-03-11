@@ -114,8 +114,8 @@ pub(crate) struct DownloadUrl {
 pub(crate) struct BaiduPreCreate {
     pub(crate) uploadid: Option<String>,
     pub(crate) path: Option<String>,
-    errmsg: Option<String>,
-    errno: i32,
+    pub(crate) errmsg: Option<String>,
+    pub(crate) errno: i32,
     return_type: Option<i32>,
     pub(crate) block_list: Option<Vec<i32>>,
 }

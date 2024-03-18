@@ -5,11 +5,10 @@ use fuser::{FileAttr, FileType, ReplyAttr, ReplyEmpty, ReplyEntry};
 use libc::{EEXIST, ENOENT, ENOSYS};
 use log::error;
 use users::{get_current_gid, get_current_uid};
+use api::error::ErrorInfo;
+use persistence::{FileMeta, FileMetaType};
+use persistence::FileMetaType::FILE;
 
-use crate::database::meta::FileMetaType;
-use crate::database::meta::FileMetaType::FILE;
-use crate::domain::table::tables::FileMeta;
-use crate::error::ErrorInfo;
 use crate::fs::vfs::VirtualFileSystem;
 
 // 1 second

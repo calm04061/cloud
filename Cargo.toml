@@ -1,5 +1,5 @@
 [workspace]
-members = ["lib/cloud-ui", "cloud", "lib/api"]
+members = ["lib/api", "lib/cloud-ui", "lib/persistence", "cloud", "lib/service"]
 resolver = "2"
 [profile.release]
 strip = true

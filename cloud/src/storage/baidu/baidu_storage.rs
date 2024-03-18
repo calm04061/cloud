@@ -14,14 +14,15 @@ use serde::Serialize;
 use serde_json::Error;
 use task_local_extensions::Extensions;
 use urlencoding::encode;
+use api::error::ErrorInfo;
+use api::error::ErrorInfo::{Http, Http302};
+use api::ResponseResult;
+use api::util::IntoOne;
+use persistence::{CloudMeta, FileBlockMeta};
 
-use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
-use crate::error::ErrorInfo;
-use crate::error::ErrorInfo::{Http, Http302};
 use crate::storage::baidu::baidu_authorization_middleware::BaiduAuthMiddleware;
 use crate::storage::baidu::vo::{AsyncType, BaiduCreate, BaiduFileManagerResult, BaiduOpera, BaiduPreCreate, BaiduQuota, FileMetas, Token};
-use crate::storage::storage::{CreateResponse, FileInfo, Network, Quota, ResponseResult, Storage, TokenProvider, User};
-use crate::util::IntoOne;
+use crate::storage::storage::{CreateResponse, FileInfo, Network, Quota, Storage, TokenProvider, User};
 
 const BAIDU_YUN_APP_SECRET: &str = dotenv!("BAIDU_YUN_APP_SECRET");
 const BAIDU_YUN_APP_ID: &str = dotenv!("BAIDU_YUN_APP_ID");
@@ -70,11 +71,7 @@ impl BaiduStorage {
         let result = self
             .inner
             .do_get_json(
-                format!(
-                    "rest/2.0/xpan/multimedia?method=filemetas&dlink=1&fsids={}",
-                    fsids
-                )
-                    .as_str(),
+                &format!("rest/2.0/xpan/multimedia?method=filemetas&dlink=1&fsids={fsids}"),
                 &mut extensions,
             )
             .await?;
@@ -82,7 +79,7 @@ impl BaiduStorage {
         let result: FileMetas = serde_json::from_str(result.as_str())?;
         let file_metas = result.list;
         if file_metas.is_empty() {
-            return Err(ErrorInfo::FileNotFound(format!("{}不存在", cloud_file_id)));
+            return Err(ErrorInfo::FileNotFound(format!("{cloud_file_id}不存在")));
         }
         let meta = file_metas.into_one().unwrap();
         return Ok(meta.into());
@@ -159,7 +156,7 @@ impl Storage for BaiduStorage {
         par.push(("rtype", "3"));
         par.push(("block_list", block_list));
 
-        info!("block_list:{}", block_list);
+        info!("block_list:{block_list}");
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         let json = self
@@ -167,7 +164,7 @@ impl Storage for BaiduStorage {
             .do_post_form("rest/2.0/xpan/file?method=precreate", &par, &mut extensions)
             .await?;
 
-        debug!("precreate:{}", json);
+        debug!("pre create:{json}");
         let result: BaiduPreCreate = serde_json::from_str(json.as_str())?;
         if result.errno != 0 {
             return Err(ErrorInfo::Http401("认证失败".to_string()));
@@ -181,7 +178,7 @@ impl Storage for BaiduStorage {
             let bio = Part::bytes(x)
                 .file_name("1")
                 .mime_str("application/octet-stream")
-                ?;
+                .unwrap();
             // let index = index.to_string();
             // let index = index.clone().as_str();
             let form = Form::new().part("file", bio);
@@ -194,9 +191,9 @@ impl Storage for BaiduStorage {
             let resp_result = self
                 .inner
                 .api_client
-                .post(format!("{}/{}", FILE_DOMAIN_PREFIX, requet_query.as_str()))
+                .post(format!("{FILE_DOMAIN_PREFIX}/{requet_query}"))
                 .multipart(form)
-                .build()?;
+                .build().unwrap();
             let resp_result = self
                 .inner
                 .api_client
@@ -204,7 +201,7 @@ impl Storage for BaiduStorage {
             let result_text = self.inner.get_response_text(resp_result).await;
             match result_text {
                 Ok(string) => {
-                    debug!("upload:{}", string);
+                    debug!("upload:{string}");
                 }
                 Err(e) => {
                     return Err(e);
@@ -221,7 +218,7 @@ impl Storage for BaiduStorage {
             .inner
             .do_post_form("rest/2.0/xpan/file?method=create", &vec1, &mut extensions)
             .await?;
-        debug!("create:{}", json);
+        debug!("create:{json}");
         let result: BaiduCreate = serde_json::from_str(json.as_str())?;
         return Ok(CreateResponse {
             encrypt_mode: "".to_string(),
@@ -318,13 +315,13 @@ impl Storage for BaiduStorage {
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String> {
         let callback = format!("{}/api/cloud/callback", server);
         let encoded = encode(callback.as_str());
-        let string = format!("{}/oauth/2.0/authorize?response_type=code&client_id={}&scope=basic,netdisk&state={}", AUTH_DOMAIN_PREFIX, self.client_id(), id);
-        let call = format!("https://cloud.calm0406.tk/callback.html?target={}&redirect_uri={}", encoded, encode(string.as_str()));
+        let string = format!("{AUTH_DOMAIN_PREFIX}/oauth/2.0/authorize?response_type=code&client_id={}&scope=basic,netdisk&state={id}",self.client_id());
+        let call = format!("https://cloud.calm0406.tk/callback.html?target={encoded}&redirect_uri={}", encode(string.as_str()));
         Ok(call)
     }
     async fn callback(&self, _server: String, code: String, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
         let encoded = encode("https://cloud.calm0406.tk/callback.html");
-        let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, format!("oauth/2.0/token?grant_type=authorization_code&code={}&client_id={}&client_secret={}&redirect_uri={}", code, self.client_id(), self.client_secret(), encoded));
+        let token_url = format!("{AUTH_DOMAIN_PREFIX}/{}", format!("oauth/2.0/token?grant_type=authorization_code&code={code}&client_id={}&client_secret={}&redirect_uri={encoded}", self.client_id(), self.client_secret()));
         let resp_result = self.inner.api_client.get(token_url).send();
         let json_text = self.inner.get_response_text(resp_result).await?;
         info!("{}", json_text);
@@ -398,7 +395,7 @@ impl Inner {
         parameter.push(("filelist", file_list));
         parameter.push(("async", async_type.into()));
         let opera: &str = opera.into();
-        let url = format!("rest/2.0/xpan/file?method=filemanager&opera={}", opera);
+        let url = format!("rest/2.0/xpan/file?method=filemanager&opera={opera}");
         let json = self
             .do_post_form(url.as_str(), &parameter, &mut extensions)
             .await?;

@@ -3,21 +3,16 @@ use std::path::Path;
 use bytes::Bytes;
 use log::info;
 use tokio::fs;
+use api::ResponseResult;
+use persistence::{CloudMeta, FileBlockMeta};
 
-use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
-use crate::storage::storage::{AuthMethod, CreateResponse, Quota, ResponseResult, Storage};
+use crate::storage::storage::{AuthMethod, CreateResponse, Quota, Storage};
 
 pub struct LocalStorage {}
 
 impl LocalStorage {
     pub(crate) fn new() -> LocalStorage {
         LocalStorage {}
-    }
-}
-
-impl Clone for LocalStorage {
-    fn clone(&self) -> Self {
-        todo!()
     }
 }
 
@@ -42,7 +37,7 @@ impl Storage for LocalStorage {
 
     async fn delete(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {
         let data_root = cloud_meta.data_root.clone().unwrap();
-        let path_str = format!("{}/{}", data_root, cloud_file_id);
+        let path_str = format!("{data_root}/{cloud_file_id}");
         let path = Path::new(path_str.as_str());
         if path.exists() {
             fs::remove_file(path).await.ok();
@@ -54,7 +49,7 @@ impl Storage for LocalStorage {
 
     async fn content(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
         let data_root = cloud_meta.data_root.clone().unwrap();
-        let path_str = format!("{}/{}", data_root, cloud_file_id);
+        let path_str = format!("{data_root}/{cloud_file_id}");
         let result = fs::read(path_str).await;
         let vec = result.unwrap();
         let bytes = Bytes::from(vec);

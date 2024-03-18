@@ -3,7 +3,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
 use tokio_cron_scheduler::{Job, JobScheduler};
-use crate::database::meta::FileStatus;
+use persistence::FileStatus;
 use crate::storage::storage_facade::StorageFacade;
 
 use crate::task::clean::{clean};

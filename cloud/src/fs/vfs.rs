@@ -10,12 +10,12 @@ use crypto::digest::Digest;
 use crypto::md5::Md5;
 use log::{debug, error, info};
 use tokio::sync::RwLock;
+use api::error::ErrorInfo;
+use api::ResponseResult;
+use persistence::{FileBlockMeta, FileMeta, FileMetaType, FileStatus};
+use service::CONTEXT;
+use service::database::meta::FileManager;
 
-use crate::database::meta::{FileManager, FileMetaType, FileStatus};
-use crate::domain::table::tables::{FileBlockMeta, FileMeta};
-use crate::error::ErrorInfo;
-use crate::service::CONTEXT;
-use crate::storage::storage::ResponseResult;
 use crate::storage::storage_facade::StorageFacade;
 
 pub(crate) const DEFAULT_TEMP_PATH: &str = "/var/lib/storage/temp";

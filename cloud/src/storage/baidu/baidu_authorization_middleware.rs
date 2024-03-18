@@ -1,8 +1,9 @@
+// 该代码文件是一个用于百度授权的中间件，用于在请求中添加访问令牌(access token)参数
 use reqwest::{Request, Response};
 use reqwest_middleware::{Middleware, Next};
 use task_local_extensions::Extensions;
+use persistence::CloudMeta;
 
-use crate::domain::table::tables::CloudMeta;
 use crate::storage::baidu::vo::Token;
 use crate::storage::storage::TokenProvider;
 

@@ -7,9 +7,9 @@ use fuser::{
 };
 use libc::{EEXIST, ENOENT, ENOSYS};
 use log::{debug, error, info, warn};
+use api::error::ErrorInfo;
+use persistence::FileMetaType::{DIR, FILE};
 
-use crate::database::meta::FileMetaType::{DIR, FILE};
-use crate::error::ErrorInfo;
 use crate::fs::fuse::cloud_fs::{CloudFS, TTL};
 
 impl Filesystem for CloudFS {

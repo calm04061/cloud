@@ -1,6 +1,7 @@
-use crate::domain::table::tables::CloudMeta;
+use api::ResponseResult;
+use persistence::CloudMeta;
 use crate::storage::onedrive::vo::{AuthorizationToken, DriveItem, OneDriveQuota, OneDriveUser};
-use crate::storage::storage::{CreateResponse, FileInfo, Quota, ResponseResult, TokenProvider, User};
+use crate::storage::storage::{CreateResponse, FileInfo, Quota, TokenProvider, User};
 
 impl From<OneDriveQuota> for Quota {
     fn from(one: OneDriveQuota) -> Self {

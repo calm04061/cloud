@@ -30,18 +30,6 @@ impl ErrorInfo {
     }
 }
 
-// impl ErrorInfo {
-//     pub(crate) fn new(code: i32, message: &str) -> Self {
-//         ErrorInfo {
-//             code,
-//             message: String::from(message),
-//         }
-//     }
-//     pub(crate) fn new_string(code: i32, message: String) -> Self {
-//         ErrorInfo { code, message }
-//     }
-// }
-
 unsafe impl Send for ErrorInfo {}
 
 impl Display for ErrorInfo {
@@ -63,14 +51,6 @@ impl Display for ErrorInfo {
         f.write_str(string.as_str())
     }
 }
-
-// impl Error for ErrorInfo {}
-
-// impl Display for ErrorInfo {
-//     fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
-//         todo!()
-//     }
-// }
 
 impl Error for ErrorInfo {}
 

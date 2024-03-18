@@ -3,15 +3,13 @@ use std::fs;
 use once_cell::sync::Lazy;
 use rbatis::RBatis;
 use rbatis::table_sync::{SqliteTableMapper, sync};
+use persistence::{ApplicationConfig, CloudFileBlock, CloudMeta, Config, EventMessage, FileBlockMeta, FileMeta, FileMetaType, FileStatus};
 
-use crate::config::ApplicationConfig;
 use crate::database::config::ConfigManager;
-use crate::database::meta::{FileMetaType, FileStatus};
 use crate::database::meta::cloud::SimpleCloudMetaManager;
 use crate::database::meta::file::file_block_meta::SimpleFileBlockMetaManager;
 use crate::database::meta::file::file_meta::SimpleFileMetaManager;
 use crate::database::meta::file::SimpleFileManager;
-use crate::domain::table::tables::{CloudFileBlock, CloudMeta, Config, EventMessage, FileBlockMeta, FileMeta};
 
 pub(crate) static CONTEXT: Lazy<ServiceContext> = Lazy::new(|| ServiceContext::default());
 #[macro_export]
@@ -81,7 +79,7 @@ impl Default for ServiceContext {
         let config = ApplicationConfig::default();
 
         ServiceContext {
-            rb: crate::domain::init_rbatis(&config),
+            rb: persistence::support::application_config::init_rbatis(&config),
             config,
             cloud_meta_manager: SimpleCloudMetaManager::new(),
             file_meta_manager: SimpleFileMetaManager::new(),

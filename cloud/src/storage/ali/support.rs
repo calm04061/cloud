@@ -1,4 +1,4 @@
-use crate::domain::table::tables::CloudMeta;
+use persistence::CloudMeta;
 use crate::storage::ali::vo::{AuthToken, DriveCapacity};
 use crate::storage::storage::{Quota, ResponseResult, TokenProvider};
 

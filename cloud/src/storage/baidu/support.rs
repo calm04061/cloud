@@ -1,4 +1,4 @@
-use crate::domain::table::tables::CloudMeta;
+use persistence::CloudMeta;
 use crate::storage::baidu::vo::{AsyncType, BaiduFileMeta, BaiduOpera, BaiduQuota, BaiduUser, Token};
 use crate::storage::storage::{FileInfo, Quota, ResponseResult, TokenProvider, User};
 

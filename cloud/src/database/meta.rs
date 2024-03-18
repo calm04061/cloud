@@ -1,48 +1,8 @@
-use crate::domain::table::tables::{CloudMeta, FileBlockMeta, FileMeta};
 use crate::storage::storage::ResponseResult;
-use strum_macros::EnumIter;
+use persistence::{CloudMeta, FileBlockMeta, FileMeta, FileMetaType};
 
 pub mod cloud;
 pub mod file;
-
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum FileStatus {
-    Init,
-    Uploading,
-    UploadSuccess,
-    UploadFail,
-    FileNotExist,
-    FileReadError,
-    WaitClean,
-    Cleaning,
-    Cleaned,
-    CleanFail,
-}
-
-#[derive(PartialEq, Clone, Debug, Copy)]
-pub enum FileMetaType {
-    FILE,
-    DIR,
-    SYMLINK,
-}
-
-#[derive(Eq, Hash, PartialEq, Clone, Debug, Copy, EnumIter)]
-pub enum CloudType {
-    AliYun,
-    Baidu,
-    Local,
-    OneDrive,
-    Sftp,
-}
-
-pub(crate) enum EventType {
-    UploadFileBlock
-}
-
-pub(crate) enum EventResult {
-    Success,
-    Fail,
-}
 
 #[async_trait::async_trait]
 pub trait CloudMetaManager {

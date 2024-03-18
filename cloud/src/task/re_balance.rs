@@ -4,8 +4,7 @@ use dotenv_codegen::dotenv;
 use log::info;
 use rand::random;
 use rbs::Value;
-use crate::database::meta::cloud::MetaStatus;
-use crate::domain::table::tables::{CloudFileBlock, CloudMeta};
+use persistence::{CloudFileBlock, CloudMeta, MetaStatus};
 use crate::pool;
 
 pub(crate) async fn re_balance() {

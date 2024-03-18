@@ -2,9 +2,9 @@ use std::sync::Arc;
 use log::{debug, error, warn};
 use rbatis::rbdc::datetime::DateTime;
 use tokio::sync::Mutex;
+use persistence::{CloudFileBlock, FileBlockMeta, FileMeta, FileStatus};
 
-use crate::database::meta::{FileManager, FileStatus};
-use crate::domain::table::tables::{CloudFileBlock, FileBlockMeta, FileMeta};
+use crate::database::meta::{FileManager};
 use crate::error::ErrorInfo;
 use crate::pool;
 use crate::service::CONTEXT;

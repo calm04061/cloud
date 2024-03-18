@@ -1,9 +1,8 @@
 use log::debug;
 use rbs::to_value;
+use persistence::{CloudFileBlock, CloudMeta, MetaStatus};
 
-use crate::database::meta::cloud::MetaStatus;
 use crate::database::meta::FileBlockMeta;
-use crate::domain::table::tables::{CloudFileBlock, CloudMeta};
 use crate::pool;
 use crate::storage::storage::ResponseResult;
 use crate::util::IntoOne;

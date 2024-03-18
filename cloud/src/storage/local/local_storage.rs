@@ -3,8 +3,8 @@ use std::path::Path;
 use bytes::Bytes;
 use log::info;
 use tokio::fs;
+use persistence::{CloudMeta, FileBlockMeta};
 
-use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use crate::storage::storage::{AuthMethod, CreateResponse, Quota, ResponseResult, Storage};
 
 pub struct LocalStorage {}

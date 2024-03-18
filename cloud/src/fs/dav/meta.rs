@@ -8,9 +8,8 @@ use chrono::{Local, TimeZone};
 use dav_server::fs::{DavDirEntry, DavFile, DavMetaData, FsFuture, FsResult};
 use futures_util::{future, FutureExt};
 use log::{debug, info};
+use persistence::{FileMeta, FileMetaType};
 
-use crate::database::meta::FileMetaType;
-use crate::domain::table::tables::FileMeta;
 use crate::fs::vfs::VirtualFileSystem;
 
 const BLOCK_SIZE: usize = 1024 * 1024 * 4;

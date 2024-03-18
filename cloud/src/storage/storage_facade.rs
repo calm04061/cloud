@@ -3,10 +3,9 @@ use std::sync::Arc;
 use bytes::Bytes;
 use log::info;
 use tokio::sync::Mutex;
+use persistence::{CloudFileBlock, CloudMeta, CloudType, FileBlockMeta, MetaStatus};
 
-use crate::database::meta::{CloudMetaManager, CloudType};
-use crate::database::meta::cloud::MetaStatus;
-use crate::domain::table::tables::{CloudFileBlock, CloudMeta, FileBlockMeta};
+use crate::database::meta::{CloudMetaManager};
 use crate::error::ErrorInfo;
 use crate::error::ErrorInfo::Http401;
 use crate::pool;

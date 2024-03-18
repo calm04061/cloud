@@ -1,9 +1,8 @@
 use std::time::Duration;
 use log::info;
 use rbatis::rbdc::datetime::DateTime;
+use persistence::{CloudFileBlock, FileStatus};
 
-use crate::database::meta::FileStatus;
-use crate::domain::table::tables::CloudFileBlock;
 use crate::pool;
 
 pub(crate) async fn reset(status: FileStatus, sub: u64) {

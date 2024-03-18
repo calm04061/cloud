@@ -8,8 +8,8 @@ use reqwest::Client;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use task_local_extensions::Extensions;
 use urlencoding::encode;
+use persistence::{CloudMeta, FileBlockMeta};
 
-use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use crate::error::ErrorInfo;
 use crate::storage::onedrive::one_drive_authorization_middleware::OneDriveAuthMiddleware;
 use crate::storage::onedrive::vo::{AuthorizationToken, Drive, DriveItem};

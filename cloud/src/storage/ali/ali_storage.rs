@@ -9,10 +9,9 @@ use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use serde::{Deserialize, Serialize};
 use task_local_extensions::Extensions;
 use urlencoding::encode;
-use crate::database::meta::cloud::MetaStatus;
+use persistence::{CloudMeta, FileBlockMeta, MetaStatus};
 use crate::database::meta::CloudMetaManager;
 
-use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use crate::error::ErrorInfo;
 use crate::service::CONTEXT;
 use crate::storage::ali::ali_authorization_middleware::{AliAuthMiddleware};

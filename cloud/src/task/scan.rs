@@ -5,10 +5,9 @@ use std::sync::Arc;
 use log::{error, info};
 use rbatis::rbdc::datetime::DateTime;
 use tokio::sync::{Mutex, Semaphore};
+use persistence::{CloudFileBlock, EventMessage, EventType, FileStatus, MetaStatus};
 
-use crate::database::meta::{CloudMetaManager, EventType, FileManager, FileStatus};
-use crate::database::meta::cloud::MetaStatus;
-use crate::domain::table::tables::{CloudFileBlock, EventMessage};
+use crate::database::meta::{CloudMetaManager, FileManager};
 use crate::error::ErrorInfo;
 use crate::pool;
 use crate::service::CONTEXT;

@@ -1,7 +1,7 @@
 use log::error;
+use persistence::FileMeta;
 
 use crate::database::meta::{FileBlockMeta, FileManager, FileMetaType};
-use crate::domain::table::tables::FileMeta;
 use crate::error::ErrorInfo;
 use crate::service::CONTEXT;
 use crate::storage::storage::ResponseResult;

@@ -55,9 +55,10 @@ async-recursion = "1.1.0"
 dav-server = { version = "0.5.8", features = ["actix-compat"] }
 futures-util = { version = "0.3.30" }
 api = { path = "../lib/api" }
+persistence = { path = "../lib/persistence" }
 async-ssh2-lite = { version = "0.4.7", features = ["tokio", "async-io"] }
 strum = "0.26.2"
-strum_macros = "0.26.2"
+
 [target.'cfg(not(windows))'.dependencies]
 fuser = { version = "0.14.0" }
 users = "0.11.0"

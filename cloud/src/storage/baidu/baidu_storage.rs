@@ -14,8 +14,8 @@ use serde::Serialize;
 use serde_json::Error;
 use task_local_extensions::Extensions;
 use urlencoding::encode;
+use persistence::{CloudMeta, FileBlockMeta};
 
-use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use crate::error::ErrorInfo;
 use crate::error::ErrorInfo::{Http, Http302};
 use crate::storage::baidu::baidu_authorization_middleware::BaiduAuthMiddleware;

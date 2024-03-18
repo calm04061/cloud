@@ -1,4 +1,4 @@
-use crate::domain::table::tables::CloudMeta;
+use persistence::CloudMeta;
 use crate::storage::onedrive::vo::{AuthorizationToken, DriveItem, OneDriveQuota, OneDriveUser};
 use crate::storage::storage::{CreateResponse, FileInfo, Quota, ResponseResult, TokenProvider, User};
 

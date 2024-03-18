@@ -10,9 +10,9 @@ use crypto::digest::Digest;
 use crypto::md5::Md5;
 use log::{debug, error, info};
 use tokio::sync::RwLock;
+use persistence::{FileBlockMeta, FileMeta, FileMetaType, FileStatus};
 
-use crate::database::meta::{FileManager, FileMetaType, FileStatus};
-use crate::domain::table::tables::{FileBlockMeta, FileMeta};
+use crate::database::meta::{FileManager};
 use crate::error::ErrorInfo;
 use crate::service::CONTEXT;
 use crate::storage::storage::ResponseResult;

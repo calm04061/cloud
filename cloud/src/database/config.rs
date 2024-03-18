@@ -1,4 +1,4 @@
-use crate::domain::table::tables::Config;
+use persistence::Config;
 use crate::pool;
 use crate::util::IntoOne;
 

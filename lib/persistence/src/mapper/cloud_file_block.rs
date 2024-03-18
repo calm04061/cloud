@@ -1,7 +1,7 @@
-use rbatis::{crud, Error, impl_update, RBatis};
+use rbatis::{crud, Error, impl_select, impl_update, RBatis, sql};
 use rbatis::rbdc::datetime::DateTime;
 
-use crate::domain::table::tables::CloudFileBlock;
+use crate::CloudFileBlock;
 
 crud!(CloudFileBlock {});
 impl_update!(CloudFileBlock{update_by_status(id: i32,status :i8) =>"` where id=#{id} and status=#{status}`"});

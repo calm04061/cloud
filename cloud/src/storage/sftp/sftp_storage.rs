@@ -6,8 +6,8 @@ use async_ssh2_lite::AsyncSession;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::{AsyncReadExt, AsyncWriteExt};
+use persistence::{CloudMeta, FileBlockMeta};
 
-use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
 use crate::storage::sftp::vo::HostUser;
 use crate::storage::storage::{AuthMethod, CreateResponse, Quota, ResponseResult, Storage};
 

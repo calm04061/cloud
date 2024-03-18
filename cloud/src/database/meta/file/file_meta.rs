@@ -1,8 +1,8 @@
 use log::info;
+use persistence::{FileMeta, FileStatus};
 
-use crate::database::meta::{FileMetaType, FileStatus};
+use crate::database::meta::{FileMetaType};
 use crate::database::meta::FileMetaType::DIR;
-use crate::domain::table::tables::FileMeta;
 use crate::pool;
 use crate::storage::storage::ResponseResult;
 use crate::util::IntoOne;

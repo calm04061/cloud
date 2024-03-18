@@ -6,9 +6,9 @@ use actix_web::web::{Data, Json, Path};
 use fuser::{BackgroundSession, MountOption};
 use fuser::MountOption::{AllowOther, AutoUnmount};
 use log::info;
+use persistence::Config;
 
 use crate::database::meta::CloudMetaManager;
-use crate::domain::table::tables::Config;
 use crate::fs::fuse::cloud_fs::CloudFS;
 use crate::fs::vfs::DEFAULT_TEMP_PATH;
 use crate::service::CONTEXT;

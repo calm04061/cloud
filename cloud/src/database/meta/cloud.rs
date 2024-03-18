@@ -1,19 +1,12 @@
 use rbatis::rbatis_codegen::ops::AsProxy;
+use persistence::CloudMeta;
 
 use crate::database::meta::CloudMetaManager;
-use crate::domain::table::tables::CloudMeta;
 use crate::pool;
 use crate::storage::storage::ResponseResult;
 use crate::util::IntoOne;
 
-#[derive(PartialEq, Debug, Clone)]
-pub enum MetaStatus {
-    WaitInit,
-    WaitDataRoot,
-    Enable,
-    InvalidRefresh,
-    Disabled,
-}
+
 #[derive(PartialEq, Debug, Clone)]
 pub struct SimpleCloudMetaManager {}
 

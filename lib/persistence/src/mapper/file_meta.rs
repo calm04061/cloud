@@ -1,6 +1,6 @@
 use rbatis::{crud, impl_select};
 
-use crate::domain::table::tables::FileMeta;
+use crate::FileMeta;
 
 crud!(FileMeta {});
 impl_select!(FileMeta{select_by_parent(parent_id:i32)=>"` where parent_id = #{parent_id} and deleted = 0`"});

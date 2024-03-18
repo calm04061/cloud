@@ -1,6 +1,6 @@
 use rbatis::{crud, impl_select, impl_update};
 
-use crate::domain::table::tables::FileBlockMeta;
+use crate::FileBlockMeta;
 
 crud!(FileBlockMeta {});
 

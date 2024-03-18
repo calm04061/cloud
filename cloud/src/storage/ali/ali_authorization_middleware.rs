@@ -2,8 +2,8 @@ use reqwest::{Request, Response};
 use reqwest_middleware::{Middleware, Next};
 use serde::{Deserialize, Serialize};
 use task_local_extensions::Extensions;
+use persistence::CloudMeta;
 
-use crate::domain::table::tables::CloudMeta;
 use crate::storage::ali::vo::AuthToken;
 use crate::storage::storage::TokenProvider;
 

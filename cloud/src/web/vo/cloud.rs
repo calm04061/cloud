@@ -1,7 +1,5 @@
 use serde_derive::Deserialize;
-
-use crate::database::meta::CloudType;
-use crate::domain::table::tables::CloudMeta;
+use persistence::{CloudMeta, CloudType};
 
 #[derive(Deserialize, Clone)]
 pub struct CloudMetaVo {

@@ -5,26 +5,25 @@ use std::sync::Arc;
 use log::{error, info};
 use rbatis::rbdc::datetime::DateTime;
 use tokio::sync::{Mutex, Semaphore};
+use api::error::ErrorInfo;
+use api::ResponseResult;
+use persistence::{CloudFileBlock, EventMessage, EventType, FileStatus, MetaStatus};
+use service::{CONTEXT};
+use service::database::meta::{CloudMetaManager, FileManager};
 
-use crate::database::meta::{CloudMetaManager, EventType, FileManager, FileStatus};
-use crate::database::meta::cloud::MetaStatus;
-use crate::domain::table::tables::{CloudFileBlock, EventMessage};
-use crate::error::ErrorInfo;
-use crate::pool;
-use crate::service::CONTEXT;
-use crate::storage::storage::ResponseResult;
 use crate::storage::storage_facade::StorageFacade;
 
 
 pub(crate) async fn scan(semaphore: Arc<Semaphore>, facade: Arc<Mutex<StorageFacade>>) {
     info!("scan");
-    let cloud_file_block = CloudFileBlock::select_to_upload(pool!()).await.unwrap();
+    let cloud_file_block = CONTEXT.cloud_file_block_manager.select_to_upload().await;
+    // let cloud_file_block = CloudFileBlock::select_to_upload(pool!()).await.unwrap();
     info!("{} block to upload", cloud_file_block.len());
     for mut file_block in cloud_file_block {
         let origin_status = file_block.status;
         file_block.update_time = DateTime::now();
         file_block.status = FileStatus::Uploading.into();
-        let count = CloudFileBlock::update_by_status(pool!(), &file_block, file_block.id.unwrap(), origin_status)
+        let count = CONTEXT.cloud_file_block_manager.update_by_status(&file_block, file_block.id.unwrap(), origin_status)
             .await.unwrap().rows_affected;
         if count == 0 {
             info!("block {} unable lock by db", file_block.id.unwrap());
@@ -47,7 +46,7 @@ pub(crate) async fn scan(semaphore: Arc<Semaphore>, facade: Arc<Mutex<StorageFac
                     EventMessage::fail(EventType::UploadFileBlock, format!("{} upload fail:{}", file_block.id.unwrap(), e.to_string()))
                 }
             };
-            EventMessage::insert(pool!(), &message).await.unwrap();
+            CONTEXT.event_message_manager.insert(&message).await.unwrap();
         });
     }
 }
@@ -73,7 +72,7 @@ async fn do_execute_one_block(file_block: &mut CloudFileBlock, facade: Arc<Mutex
         .unwrap();
     let cache_file = dotenvy::var("TEMP_PATH").unwrap_or(String::from("/var/lib/storage/temp"));
 
-    let cache_file = format!("{}/{}", cache_file, file_block_meta.file_part_id);
+    let cache_file = format!("{cache_file}/{}",  file_block_meta.file_part_id);
     info!("upload {}", cache_file);
     let result = File::open(cache_file.clone());
     if let Err(e) = result {
@@ -123,8 +122,7 @@ async fn do_execute_one_block(file_block: &mut CloudFileBlock, facade: Arc<Mutex
             file_block.cloud_file_id = Some(cr.file_id);
             file_block.update_time = DateTime::now();
             file_block.cloud_file_hash = Some(file_block_meta.part_hash);
-            CloudFileBlock::update_by_status(
-                pool!(),
+            CONTEXT.cloud_file_block_manager.update_by_status(
                 &file_block,
                 file_block.id.unwrap(),
                 FileStatus::Uploading.into(),
@@ -135,14 +133,13 @@ async fn do_execute_one_block(file_block: &mut CloudFileBlock, facade: Arc<Mutex
         Err(e) => {
             file_block.status = FileStatus::UploadFail.into();
             file_block.update_time = DateTime::now();
-            CloudFileBlock::update_by_status(
-                pool!(),
+            CONTEXT.cloud_file_block_manager.update_by_status(
                 &file_block,
                 file_block.id.unwrap(),
                 FileStatus::Uploading.into(),
             )
                 .await?;
-            Err(ErrorInfo::OTHER(0, format!("上传文件{}:{}", cache_file, e.to_string())))
+            Err(ErrorInfo::OTHER(0, format!("上传文件{cache_file}:{}", e.to_string())))
         }
     };
 }

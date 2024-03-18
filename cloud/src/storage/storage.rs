@@ -6,13 +6,12 @@ use reqwest::{Body, Response, StatusCode};
 use reqwest_middleware::{ClientWithMiddleware, Error};
 use serde::{Deserialize, Serialize};
 use task_local_extensions::Extensions;
+use api::error::ErrorInfo;
+use api::ResponseResult;
+use persistence::{CloudMeta, FileBlockMeta, MetaStatus};
 
-use crate::database::meta::cloud::MetaStatus;
-use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
-use crate::error::ErrorInfo;
 use crate::storage::storage::AuthMethod::OAuth2;
 
-pub type ResponseResult<T> = Result<T, ErrorInfo>;
 
 #[derive(PartialEq)]
 pub(crate) enum AuthMethod {

@@ -1,6 +1,7 @@
-use crate::domain::table::tables::CloudMeta;
+use api::ResponseResult;
+use persistence::CloudMeta;
 use crate::storage::baidu::vo::{AsyncType, BaiduFileMeta, BaiduOpera, BaiduQuota, BaiduUser, Token};
-use crate::storage::storage::{FileInfo, Quota, ResponseResult, TokenProvider, User};
+use crate::storage::storage::{FileInfo, Quota, TokenProvider, User};
 
 impl From<BaiduUser> for User {
     fn from(baidu: BaiduUser) -> Self {

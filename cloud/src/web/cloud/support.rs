@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
 use actix_web::{get, Responder};
+use persistence::CloudType;
 use strum::IntoEnumIterator;
-use crate::database::meta::CloudType;
-
 use crate::web::common::WebResult;
 
 #[get("/support/cloud/types")]

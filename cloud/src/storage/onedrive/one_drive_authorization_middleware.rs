@@ -1,8 +1,8 @@
 use reqwest::{Request, Response};
 use reqwest_middleware::{Middleware, Next};
 use task_local_extensions::Extensions;
+use persistence::CloudMeta;
 
-use crate::domain::table::tables::CloudMeta;
 use crate::storage::onedrive::vo::AuthorizationToken;
 use crate::storage::storage::TokenProvider;
 

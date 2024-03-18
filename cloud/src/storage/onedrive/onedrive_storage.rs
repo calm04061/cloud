@@ -8,12 +8,13 @@ use reqwest::Client;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use task_local_extensions::Extensions;
 use urlencoding::encode;
+use api::error::ErrorInfo;
+use api::ResponseResult;
+use persistence::{CloudMeta, FileBlockMeta};
 
-use crate::domain::table::tables::{CloudMeta, FileBlockMeta};
-use crate::error::ErrorInfo;
 use crate::storage::onedrive::one_drive_authorization_middleware::OneDriveAuthMiddleware;
 use crate::storage::onedrive::vo::{AuthorizationToken, Drive, DriveItem};
-use crate::storage::storage::{CreateResponse, Network,  Quota, ResponseResult, Storage, User};
+use crate::storage::storage::{CreateResponse, Network,  Quota, Storage, User};
 
 const ONE_DRIVE_APP_SECRET: &str = dotenv!("ONE_DRIVE_APP_SECRET");
 const ONE_DRIVE_APP_ID: &str = dotenv!("ONE_DRIVE_APP_ID");
@@ -57,7 +58,7 @@ impl Storage for OneDriveStorage {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         let json = self
-            .do_get_json(format!("me/drive/root:{}/{}", data_root, file_block.file_part_id).as_str(), &mut extensions)
+            .do_get_json(format!("me/drive/root:{data_root}/{}", file_block.file_part_id).as_str(), &mut extensions)
             .await;
         let path = match json {
             Ok(json) => {
@@ -66,7 +67,7 @@ impl Storage for OneDriveStorage {
             }
             Err(e) => {
                 if let ErrorInfo::Http404(_url) = e {
-                    format!("me/drive/root:{}/{}:/content", data_root, file_block.file_part_id)
+                    format!("me/drive/root:{data_root}/{}:/content", file_block.file_part_id)
                 } else {
                     return Err(e);
                 }
@@ -83,7 +84,7 @@ impl Storage for OneDriveStorage {
     async fn delete(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
-        self.do_delete(format!("me/drive/items/{}", cloud_file_id).as_str(), &mut extensions).await?;
+        self.do_delete(format!("me/drive/items/{cloud_file_id}").as_str(), &mut extensions).await?;
         Ok(())
     }
 
@@ -91,7 +92,7 @@ impl Storage for OneDriveStorage {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         let result = self
-            .do_get_bytes(format!("me/drive/items/{}/content", cloud_file_id).as_str(), &mut extensions)
+            .do_get_bytes(format!("me/drive/items/{cloud_file_id}/content").as_str(), &mut extensions)
             .await;
         if let Ok(bo) = result {
             return Ok(bo);
@@ -128,7 +129,7 @@ impl Storage for OneDriveStorage {
     }
 
     async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
-        let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, "consumers/oauth2/v2.0/token".to_string());
+        let token_url = format!("{AUTH_DOMAIN_PREFIX}/consumers/oauth2/v2.0/token");
         // debug!("{}", token_url);
         let client_id = self.client_id().clone();
         let client_secret = self.client_secret().clone();
@@ -155,18 +156,18 @@ impl Storage for OneDriveStorage {
     /// https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id={client_id}&scope={scope}
     ///     &response_type=token&redirect_uri={redirect_uri}
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String> {
-        let callback = format!("{}/api/cloud/callback", server);
+        let callback = format!("{server}/api/cloud/callback");
         let target = encode(callback.as_str());
 
         let scope = encode("offline_access files.readwrite.all");
         // https://cloud.calm0406.tk/callback.html
-        let callback = format!("{}/consumers/oauth2/v2.0/authorize?response_type=code&client_id={}&scope={}&state={}", AUTH_DOMAIN_PREFIX, self.client_id(), scope, id);
+        let callback = format!("{AUTH_DOMAIN_PREFIX}/consumers/oauth2/v2.0/authorize?response_type=code&client_id={}&scope={scope}&state={id}", self.client_id());
         let callback = encode(callback.as_str());
-        let result_url = format!("https://cloud.calm0406.tk/callback.html?target={}&redirect_uri={}", target, callback);
+        let result_url = format!("https://cloud.calm0406.tk/callback.html?target={target}&redirect_uri={callback}");
         Ok(result_url)
     }
     async fn callback(&self, _server: String, code: String, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
-        let token_url = format!("{}/{}", AUTH_DOMAIN_PREFIX, "consumers/oauth2/v2.0/token");
+        let token_url = format!("{AUTH_DOMAIN_PREFIX}/consumers/oauth2/v2.0/token");
         // debug!("{}", token_url);
         let client_id = self.client_id().clone();
         let client_secret = self.client_secret().clone();

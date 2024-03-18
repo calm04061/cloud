@@ -3,21 +3,20 @@ use std::sync::Arc;
 use bytes::Bytes;
 use log::info;
 use tokio::sync::Mutex;
+use api::error::ErrorInfo;
+use api::error::ErrorInfo::Http401;
+use api::ResponseResult;
+use api::util::IntoOne;
+use persistence::{CloudFileBlock, CloudMeta, CloudType, FileBlockMeta, MetaStatus};
+use service::{CONTEXT};
+use service::database::meta::CloudMetaManager;
 
-use crate::database::meta::{CloudMetaManager, CloudType};
-use crate::database::meta::cloud::MetaStatus;
-use crate::domain::table::tables::{CloudFileBlock, CloudMeta, FileBlockMeta};
-use crate::error::ErrorInfo;
-use crate::error::ErrorInfo::Http401;
-use crate::pool;
-use crate::service::CONTEXT;
 use crate::storage::ali::ali_storage::AliStorage;
 use crate::storage::baidu::baidu_storage::BaiduStorage;
 use crate::storage::local::local_storage::LocalStorage;
 use crate::storage::onedrive::onedrive_storage::OneDriveStorage;
 use crate::storage::sftp::sftp_storage::SftpStorage;
-use crate::storage::storage::{AuthMethod, CreateResponse, ResponseResult, Storage};
-use crate::util::IntoOne;
+use crate::storage::storage::{AuthMethod, CreateResponse, Storage};
 use crate::web::vo::auth::Callback;
 
 pub struct StorageFacade {
@@ -127,11 +126,9 @@ impl StorageFacade {
     ///
     pub(crate) async fn content(&mut self, file_block_id: i32) -> ResponseResult<Bytes> {
         let cloud_file_block =
-            CloudFileBlock::select_by_column(pool!(), "file_block_id", file_block_id)
+        CONTEXT.cloud_file_block_manager.select_by_file_block_id(file_block_id)
                 .await
-                .unwrap()
-                .into_one()
-                .unwrap();
+            .into_one().unwrap();
         let cloud_meta = self
             .inner
             .get_meta_info(cloud_file_block.cloud_meta_id)
@@ -169,9 +166,7 @@ impl StorageFacade {
     ///
     pub(crate) async fn refresh_quota(&mut self) {
         let status: i8 = MetaStatus::Enable.into();
-        let all = CloudMeta::select_by_column(pool!(), "status", status)
-            .await
-            .unwrap();
+        let all =  CONTEXT.cloud_meta_manager.select_by_status(status).await;
         for mut meta in all {
             let cloud = self.inner.get_cloud(meta.cloud_type.into()).unwrap();
             // let mut guard = cloud.lock().unwrap();
@@ -179,9 +174,10 @@ impl StorageFacade {
             meta.used_quota = Some(result.used);
             meta.total_quota = Some(result.total);
             meta.remaining_quota = Some(result.remaining);
-            CloudMeta::update_by_column(pool!(), &meta, "id")
-                .await
-                .unwrap();
+            CONTEXT.cloud_meta_manager.update_meta(&meta).await.unwrap();
+            // CloudMeta::update_by_column(pool!(), &meta, "id")
+            //     .await
+            //     .unwrap();
         }
     }
 }

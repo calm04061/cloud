@@ -2,12 +2,11 @@ use std::sync::Arc;
 use log::{debug, error, warn};
 use rbatis::rbdc::datetime::DateTime;
 use tokio::sync::Mutex;
+use api::error::ErrorInfo;
+use persistence::{FileBlockMeta, FileMeta, FileStatus};
+use service::{CONTEXT};
+use service::database::meta::FileManager;
 
-use crate::database::meta::{FileManager, FileStatus};
-use crate::domain::table::tables::{CloudFileBlock, FileBlockMeta, FileMeta};
-use crate::error::ErrorInfo;
-use crate::pool;
-use crate::service::CONTEXT;
 use crate::storage::storage_facade::StorageFacade;
 
 pub async fn clean(facade: Arc<Mutex<StorageFacade>>) {
@@ -34,9 +33,10 @@ async fn clean_file_block(file_meta: &mut FileMeta, facade: Arc<Mutex<StorageFac
     if file_block_metas.is_empty() {
         debug!("file_block_metas is empty");
         file_meta.status = FileStatus::WaitClean.into();
-        FileMeta::update_by_column(pool!(), file_meta, "id")
-            .await
-            .ok();
+        CONTEXT.file_meta_manager.update_meta(&file_meta).await.unwrap();
+        // FileMeta::update_by_column(pool!(), file_meta, "id")
+        //     .await
+        //     .ok();
         return;
     }
     debug!("file_block_metas size:{}",file_block_metas.len());
@@ -46,21 +46,23 @@ async fn clean_file_block(file_meta: &mut FileMeta, facade: Arc<Mutex<StorageFac
             let local_cache_file = format!("{}/{}", cache_file, file_block_meta.file_part_id);
             let result = std::fs::remove_file(local_cache_file.clone());
             if let Err(e) = result {
-                warn!("clean->{},{}:{}", file_meta.name, local_cache_file, e)
+                warn!("clean->{},{local_cache_file}:{e}", file_meta.name)
             }
             file_block_meta.deleted = 1;
-            FileBlockMeta::update_by_column(pool!(), &file_block_meta, "id")
-                .await
-                .unwrap();
+            CONTEXT.file_block_meta_manager.update_file_block_meta(file_block_meta).await;
+            // FileBlockMeta::update_by_column(pool!(), &file_block_meta, "id")
+            //     .await
+            //     .unwrap();
             continue;
         }
     }
 }
 
 async fn delete_cloud_file_block(file_meta: &mut FileMeta, file_block_meta: &FileBlockMeta, facade: Arc<Mutex<StorageFacade>>) -> usize {
-    let cloud_file_blocks = CloudFileBlock::select_by_file_block_id(pool!(), file_block_meta.id.unwrap())
-        .await
-        .unwrap();
+    let cloud_file_blocks =  CONTEXT.cloud_file_block_manager.select_by_file_block_id(file_block_meta.id.unwrap()).await;
+    // let cloud_file_blocks = CloudFileBlock::select_by_file_block_id(pool!(), file_block_meta.id.unwrap())
+    //     .await
+    //     .unwrap();
     let size = cloud_file_blocks.len();
 
     for mut cloud_file_block in cloud_file_blocks {
@@ -74,13 +76,14 @@ async fn delete_cloud_file_block(file_meta: &mut FileMeta, file_block_meta: &Fil
             let now = now.unix_timestamp();
             if now - timestamp > 1000 {
                 cloud_file_block.status = FileStatus::WaitClean.into();
-                CloudFileBlock::update_by_status(pool!(), &cloud_file_block, id, FileStatus::Cleaning.into())
+                CONTEXT.cloud_file_block_manager.update_by_status(
+                    &cloud_file_block, id, FileStatus::Cleaning.into())
                     .await.unwrap()
                     .rows_affected;
             }
             continue;
         }
-        let result = CloudFileBlock::update_by_status(pool!(), &cloud_file_block, id, FileStatus::Cleaning.into())
+        let result = CONTEXT.cloud_file_block_manager.update_by_status( &cloud_file_block, id, FileStatus::Cleaning.into())
             .await.unwrap()
             .rows_affected;
         if result == 0 {
@@ -93,16 +96,12 @@ async fn delete_cloud_file_block(file_meta: &mut FileMeta, file_block_meta: &Fil
                 ErrorInfo::FileNotFound(_) => {
                     cloud_file_block.deleted = 1;
                     cloud_file_block.status = FileStatus::Cleaned.into();
-                    CloudFileBlock::update_by_column(pool!(), &cloud_file_block, "id")
-                        .await
-                        .unwrap();
+                    CONTEXT.cloud_file_block_manager.update(&cloud_file_block).await;
                 }
                 ErrorInfo::NoneCloudFileId(_) => {
                     cloud_file_block.deleted = 1;
                     cloud_file_block.status = FileStatus::Cleaned.into();
-                    CloudFileBlock::update_by_column(pool!(), &cloud_file_block, "id")
-                        .await
-                        .unwrap();
+                    CONTEXT.cloud_file_block_manager.update(&cloud_file_block).await;
                 }
                 _ => {
                     cloud_file_block.status = FileStatus::CleanFail.into();
@@ -112,9 +111,7 @@ async fn delete_cloud_file_block(file_meta: &mut FileMeta, file_block_meta: &Fil
         } else {
             debug!("删除云文件成功");
             cloud_file_block.deleted = 1;
-            CloudFileBlock::update_by_column(pool!(), &cloud_file_block, "id")
-                .await
-                .unwrap();
+            CONTEXT.cloud_file_block_manager.update(&cloud_file_block).await;
         }
     }
     size

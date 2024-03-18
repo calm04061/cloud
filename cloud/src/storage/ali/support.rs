@@ -1,6 +1,7 @@
-use crate::domain::table::tables::CloudMeta;
+use api::ResponseResult;
+use persistence::CloudMeta;
 use crate::storage::ali::vo::{AuthToken, DriveCapacity};
-use crate::storage::storage::{Quota, ResponseResult, TokenProvider};
+use crate::storage::storage::{Quota, TokenProvider};
 
 impl From<DriveCapacity> for Quota {
     fn from(baidu: DriveCapacity) -> Self {

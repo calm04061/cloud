@@ -1,8 +1,8 @@
 use std::collections::{HashMap, VecDeque};
 
 use serde_json::Error;
-use crate::error::ErrorInfo;
 
+use crate::error::ErrorInfo;
 
 pub trait IntoOne<V> {
     fn into_one(self) -> Option<V>;

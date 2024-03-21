@@ -26,6 +26,6 @@ loggers:
   fuser::request:
     level: info
   rbatis:
-    level: debug
+    level: warn
   actix_web::middleware::logger:
     level: warn

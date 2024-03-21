@@ -1,0 +1,91 @@
+[package]
+name = "cloud"
+version = "0.1.0-SNAPSHOT"
+edition = "2021"
+license = "MFT"
+description = "cloud"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+default-run = "cloud"
+build = "build.rs"
+[[bin]]
+name = "cloud"
+test = false
+bench = false
+[dependencies]
+actix-web = { workspace = true }
+actix-files = { workspace = true }
+actix-cors = { workspace = true }
+actix-identity = { workspace = true }
+actix-web-httpauth = { workspace = true }
+mime = { workspace = true }
+rand = { workspace = true }
+async-trait = { workspace = true }
+reqwest-middleware = { workspace = true }
+reqwest = { workspace = true, features = ["stream", "multipart", "json"] }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_derive = { workspace = true }
+task-local-extensions = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "signal", "rt", "macros"] }
+chrono = { workspace = true, features = ["serde"] }
+futures = { workspace = true }
+anyhow = { workspace = true }
+uuid = { workspace = true }
+log = { workspace = true }
+log4rs = { workspace = true }
+rust-crypto = { workspace = true }
+libc = { workspace = true }
+nfsserve = { workspace = true }
+bytes = { workspace = true }
+dotenvy = { workspace = true }
+dotenvy_macro = { workspace = true }
+openssl = { workspace = true }
+rbs = { workspace = true }
+rbatis = { workspace = true }
+rbdc-sqlite = { workspace = true }
+fastdate = { workspace = true }
+libloading = { workspace = true }
+
+signal-hook = { workspace = true }
+tokio-cron-scheduler = { workspace = true }
+urlencoding = { workspace = true }
+once_cell = { workspace = true }
+async-recursion = { workspace = true }
+dav-server = { workspace = true, features = ["actix-compat"] }
+futures-util = { workspace = true }
+api = { path = "../api" }
+persistence = { path = "../persistence" }
+service = { path = "../service" }
+storage = { path = "../storage" }
+plugin-manager = { path = "../plugin-manager" }
+async-ssh2-lite = { workspace = true, features = ["tokio", "async-io"] }
+strum = { workspace = true }
+tracing-subscriber = "0.3.18"
+tracing = "0.1.40"
+
+[target.'cfg(not(windows))'.dependencies]
+fuser = { workspace = true }
+openssh-sftp-client = { workspace = true, features = ["openssh"] }
+openssh = { workspace = true, features = ["native-mux"] }
+[target.'cfg(windows)'.dependencies]
+ctrlc = { workspace = true }
+[build-dependencies]
+vcpkg = { workspace = true }
+
+[package.metadata.bundle]
+name = "Cloud"
+identifier = "com.calm0406.cloud"
+icon = ["32x32.png", "128x128.png"]
+#resources = ["assets", "images/**/*.png", "secrets/public_key.txt"]
+copyright = "Copyright (c) Jane Doe 2016. All rights reserved."
+category = "Developer Tool"
+short_description = "An example application."
+long_description = """
+Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua.  Ut
+enim ad minim veniam, quis nostrud exercitation ullamco laboris
+nisi ut aliquip ex ea commodo consequat.
+"""
+#deb_depends = ["libgl1-mesa-glx", "libsdl2-2.0-0 (>= 2.0.5)"]
+#osx_frameworks = ["SDL2"]

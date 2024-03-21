@@ -1,5 +1,6 @@
 use rbatis::RBatis;
 use rbatis::rbdc::db::ExecResult;
+
 use api::ResponseResult;
 use persistence::EventMessage;
 
@@ -8,7 +9,7 @@ pub struct EventMessageManager {
 }
 
 impl EventMessageManager {
-    pub(crate) fn new(batis: RBatis) -> EventMessageManager {
+    pub fn new(batis: RBatis) -> EventMessageManager {
         EventMessageManager{
             batis,
         }

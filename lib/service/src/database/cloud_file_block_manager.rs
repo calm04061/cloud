@@ -3,6 +3,7 @@ use rbatis::RBatis;
 use rbatis::rbdc::DateTime;
 use rbatis::rbdc::db::ExecResult;
 use rbs::Value;
+
 use api::ResponseResult;
 use persistence::CloudFileBlock;
 
@@ -11,7 +12,7 @@ pub struct CloudFileBlockManager {
 }
 
 impl CloudFileBlockManager {
-    pub(crate) fn new(batis: RBatis) -> CloudFileBlockManager {
+    pub fn new(batis: RBatis) -> CloudFileBlockManager {
         CloudFileBlockManager {
             batis,
         }
@@ -19,10 +20,10 @@ impl CloudFileBlockManager {
     pub async fn update_by_status(&self, block: &CloudFileBlock, id: i32, status: i8) -> ResponseResult<ExecResult> {
         Ok(CloudFileBlock::update_by_status(&self.batis.clone(), block, id, status).await?)
     }
-    pub async fn select_by_file_block_id(&self, file_block_id: i32) -> Vec<CloudFileBlock> {
-        CloudFileBlock::select_by_column(&self.batis.clone(), "file_block_id", file_block_id)
+    pub async fn select_by_file_block_id(&self, file_block_id: i32) -> ResponseResult<Vec<CloudFileBlock>> {
+        Ok(CloudFileBlock::select_by_column(&self.batis.clone(), "file_block_id", file_block_id)
             .await
-            .unwrap()
+            .unwrap())
     }
     pub async fn update(&self, block: &CloudFileBlock) {
         CloudFileBlock::update_by_column(&self.batis.clone(), block, "id")
@@ -36,10 +37,10 @@ impl CloudFileBlockManager {
         CloudFileBlock::delete_by_column(&self.batis.clone(), "id", id)
             .await.unwrap();
     }
-    pub async fn select_to_upload(&self) -> Vec<CloudFileBlock> {
-        let cloud_file_block = CloudFileBlock::select_to_upload(&self.batis.clone()).await.unwrap();
+    pub async fn select_to_upload(&self) -> ResponseResult<Vec<CloudFileBlock>> {
+        let cloud_file_block = CloudFileBlock::select_to_upload(&self.batis.clone()).await?;
         info!("{} block to upload", cloud_file_block.len());
-        cloud_file_block
+        Ok(cloud_file_block)
     }
     pub async fn select_by_status(&self, status: i8, update_time: DateTime) -> Vec<CloudFileBlock> {
          CloudFileBlock::select_by_status(&self.batis.clone(), status.into(), update_time).await.unwrap()

@@ -4,3 +4,4 @@ mod event_message;
 mod file_block_meta;
 mod file_meta;
 mod cloud_meta;
+mod user;

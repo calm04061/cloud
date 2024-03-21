@@ -1,0 +1,32 @@
+[package]
+name = "storage"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = { workspace = true }
+api = { path = "../api" }
+async-ssh2-lite = { workspace = true, features = ["tokio", "async-io"] }
+async-trait = { workspace = true }
+bytes = { workspace = true }
+dotenvy_macro = { workspace = true }
+dotenvy = { workspace = true }
+futures-util = { workspace = true }
+libloading = { workspace = true }
+log = { workspace = true }
+once_cell = { workspace = true }
+persistence = { path = "../persistence" }
+plugin-manager = { path = "../plugin-manager" }
+reqwest = { workspace = true, features = ["stream", "multipart", "json"] }
+reqwest-middleware = { workspace = true }
+rust-crypto = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_derive = { workspace = true }
+serde_json = { workspace = true }
+service = { path = "../service" }
+task-local-extensions = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "signal", "rt", "macros"] }
+urlencoding = { workspace = true }
+

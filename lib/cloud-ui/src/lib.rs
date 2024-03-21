@@ -1,6 +1,9 @@
 use std::env;
+
 use actix_web::web;
+
 use api::{Capacity, Plugin};
+
 include!(concat!(env!("OUT_DIR"), "/generated.rs"));
 pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/VERSION"));
 

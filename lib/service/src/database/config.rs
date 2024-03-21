@@ -1,4 +1,5 @@
 use rbatis::RBatis;
+
 use api::util::IntoOne;
 use persistence::Config;
 
@@ -7,7 +8,7 @@ pub struct ConfigManager {
 }
 
 impl ConfigManager {
-    pub(crate) fn new(batis: RBatis) -> Self {
+    pub fn new(batis: RBatis) -> Self {
         ConfigManager { batis }
     }
     pub async fn info(&self, property: String) -> Option<Config> {

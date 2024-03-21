@@ -7,11 +7,14 @@ pub mod service;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct FileMeta {
-    pub id: Option<i32>,
+    pub id: Option<u64>,
     pub name: String,
-    pub parent_id: i32,
+    pub parent_id: u64,
     pub file_type: i8,
-    pub file_length: usize,
+    pub mode: u32,
+    pub gid: u32,
+    pub uid: u32,
+    pub file_length: u64,
     pub status: i8,
     pub deleted: i8,
     pub create_time: i64,
@@ -23,10 +26,10 @@ pub struct FileBlockMeta {
     pub id: Option<i32>,
     pub block_index: i64,
     pub file_part_id: String,
-    pub update_time: i64,
-    pub file_modify_time: i64,
+    pub update_time: u64,
+    pub file_modify_time: u64,
     pub deleted: i8,
-    pub file_meta_id: i32,
+    pub file_meta_id: u64,
     pub part_hash: String,
     pub status: i8,
 }
@@ -124,9 +127,16 @@ pub struct CloudMeta {
     pub extra: Option<String>,
     pub expires_in: Option<u32>,
 }
+
 /// Config
 #[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ApplicationConfig {
     pub debug: bool,
     pub database_url: String,
+}
+#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct User {
+    pub id: Option<i32>,
+    pub username: String,
+    pub password: String,
 }

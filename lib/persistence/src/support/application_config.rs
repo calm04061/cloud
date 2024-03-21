@@ -1,5 +1,6 @@
 use log::info;
 use rbatis::RBatis;
+
 use crate::ApplicationConfig;
 
 impl Default for ApplicationConfig {

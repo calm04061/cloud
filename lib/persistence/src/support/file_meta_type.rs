@@ -1,6 +1,8 @@
 use std::fmt;
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{Error, Visitor};
+
 use crate::FileMetaType;
 use crate::FileMetaType::{DIR, FILE, SYMLINK};
 

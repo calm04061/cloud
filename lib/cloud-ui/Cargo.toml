@@ -9,13 +9,13 @@ build = "build.rs"
 crate-type = ["lib", "cdylib", "staticlib"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-actix-web = "4.5.1"
-actix-web-static-files = "4.0.1"
-static-files = "0.2.3"
+actix-web = { workspace = true }
+actix-web-static-files = { workspace = true }
+static-files = { workspace = true }
 api = { path = "../api" }
 
 [build-dependencies]
-static-files = "0.2.3"
+static-files = { workspace = true }
 #[profile.release]
 #strip = true
 #opt-level = "z"

@@ -10,51 +10,58 @@ use tokio::sync::Semaphore;
 use api::error::ErrorInfo;
 use api::ResponseResult;
 use persistence::{CloudFileBlock, EventMessage, EventType, FileStatus, MetaStatus};
+use service::meta::{CloudMetaManager, FileManager};
 use service::CONTEXT;
-use service::database::meta::{CloudMetaManager, FileManager};
 use storage::STORAGE_FACADE;
 
-pub(crate) async fn scan(semaphore: Arc<Semaphore>) {
+pub(crate) async fn scan(semaphore: Arc<Semaphore>) -> ResponseResult<()> {
     info!("scan");
     let cloud_file_block_result = CONTEXT.cloud_file_block_manager.select_to_upload().await;
-    match cloud_file_block_result {
-        Ok(cloud_file_block) => {
-            info!("{} block to upload", cloud_file_block.len());
-            for mut file_block in cloud_file_block {
-                let origin_status = file_block.status;
-                file_block.update_time = DateTime::now();
-                file_block.status = FileStatus::Uploading.into();
-                let count = CONTEXT.cloud_file_block_manager.update_by_status(&file_block, file_block.id.unwrap(), origin_status)
-                    .await.unwrap().rows_affected;
-                if count == 0 {
-                    info!("block {} unable lock by db", file_block.id.unwrap());
-                    continue;
-                }
-                let semaphore = semaphore.clone();
-
-                tokio::spawn(async move {//创建任务
-                    let _semaphore_permit = semaphore.acquire().await.unwrap();
-                    // 通过信号量控制并发
-                    info!("upload block {} to cloud", file_block.id.unwrap());
-                    let result = do_execute_one_block(&mut file_block).await;
-                    let message = match result {
-                        Ok(_) => {
-                            EventMessage::success(EventType::UploadFileBlock, format!("{} upload success", file_block.id.unwrap()))
-                        }
-                        Err(e) => {
-                            error!("{} upload fail:{}", file_block.id.unwrap(), e.to_string());
-                            EventMessage::fail(EventType::UploadFileBlock, format!("{} upload fail:{}", file_block.id.unwrap(), e.to_string()))
-                        }
-                    };
-                    CONTEXT.event_message_manager.insert(&message).await.unwrap();
-                });
-            }
-        }
-        Err(error) => {
-            err!("select_to_upload error {:?}", error);
-        }
+    if let Err(e) = cloud_file_block_result {
+        err!("select_to_upload error {:?}", e);
+        return Ok(());
     }
+    let cloud_file_blocks = cloud_file_block_result.unwrap();
+    info!("{} block to upload", cloud_file_blocks.len());
+    for file_block in cloud_file_blocks {
+        let semaphore = semaphore.clone();
+        tokio::spawn(async move {
+            process_block(file_block, semaphore.clone()).await.unwrap();
+        });
+    }
+    Ok(())
+}
 
+async fn process_block(mut file_block: CloudFileBlock, semaphore: Arc<Semaphore>) -> ResponseResult<()> {
+    let semaphore_permit_result = semaphore.try_acquire();
+    if let Err(e) = semaphore_permit_result {
+        error!("{}",e);
+        return Ok(());
+    }
+    info!("available_permits:{}",semaphore.available_permits());
+    let origin_status = file_block.status.try_into()?;
+    file_block.update_time = DateTime::now();
+    file_block.status = FileStatus::Uploading.into();
+    let count = CONTEXT.cloud_file_block_manager.update_by_status(&file_block, origin_status)
+        .await?;
+    if count == 0 {
+        info!("block {} unable lock by db", file_block.id.unwrap());
+        return Ok(());
+    }
+    // 通过信号量控制并发
+    info!("upload block {} to cloud", file_block.id.unwrap());
+    let result = do_execute_one_block(&mut file_block).await;
+    let message = match result {
+        Ok(_) => {
+            EventMessage::success(EventType::UploadFileBlock, format!("{} upload success", file_block.id.unwrap()))
+        }
+        Err(e) => {
+            error!("{} upload fail:{}", file_block.id.unwrap(), e.to_string());
+            EventMessage::fail(EventType::UploadFileBlock, format!("{} upload fail:{}", file_block.id.unwrap(), e.to_string()))
+        }
+    };
+    CONTEXT.event_message_manager.insert(&message).await.unwrap();
+    return Ok(());
 }
 
 async fn do_execute_one_block(file_block: &mut CloudFileBlock) -> ResponseResult<()> {
@@ -118,30 +125,19 @@ async fn do_execute_one_block(file_block: &mut CloudFileBlock) -> ResponseResult
     let result = STORAGE_FACADE.write().await
         .upload_content(&file_block_meta, &cloud_meta, &body)
         .await;
-    return match result {
+    let res = match result {
         Ok(cr) => {
             file_block.status = FileStatus::UploadSuccess.into();
             file_block.cloud_file_id = Some(cr.file_id);
-            file_block.update_time = DateTime::now();
             file_block.cloud_file_hash = Some(file_block_meta.part_hash);
-            CONTEXT.cloud_file_block_manager.update_by_status(
-                &file_block,
-                file_block.id.unwrap(),
-                FileStatus::Uploading.into(),
-            )
-                .await?;
             Ok(())
         }
         Err(e) => {
             file_block.status = FileStatus::UploadFail.into();
-            file_block.update_time = DateTime::now();
-            CONTEXT.cloud_file_block_manager.update_by_status(
-                &file_block,
-                file_block.id.unwrap(),
-                FileStatus::Uploading.into(),
-            )
-                .await?;
             Err(ErrorInfo::OTHER(0, format!("上传文件{cache_file}:{}", e.to_string())))
         }
     };
+    file_block.update_time = DateTime::now();
+    CONTEXT.cloud_file_block_manager.update_by_status(&file_block, FileStatus::Uploading).await?;
+    res
 }

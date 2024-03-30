@@ -11,7 +11,7 @@ impl ConfigManager {
     pub fn new(batis: RBatis) -> Self {
         ConfigManager { batis }
     }
-    pub async fn info(&self, property: String) -> Option<Config> {
+    pub async fn info(&self, property: &str) -> Option<Config> {
         let vec = Config::select_by_column(&self.batis.clone(), "property", property)
             .await
             .unwrap();

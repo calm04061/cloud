@@ -1,15 +1,15 @@
 use std::ffi::OsString;
 use std::sync::Mutex;
 
-use actix_web::{delete, get, Responder, Result};
 use actix_web::web::{Data, Json, Path};
-use fuser::{BackgroundSession, MountOption};
+use actix_web::{delete, get, Responder, Result};
 use fuser::MountOption::{AllowOther, AutoUnmount};
+use fuser::{BackgroundSession, MountOption};
 use log::info;
 
 use persistence::Config;
+use service::meta::CloudMetaManager;
 use service::CONTEXT;
-use service::database::meta::CloudMetaManager;
 
 use crate::fs::fuse::cloud_fuse_fs::CloudFuseFS;
 use crate::fs::vfs::DEFAULT_TEMP_PATH;
@@ -36,19 +36,19 @@ impl Drop for FsManager {
     fn drop(&mut self) {
         let mut guard = self.session_holder.lock().unwrap();
         let option = guard.take();
-        if let Some(mut _se) = option {}
+        if let Some(_se) = option {}
         info!("fs manager dropping")
     }
 }
 
 #[get("/fs/mount")]
 pub(crate) async fn mount(fs_manager: Data<FsManager>) -> Result<impl Responder> {
-    let mount_path_config = CONTEXT.config_manager.info(String::from(MOUNT_PATH)).await;
+    let mount_path_config = CONTEXT.config_manager.info(MOUNT_PATH).await;
     if let None = mount_path_config {
         return Ok(Json(WebResult::<Config>::fail(1, "没有配置挂在路径")));
     }
     let mount_path = mount_path_config.clone().unwrap();
-    let temp_path_config = CONTEXT.config_manager.info(String::from(TEMP_PATH)).await;
+    let temp_path_config = CONTEXT.config_manager.info(TEMP_PATH).await;
     let cache_file = match temp_path_config {
         None => String::from(DEFAULT_TEMP_PATH),
         Some(config) => config.value.clone(),

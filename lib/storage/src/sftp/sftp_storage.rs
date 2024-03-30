@@ -7,11 +7,12 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::{AsyncReadExt, AsyncWriteExt};
 
+use crate::model::{AuthMethod, CreateResponse, Quota};
 use api::ResponseResult;
-use persistence::{CloudMeta, FileBlockMeta};
+use persistence::meta::{CloudMeta, FileBlockMeta};
 
 use crate::sftp::vo::HostUser;
-use crate::storage::{AuthMethod, CreateResponse, Quota, Storage};
+use crate::storage::Storage;
 
 ///
 /// 存储文件到sftp
@@ -19,11 +20,13 @@ use crate::storage::{AuthMethod, CreateResponse, Quota, Storage};
 /// 文件路径生成规则
 ///
 ///
-pub(crate) struct SftpStorage {}
+pub(crate) struct SftpStorage {
+    root: String,
+}
 
 impl SftpStorage {
-    pub fn new() -> Self {
-        SftpStorage {}
+    pub fn new(root: &str) -> Self {
+        SftpStorage { root: root.to_string() }
     }
 }
 
@@ -43,7 +46,7 @@ impl Storage for SftpStorage {
         let mut session = AsyncSession::<async_ssh2_lite::AsyncIoTcpStream>::connect(addr, None).await?;
         session.handshake().await?;
         session.userauth_password(user.username.as_str(), user.password.expect("not set password").as_str()).await?;
-        let remote_path = PathBuf::from(cloud_meta.data_root.clone().unwrap()).join(file_block.file_part_id.clone());
+        let remote_path = PathBuf::from(cloud_meta.data_root.clone().unwrap()).join(self.root.clone()).join(file_block.file_part_id.clone());
         let mut remote_file = session.scp_send(remote_path.as_path(),
                                                0o644, content.len() as u64, None).await?;
 
@@ -65,8 +68,8 @@ impl Storage for SftpStorage {
     async fn delete(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {
         let user: HostUser = cloud_meta.auth.clone().unwrap().into();
         let port = user.port.parse::<u16>().unwrap();
-        let addr1 = IpAddr::from_str(user.hostname.as_str()).unwrap();
-        let addr = SocketAddr::new(addr1, port);
+        let addr = IpAddr::from_str(user.hostname.as_str()).unwrap();
+        let addr = SocketAddr::new(addr, port);
         let session = AsyncSession::<async_ssh2_lite::AsyncIoTcpStream>::connect(addr, None).await?;
         session.userauth_password(user.username.as_str(), user.password.expect("not set password").as_str()).await?;
         let sftp = session.sftp().await?;
@@ -78,8 +81,8 @@ impl Storage for SftpStorage {
     async fn content(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
         let user: HostUser = cloud_meta.auth.clone().unwrap().into();
         let port = user.port.parse::<u16>().unwrap();
-        let addr1 = IpAddr::from_str(user.hostname.as_str()).unwrap();
-        let addr = SocketAddr::new(addr1, port);
+        let addr = IpAddr::from_str(user.hostname.as_str()).unwrap();
+        let addr = SocketAddr::new(addr, port);
         let session = AsyncSession::<async_ssh2_lite::AsyncIoTcpStream>::connect(addr, None).await?;
         session.userauth_password(user.username.as_str(), user.password.expect("not set password").as_str()).await?;
         let remote_path = PathBuf::from(cloud_file_id);

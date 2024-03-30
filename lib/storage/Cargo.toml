@@ -20,13 +20,13 @@ once_cell = { workspace = true }
 persistence = { path = "../persistence" }
 plugin-manager = { path = "../plugin-manager" }
 reqwest = { workspace = true, features = ["stream", "multipart", "json"] }
-reqwest-middleware = { workspace = true }
+reqwest-middleware = { workspace = true, features = ["multipart", "json"] }
 rust-crypto = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_derive = { workspace = true }
 serde_json = { workspace = true }
 service = { path = "../service" }
-task-local-extensions = { workspace = true }
+http = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "signal", "rt", "macros"] }
 urlencoding = { workspace = true }
 

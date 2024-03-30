@@ -1,8 +1,8 @@
+use crate::ali::vo::{AliAuthToken, CompleteRequest, DriveCapacity, UploadPreResult};
+use crate::model::{CreateResponse, Quota};
+use crate::storage::TokenProvider;
 use api::ResponseResult;
-use persistence::CloudMeta;
-
-use crate::ali::vo::{AuthToken, CompleteRequest, DriveCapacity, UploadPreResult};
-use crate::storage::{CreateResponse, Quota, TokenProvider};
+use persistence::meta::CloudMeta;
 
 impl From<DriveCapacity> for Quota {
     fn from(baidu: DriveCapacity) -> Self {
@@ -13,11 +13,10 @@ impl From<DriveCapacity> for Quota {
         }
     }
 }
-impl TokenProvider<AuthToken> for CloudMeta {
-    fn get_token(&self) -> ResponseResult<AuthToken> {
+impl TokenProvider<AliAuthToken> for CloudMeta {
+    fn get_token(&self) -> ResponseResult<AliAuthToken> {
         let auth_option = self.auth.clone();
-        let token = auth_option.unwrap();
-        Ok(serde_json::from_str(token.as_str()).unwrap())
+        Ok(serde_json::from_str(auth_option.unwrap().as_str())?)
     }
 }
 

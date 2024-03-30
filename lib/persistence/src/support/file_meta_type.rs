@@ -1,7 +1,7 @@
 use std::fmt;
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{Error, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::FileMetaType;
 use crate::FileMetaType::{DIR, FILE, SYMLINK};
@@ -33,19 +33,19 @@ impl<'de> Deserialize<'de> for FileMetaType {
                 where
                     E: Error,
             {
-                Ok(FileMetaType::from(v as i32))
+                Ok(FileMetaType::from(v as i8))
             }
             fn visit_i32<E>(self, v: i32) -> Result<Self::Value, E>
                 where
                     E: Error,
             {
-                Ok(FileMetaType::from(v as i32))
+                Ok(FileMetaType::from(v as i8))
             }
             fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
                 where
                     E: Error,
             {
-                Ok(FileMetaType::from(v as i32))
+                Ok(FileMetaType::from(v as i8))
             }
         }
         deserializer.deserialize_i16(FileMetaTypeVisitor {})
@@ -54,28 +54,18 @@ impl<'de> Deserialize<'de> for FileMetaType {
 
 impl FileMetaType {
     pub fn is_file(code: i8) -> bool {
-        return code == FILE.get_code();
+        code == FILE.get_code()
     }
     pub fn is_dir(code: i8) -> bool {
-        return code == DIR.get_code();
+        code == DIR.get_code()
     }
     pub fn get_code(&self) -> i8 {
-        return if self == &FILE { 1 } else { 2 };
+        if self == &FILE { 1 } else { 2 }
     }
 }
 
 impl From<i8> for FileMetaType {
     fn from(value: i8) -> Self {
-        match value {
-            1 => FILE,
-            2 => DIR,
-            _ => FILE,
-        }
-    }
-}
-
-impl From<i32> for FileMetaType {
-    fn from(value: i32) -> Self {
         match value {
             1 => FILE,
             2 => DIR,

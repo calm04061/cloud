@@ -1,11 +1,9 @@
+use crate::ali::vo::AliAuthToken;
+use crate::storage::TokenProvider;
+use http::Extensions;
+use persistence::meta::CloudMeta;
 use reqwest::{Request, Response};
 use reqwest_middleware::{Middleware, Next};
-use task_local_extensions::Extensions;
-
-use persistence::CloudMeta;
-
-use crate::ali::vo::AuthToken;
-use crate::storage::TokenProvider;
 
 pub struct AliAuthMiddleware;
 
@@ -20,7 +18,7 @@ impl Middleware for AliAuthMiddleware {
                 let middleware = reqwest_middleware::Error::Middleware(err);
                 return Err(middleware);
             }
-            let token: AuthToken = result.unwrap();
+            let token: AliAuthToken = result.unwrap();
 
             let header_map = req.headers_mut();
             let authorization = format!("{} {}", token.token_type, token.access_token);

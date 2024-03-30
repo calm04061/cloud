@@ -4,34 +4,52 @@ use strum_macros::EnumIter;
 pub mod mapper;
 pub mod support;
 pub mod service;
+pub mod meta {
+    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+    pub struct FileMeta {
+        pub id: Option<u64>,
+        pub name: String,
+        pub parent_id: u64,
+        pub file_type: i8,
+        pub mode: u32,
+        pub gid: u32,
+        pub uid: u32,
+        pub file_length: u64,
+        pub status: i8,
+        pub deleted: i8,
+        pub create_time: i64,
+        pub update_time: i64,
+    }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct FileMeta {
-    pub id: Option<u64>,
-    pub name: String,
-    pub parent_id: u64,
-    pub file_type: i8,
-    pub mode: u32,
-    pub gid: u32,
-    pub uid: u32,
-    pub file_length: u64,
-    pub status: i8,
-    pub deleted: i8,
-    pub create_time: i64,
-    pub update_time: i64,
-}
+    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+    pub struct FileBlockMeta {
+        pub id: Option<i32>,
+        pub block_index: i64,
+        pub file_part_id: String,
+        pub update_time: u64,
+        pub file_modify_time: u64,
+        pub deleted: i8,
+        pub file_meta_id: u64,
+        pub part_hash: String,
+        pub status: i8,
+    }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct FileBlockMeta {
-    pub id: Option<i32>,
-    pub block_index: i64,
-    pub file_part_id: String,
-    pub update_time: u64,
-    pub file_modify_time: u64,
-    pub deleted: i8,
-    pub file_meta_id: u64,
-    pub part_hash: String,
-    pub status: i8,
+    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+    pub struct CloudMeta {
+        pub id: Option<i32>,
+        pub name: String,
+        pub auth: Option<String>,
+        pub last_work_time: Option<i64>,
+        pub data_root: Option<String>,
+        pub status: i8,
+        pub deleted: i8,
+        pub cloud_type: i8,
+        pub total_quota: Option<u64>,
+        pub used_quota: Option<u64>,
+        pub remaining_quota: Option<u64>,
+        pub extra: Option<String>,
+        pub expires_in: Option<u64>,
+    }
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -47,7 +65,7 @@ pub struct CloudFileBlock {
     pub update_time: DateTime,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum FileStatus {
     Init,
     Uploading,
@@ -63,8 +81,8 @@ pub enum FileStatus {
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Config {
-    pub(crate) id: Option<i32>,
-    pub(crate) property: String,
+    pub id: Option<i32>,
+    pub property: String,
     pub value: String,
 }
 
@@ -99,6 +117,7 @@ pub enum CloudType {
     Baidu,
     Local,
     OneDrive,
+    #[cfg(not(windows))]
     Sftp,
 }
 
@@ -111,22 +130,6 @@ pub enum MetaStatus {
     Disabled,
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct CloudMeta {
-    pub id: Option<i32>,
-    pub name: String,
-    pub auth: Option<String>,
-    pub last_work_time: Option<i64>,
-    pub data_root: Option<String>,
-    pub status: i8,
-    pub deleted: i8,
-    pub cloud_type: i8,
-    pub total_quota: Option<u64>,
-    pub used_quota: Option<u64>,
-    pub remaining_quota: Option<u64>,
-    pub extra: Option<String>,
-    pub expires_in: Option<u32>,
-}
 
 /// Config
 #[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -134,6 +137,7 @@ pub struct ApplicationConfig {
     pub debug: bool,
     pub database_url: String,
 }
+
 #[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct User {
     pub id: Option<i32>,

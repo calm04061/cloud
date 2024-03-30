@@ -1,4 +1,4 @@
-use rbatis::{crud};
+use rbatis::crud;
 
 use crate::User;
 

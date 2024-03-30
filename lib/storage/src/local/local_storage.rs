@@ -4,16 +4,19 @@ use bytes::Bytes;
 use log::info;
 use tokio::fs;
 
+use crate::model::{AuthMethod, CreateResponse, Quota};
+use crate::storage::Storage;
 use api::ResponseResult;
-use persistence::{CloudMeta, FileBlockMeta};
+use persistence::meta::{CloudMeta, FileBlockMeta};
 
-use crate::storage::{AuthMethod, CreateResponse, Quota, Storage};
 
-pub struct LocalStorage {}
+pub struct LocalStorage {
+    root: String,
+}
 
 impl LocalStorage {
-    pub(crate) fn new() -> LocalStorage {
-        LocalStorage {}
+    pub(crate) fn new(root: &str) -> LocalStorage {
+        LocalStorage { root: root.to_string() }
     }
 }
 
@@ -26,7 +29,7 @@ impl Storage for LocalStorage {
         cloud_meta: &CloudMeta,
     ) -> ResponseResult<CreateResponse> {
         let data_root = cloud_meta.data_root.clone().unwrap();
-        let path_str = format!("{}/{}", data_root, file_block.file_part_id);
+        let path_str = format!("{}/{}/{}", data_root, self.root, file_block.file_part_id);
         fs::write(path_str, content).await.ok();
         Ok(CreateResponse {
             encrypt_mode: "".to_string(),
@@ -38,7 +41,7 @@ impl Storage for LocalStorage {
 
     async fn delete(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {
         let data_root = cloud_meta.data_root.clone().unwrap();
-        let path_str = format!("{data_root}/{cloud_file_id}");
+        let path_str = format!("{data_root}/{}/{cloud_file_id}", self.root);
         let path = Path::new(path_str.as_str());
         if path.exists() {
             fs::remove_file(path).await.ok();
@@ -50,9 +53,9 @@ impl Storage for LocalStorage {
 
     async fn content(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
         let data_root = cloud_meta.data_root.clone().unwrap();
-        let path_str = format!("{data_root}/{cloud_file_id}");
+        let path_str = format!("{data_root}/{}/{cloud_file_id}", self.root);
         let result = fs::read(path_str).await;
-        let vec = result.unwrap();
+        let vec = result?;
         let bytes = Bytes::from(vec);
         Ok(bytes)
     }

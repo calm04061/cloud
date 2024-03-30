@@ -26,7 +26,7 @@ serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_derive = { workspace = true }
-task-local-extensions = { workspace = true }
+http = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "signal", "rt", "macros"] }
 chrono = { workspace = true, features = ["serde"] }
 futures = { workspace = true }
@@ -40,7 +40,7 @@ nfsserve = { workspace = true }
 bytes = { workspace = true }
 dotenvy = { workspace = true }
 dotenvy_macro = { workspace = true }
-openssl = { workspace = true }
+#openssl = { workspace = true }
 rbs = { workspace = true }
 rbatis = { workspace = true }
 rbdc-sqlite = { workspace = true }
@@ -66,8 +66,8 @@ tracing = "0.1.40"
 
 [target.'cfg(not(windows))'.dependencies]
 fuser = { workspace = true }
-openssh-sftp-client = { workspace = true, features = ["openssh"] }
-openssh = { workspace = true, features = ["native-mux"] }
+#openssh-sftp-client = { workspace = true, features = ["openssh"] }
+#openssh = { workspace = true, features = ["native-mux"] }
 [target.'cfg(windows)'.dependencies]
 ctrlc = { workspace = true }
 [build-dependencies]

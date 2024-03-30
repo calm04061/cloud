@@ -75,7 +75,7 @@ impl DavFileSystem for CloudDavFs {
         async move {
             let full_path = self.fs_path(path);
             let result = self.inner.fs.file_info_by_path(full_path.as_str()).await;
-            let result = self.inner.fs.list_by_parent(result.unwrap().id.unwrap() as u64).await.unwrap();
+            let result = self.inner.fs.list_by_parent(result.unwrap().id.unwrap()).await.unwrap();
 
             let mut v: Vec<Box<dyn DavDirEntry>> = Vec::new();
             for file in result {
@@ -107,17 +107,16 @@ impl DavFileSystem for CloudDavFs {
             Ok(())
         }.boxed()
     }
+
     fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
-        async move {
-            let full_path = self.fs_path(path);
-            self.inner.fs.delete_file(full_path.as_str()).await.ok();
-            Ok(())
-        }.boxed()
+        self.remove_file(path)
     }
+
     fn remove_file<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
             let full_path = self.fs_path(path);
-            self.inner.fs.delete_file(full_path.as_str()).await.ok();
+            info!("FS: remove file {:?}", full_path);
+            self.inner.fs.delete_one_file(full_path.as_str()).await.ok();
             Ok(())
         }.boxed()
     }

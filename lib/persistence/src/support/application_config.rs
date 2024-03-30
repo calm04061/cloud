@@ -27,5 +27,5 @@ pub fn init_rbatis(config: &ApplicationConfig) -> RBatis {
         );
     }
 
-    return rbatis;
+    rbatis
 }

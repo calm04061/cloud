@@ -18,6 +18,6 @@ impl Config {
             "property":"TEXT",
             "value":"TEXT",
         };
-        return map;
+        map
     }
 }

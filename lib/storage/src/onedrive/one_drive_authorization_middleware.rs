@@ -1,17 +1,15 @@
-use reqwest::{Request, Response};
-use reqwest_middleware::{Middleware, Next};
-use task_local_extensions::Extensions;
-
-use persistence::CloudMeta;
-
 use crate::onedrive::vo::AuthorizationToken;
 use crate::storage::TokenProvider;
+use http::Extensions;
+use persistence::meta::CloudMeta;
+use reqwest::{Request, Response};
+use reqwest_middleware::{Middleware, Next};
 
 pub struct OneDriveAuthMiddleware {}
 
 impl OneDriveAuthMiddleware {
     pub(crate) fn new() -> OneDriveAuthMiddleware {
-        return OneDriveAuthMiddleware {};
+        OneDriveAuthMiddleware {}
     }
 }
 
@@ -24,7 +22,7 @@ impl Middleware for OneDriveAuthMiddleware {
         next: Next<'_>,
     ) -> reqwest_middleware::Result<Response> {
         let option: Option<&CloudMeta> = extensions.get();
-        if let Some(meta) = option{
+        if let Some(meta) = option {
             let result = meta.get_token();
             if let Err(e) = result {
                 let err = anyhow::Error::msg(e);

@@ -1,6 +1,7 @@
 use serde_derive::Deserialize;
 
-use persistence::{CloudMeta, CloudType};
+use persistence::meta::CloudMeta;
+use persistence::CloudType;
 
 #[derive(Deserialize, Clone)]
 pub struct CloudMetaVo {
@@ -16,7 +17,7 @@ impl From<CloudMetaVo> for CloudMeta {
         CloudMeta {
             id: None,
             name: meta.name,
-            auth: meta.auth,
+            auth: Option::from(meta.auth.unwrap_or("{}".to_string())),
             last_work_time: None,
             data_root: meta.data_root,
             status: 0,

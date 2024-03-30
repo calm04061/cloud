@@ -1,7 +1,7 @@
 use std::fmt;
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{Error, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::CloudType;
 
@@ -92,6 +92,6 @@ impl From<&CloudType> for String {
 
 impl From<CloudType> for i8 {
     fn from(value: CloudType) -> Self {
-        return i8::from(&value);
+        i8::from(&value)
     }
 }

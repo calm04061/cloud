@@ -2,13 +2,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use actix_cors::Cors;
-use actix_web::{App, HttpServer, middleware};
 use actix_web::dev::{Server, ServiceRequest};
 use actix_web::http::{header, StatusCode};
 use actix_web::middleware::ErrorHandlers;
 use actix_web::web::scope;
+use actix_web::{middleware, App, HttpServer};
+use actix_web_httpauth::extractors::basic::BasicAuth;
 use actix_web_httpauth::extractors::AuthenticationError;
-use actix_web_httpauth::extractors::basic::{BasicAuth};
 use actix_web_httpauth::headers::www_authenticate::basic::Basic;
 use actix_web_httpauth::middleware::HttpAuthentication;
 use libloading::{Error, Symbol};
@@ -17,7 +17,7 @@ use log::info;
 use api::{Capacity, PluginMetaInfo};
 use service::CONTEXT;
 
-use crate::fs::dav::dav::DAV_PREFIX;
+use crate::fs::dav::cluod_dav_filesystem::DAV_PREFIX;
 use crate::web::common::add_error_header;
 
 mod cloud;
@@ -49,7 +49,7 @@ async fn validate(credentials: BasicAuth) -> bool {
     }
     let password = credentials.password().unwrap();
     let user = result.unwrap();
-    return password.eq(&user.password);
+    password.eq(&user.password)
 }
 
 pub async fn run_web(plugin_arc: Arc<Vec<PluginMetaInfo>>) -> Server {

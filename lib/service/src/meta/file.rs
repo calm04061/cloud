@@ -1,14 +1,14 @@
 use log::error;
 use rbatis::RBatis;
 
+use crate::meta::file::file_block_meta::SimpleFileBlockMetaManager;
+use crate::meta::file::file_meta::SimpleFileMetaManager;
+use crate::meta::{FileManager, FileMetaType};
 use api::error::ErrorInfo;
-use api::ResponseResult;
 use api::util::IntoOne;
-use persistence::FileMeta;
-
-use crate::database::meta::{FileBlockMeta, FileManager, FileMetaType};
-use crate::database::meta::file::file_block_meta::SimpleFileBlockMetaManager;
-use crate::database::meta::file::file_meta::SimpleFileMetaManager;
+use api::ResponseResult;
+use persistence::meta::{FileBlockMeta, FileMeta};
+use persistence::{CloudFileBlock, FileStatus};
 
 pub mod file_block_meta;
 pub mod file_meta;
@@ -23,40 +23,93 @@ impl SimpleFileManager {
     pub fn new(batis: RBatis, file_meta_manager: SimpleFileMetaManager, file_block_meta_manager: SimpleFileBlockMetaManager) -> Self {
         SimpleFileManager { batis, file_meta_manager, file_block_meta_manager }
     }
+    pub async fn mark_clean_file_block(&self, meta: &mut FileMeta) -> ResponseResult<()> {
+        let batis = self.batis.clone();
+        let file_block_metas = FileBlockMeta::select_by_file_meta_id(&batis, meta.id.unwrap()).await?;
+        let mut tran = batis.acquire_begin().await?;
+        for mut file_block_meta in file_block_metas {
+            let cloud_file_blocks = CloudFileBlock::select_by_file_block_id(&tran, file_block_meta.id.unwrap()).await?;
+            for mut cloud_file_block in cloud_file_blocks {
+                let status: FileStatus = cloud_file_block.status.try_into()?;
+                if status == FileStatus::Cleaning {
+                    continue;
+                }
+                if cloud_file_block.deleted == 1 && status == FileStatus::Cleaned {
+                    continue;
+                }
+                cloud_file_block.status = FileStatus::WaitClean.into();
+                cloud_file_block.deleted = 1;
+                CloudFileBlock::update_by_column(&tran, &cloud_file_block, "id").await?;
+            }
+            let status: FileStatus = file_block_meta.status.try_into()?;
+            if status == FileStatus::Cleaning {
+                continue;
+            }
+            if file_block_meta.deleted == 1 && status == FileStatus::Cleaned {
+                continue;
+            }
+            if file_block_meta.deleted != 1 || status != FileStatus::WaitClean {
+                file_block_meta.deleted = 1;
+                file_block_meta.status = FileStatus::WaitClean.into();
+                FileBlockMeta::update_by_column(&tran, &file_block_meta, "id").await?;
+            }
+        }
+
+        let status: FileStatus = meta.status.try_into()?;
+        if status == FileStatus::Cleaning {
+            tran.commit().await?;
+            return Ok(());
+        }
+        if meta.deleted == 1 && status == FileStatus::Cleaned {
+            tran.commit().await?;
+            return Ok(());
+        }
+        if meta.deleted != 1 || status != FileStatus::WaitClean {
+            meta.deleted = 1;
+            meta.status = FileStatus::WaitClean.into();
+            FileMeta::update_by_column(&tran, &meta, "id").await?;
+        }
+        tran.commit().await?;
+        Ok(())
+    }
+    pub async fn delete_file_meta(&self, id: u64) -> ResponseResult<FileMeta> {
+        self
+            .file_meta_manager
+            .delete_file_meta(id)
+            .await
+    }
 }
 
 impl FileManager for SimpleFileManager {
     async fn list_deleted_file(&self, update_time: i64) -> ResponseResult<Vec<FileMeta>> {
-        Ok(FileMeta::list_deleted_file(&self.batis.clone(), update_time).await.unwrap())
+        Ok(FileMeta::list_deleted_file(&self.batis.clone(), update_time).await?)
     }
 
     async fn list_by_parent(&self, parent_id: u64) -> ResponseResult<Vec<FileMeta>> {
         Ok(FileMeta::select_by_parent(&self.batis.clone(), parent_id)
-            .await
-            .unwrap())
+            .await?)
     }
     async fn list_by_parent_page(&self, parent_id: u64, start: u64, size: usize) -> ResponseResult<(Vec<FileMeta>, bool)> {
         let vec = FileMeta::select_by_parent_page(&self.batis.clone(), parent_id, start, size)
-            .await.unwrap();
+            .await?;
         if vec.is_empty() {
             return Ok((vec, true));
         }
         let last = vec.get(vec.len() - 1).unwrap().id.unwrap();
         let more = FileMeta::select_by_parent_page(&self.batis.clone(), parent_id, last, 1)
-            .await.unwrap();
+            .await?;
 
         Ok((vec, more.is_empty()))
     }
     async fn info_by_parent_and_name(&self, parent_id: u64, name: &str) -> ResponseResult<FileMeta> {
         let vec = FileMeta::info_by_parent_and_name(&self.batis.clone(), parent_id, name)
-            .await
-            .unwrap();
-        return if vec.is_empty() {
-            return Err(ErrorInfo::new(12, "文件不存在"));
+            .await?;
+        if vec.is_empty() {
+            Err(ErrorInfo::new(12, "文件不存在"))
         } else {
             let one = vec.into_one().unwrap();
             Ok(one)
-        };
+        }
     }
 
     async fn new_file(
@@ -65,25 +118,23 @@ impl FileManager for SimpleFileManager {
         name: &str,
         file_type: FileMetaType,
     ) -> ResponseResult<FileMeta> {
-        let result = self.file_meta_manager.new_file(
+        self.file_meta_manager.new_file(
             parent_id, name, file_type.clone())
-            .await;
-        if let Err(e) = result {
-            return Err(e);
-        }
-        let option = self.
+            .await?;
+        let result = self.
             file_meta_manager
             .info_by_parent_and_name(parent_id, name)
             .await;
-        if let None = option {
+        if let Err(e) = result {
+            error!("{}", e);
             return Err(ErrorInfo::new(12, "创文件失败"));
         }
-        let f = option.unwrap();
-        return Ok(f);
+        let f = result?;
+        Ok(f)
     }
 
     async fn update_meta(&self, meta: FileMeta) -> ResponseResult<FileMeta> {
-         self.file_meta_manager.update_meta(&meta).await
+        self.file_meta_manager.update_meta(&meta).await
     }
 
     async fn update_file_content(&self, meta: FileMeta, block_index: usize) -> ResponseResult<FileMeta> {
@@ -113,13 +164,14 @@ impl FileManager for SimpleFileManager {
     }
 
     async fn info_by_id(&self, id: u64) -> ResponseResult<FileMeta> {
-        return self.file_meta_manager.info_by_id(id).await;
+        self.file_meta_manager.info_by_id(id).await
     }
 
-    async fn delete_file_meta(&self, id: u64) -> ResponseResult<FileMeta> {
+
+    async fn delete_one_file_meta(&self, id: u64) -> ResponseResult<FileMeta> {
         self
             .file_meta_manager
-            .delete_file_meta(id)
+            .delete_one_file_meta(id)
             .await
     }
     async fn clean_file_meta(&self, id: u64) -> ResponseResult<Option<FileMeta>> {
@@ -136,29 +188,29 @@ impl FileManager for SimpleFileManager {
             ?;
         Ok(Some(file_meta))
     }
-    async fn file_block_meta(&self, file_meta_id: u64) -> Vec<FileBlockMeta> {
-        return self
+    async fn file_block_meta(&self, file_meta_id: u64) -> ResponseResult<Vec<FileBlockMeta>> {
+        self
             .file_block_meta_manager
             .file_block_meta(file_meta_id)
-            .await;
+            .await
     }
 
     async fn file_block_meta_index(
         &self,
         file_meta_id: u64,
         block_index: i64,
-    ) -> Option<FileBlockMeta> {
-        return self
+    ) -> ResponseResult<Option<FileBlockMeta>> {
+        self
             .file_block_meta_manager
             .file_block_meta_index(file_meta_id, block_index)
-            .await;
+            .await
     }
 
     async fn file_block_meta_info_by_id(&self, id: i32) -> ResponseResult<Option<FileBlockMeta>> {
-        return self
+        self
             .file_block_meta_manager
             .file_block_meta_info_by_id(id)
-            .await;
+            .await
     }
 
     async fn update_file_block_meta(
@@ -169,7 +221,7 @@ impl FileManager for SimpleFileManager {
             .file_block_meta_manager
             .update_file_block_meta(&mut meta)
             .await;
-        return option;
+        option
     }
 
     async fn save_file_block_meta(&self, meta: FileBlockMeta) -> ResponseResult<Option<FileBlockMeta>> {
@@ -177,7 +229,7 @@ impl FileManager for SimpleFileManager {
             .file_block_meta_manager
             .save_file_block_meta(meta)
             .await;
-        return option;
+        option
     }
 
     async fn modified_blocks(&self, before: i64) -> ResponseResult<Vec<FileBlockMeta>> {
@@ -185,6 +237,6 @@ impl FileManager for SimpleFileManager {
             .file_block_meta_manager
             .modified_blocks(before)
             .await;
-        return vec;
+        vec
     }
 }

@@ -1,28 +1,27 @@
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use crypto::digest::Digest;
 use crypto::md5::Md5;
 use dotenvy_macro::dotenv;
+use http::Extensions;
 use log::{debug, info};
-use reqwest::Client;
 use reqwest::multipart::{Form, Part};
+use reqwest::Client;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use serde::Serialize;
-use serde_json::Error;
-use task_local_extensions::Extensions;
 use urlencoding::encode;
-
-use api::error::ErrorInfo;
-use api::error::ErrorInfo::{Http, Http302};
-use api::ResponseResult;
-use api::util::IntoOne;
-use persistence::{CloudMeta, FileBlockMeta};
 
 use crate::baidu::baidu_authorization_middleware::BaiduAuthMiddleware;
 use crate::baidu::vo::{AsyncType, BaiduCreate, BaiduFileManagerResult, BaiduOpera, BaiduPreCreate, BaiduQuota, FileMetas, Token};
-use crate::storage::{CreateResponse, FileInfo, Network, Quota, Storage, TokenProvider, User};
+use crate::model::{CreateResponse, FileInfo, Quota, User};
+use crate::storage::{Network, Storage, TokenProvider};
+use api::error::ErrorInfo;
+use api::error::ErrorInfo::{Http, Http302};
+use api::util::IntoOne;
+use api::ResponseResult;
+use persistence::meta::{CloudMeta, FileBlockMeta};
 
 const BAIDU_YUN_APP_SECRET: &str = dotenv!("BAIDU_YUN_APP_SECRET");
 const BAIDU_YUN_APP_ID: &str = dotenv!("BAIDU_YUN_APP_ID");
@@ -41,11 +40,11 @@ struct Inner {
 /// https://pan.baidu.com/union/doc/jl3rg9m9v
 pub struct BaiduStorage {
     inner: Inner,
+    root: String,
 }
 
 impl BaiduStorage {
-
-    pub fn new() -> Self {
+    pub fn new(root: &String) -> Self {
         let auth_middleware = BaiduAuthMiddleware::new();
         let client = Client::builder()
             // .proxy(reqwest::Proxy::https("http://127.0.0.1:8888").unwrap())
@@ -60,6 +59,7 @@ impl BaiduStorage {
                 api_client,
                 user: None,
             },
+            root: root.to_string(),
         }
     }
     async fn info(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<FileInfo> {
@@ -77,12 +77,19 @@ impl BaiduStorage {
             .await?;
 
         let result: FileMetas = serde_json::from_str(result.as_str())?;
-        let file_metas = result.list;
+        if result.errno == -6 {
+            // 身份验证失败
+            return Err(ErrorInfo::Http401("认证失败".to_string()));
+        }
+        if result.list.is_none() {
+            return Err(ErrorInfo::FileNotFound("".to_string()));
+        }
+        let file_metas = result.list.unwrap();
         if file_metas.is_empty() {
             return Err(ErrorInfo::FileNotFound(format!("{cloud_file_id}不存在")));
         }
         let meta = file_metas.into_one().unwrap();
-        return Ok(meta.into());
+        Ok(meta.into())
     }
 }
 
@@ -101,6 +108,7 @@ impl Clone for BaiduStorage {
                 api_client,
                 user: self.inner.user.clone(),
             },
+            root: self.root.clone(),
         }
     }
 }
@@ -146,7 +154,7 @@ impl Storage for BaiduStorage {
 
         let block_list = serde_json::to_string(&md5s)?;
         let block_list = block_list.as_str();
-        let path = format!("{}/{}", cloud_meta.data_root.as_ref().unwrap(), file_block.file_part_id);
+        let path = format!("{}/{}/{}", cloud_meta.data_root.as_ref().unwrap(), self.root, file_block.file_part_id);
         let mut par = vec![];
         // let mut parameter = HashMap::new();
         par.push(("path", path.as_str()));
@@ -177,12 +185,11 @@ impl Storage for BaiduStorage {
             let x = block.clone();
             let bio = Part::bytes(x)
                 .file_name("1")
-                .mime_str("application/octet-stream")
-                .unwrap();
+                .mime_str("application/octet-stream")?;
             // let index = index.to_string();
             // let index = index.clone().as_str();
             let form = Form::new().part("file", bio);
-            let requet_query = format!(
+            let request_query = format!(
                 "rest/2.0/pcs/superfile2?method=upload&type=tmpfile&path={}&uploadid={}&partseq={}",
                 path.clone(),
                 upload_id.clone(),
@@ -191,9 +198,9 @@ impl Storage for BaiduStorage {
             let resp_result = self
                 .inner
                 .api_client
-                .post(format!("{FILE_DOMAIN_PREFIX}/{requet_query}"))
+                .post(format!("{FILE_DOMAIN_PREFIX}/{request_query}"))
                 .multipart(form)
-                .build().unwrap();
+                .build()?;
             let resp_result = self
                 .inner
                 .api_client
@@ -220,12 +227,12 @@ impl Storage for BaiduStorage {
             .await?;
         debug!("create:{json}");
         let result: BaiduCreate = serde_json::from_str(json.as_str())?;
-        return Ok(CreateResponse {
+        Ok(CreateResponse {
             encrypt_mode: "".to_string(),
             file_id: result.fs_id.unwrap().to_string(),
             file_name: "".to_string(),
             file_type: "".to_string(),
-        });
+        })
     }
 
 
@@ -235,7 +242,7 @@ impl Storage for BaiduStorage {
             return if e == Http(404) { Ok(()) } else { Err(e) };
         }
 
-        let info = result.unwrap();
+        let info = result?;
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         let mut file_lists = vec![];
@@ -252,7 +259,7 @@ impl Storage for BaiduStorage {
         match result {
             Ok(str) => {
                 debug!("delete file result :{:?}", str);
-                return Ok(());
+                Ok(())
             }
             Err(e) => Err(e),
         }
@@ -308,14 +315,18 @@ impl Storage for BaiduStorage {
             .api_client
             .get(format!("{}/{}", AUTH_DOMAIN_PREFIX, url))
             .send();
-        let resp_result = self.inner.get_response_text(resp_result).await?;
-        Ok(resp_result)
+        let json_text = self.inner.get_response_text(resp_result).await?;
+        let token: Token = serde_json::from_str(json_text.as_str())?;
+        let current_time = SystemTime::now();
+        let seconds_since_epoch = current_time.duration_since(UNIX_EPOCH).unwrap().as_secs();
+        cloud_meta.expires_in = Some(seconds_since_epoch + token.expires_in - 300);
+        Ok(json_text)
     }
 
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String> {
         let callback = format!("{}/api/cloud/callback", server);
         let encoded = encode(callback.as_str());
-        let string = format!("{AUTH_DOMAIN_PREFIX}/oauth/2.0/authorize?response_type=code&client_id={}&scope=basic,netdisk&state={id}",self.client_id());
+        let string = format!("{AUTH_DOMAIN_PREFIX}/oauth/2.0/authorize?response_type=code&client_id={}&scope=basic,netdisk&state={id}", self.client_id());
         let call = format!("https://cloud.calm0406.tk/callback.html?target={encoded}&redirect_uri={}", encode(string.as_str()));
         Ok(call)
     }
@@ -325,18 +336,14 @@ impl Storage for BaiduStorage {
         let resp_result = self.inner.api_client.get(token_url).send();
         let json_text = self.inner.get_response_text(resp_result).await?;
         info!("{}", json_text);
-        let token: Result<Token, Error> = serde_json::from_str(json_text.as_str());
-        let token = match token {
-            Ok(token) => { token }
-            Err(e) => {
-                return Err(ErrorInfo::OTHER(50, e.to_string()));
-            }
-        };
-        cloud_meta.expires_in = Some(token.expires_in - 10);
+        let token: Token = serde_json::from_str(json_text.as_str())?;
+        let current_time = SystemTime::now();
+        let seconds_since_epoch = current_time.duration_since(UNIX_EPOCH).unwrap().as_secs();
+        cloud_meta.expires_in = Some(seconds_since_epoch + token.expires_in - 300);
         Ok(String::from(json_text))
     }
     fn client_id(&self) -> String {
-       BAIDU_YUN_APP_ID.to_string()
+        BAIDU_YUN_APP_ID.to_string()
     }
 
     fn client_secret(&self) -> String {
@@ -363,12 +370,11 @@ impl Inner {
             .get_client()
             .get(path)
             .header("User-Agent", "pan.baidu.com")
-            .build()
-            .unwrap();
+            .build()?;
         let resp_result = self
             .get_client()
             .execute_with_extensions(resp_result, extensions);
-        return self.get_request_bytes(resp_result).await;
+        self.get_request_bytes(resp_result).await
     }
     fn get_client(&self) -> &ClientWithMiddleware {
         &self.api_client
@@ -383,8 +389,8 @@ impl Inner {
         async_type: AsyncType,
         cloud_meta: &CloudMeta,
     ) -> ResponseResult<BaiduFileManagerResult>
-        where
-            T: Serialize,
+    where
+        T: Serialize,
     {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
@@ -401,7 +407,7 @@ impl Inner {
             .await?;
         debug!("{}", json);
         let result: BaiduFileManagerResult = serde_json::from_str(json.as_str())?;
-        return Ok(result);
+        Ok(result)
     }
     async fn download(&mut self, dlink: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
         let mut extensions = Extensions::new();

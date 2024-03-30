@@ -1,8 +1,8 @@
-use api::ResponseResult;
-use persistence::CloudMeta;
-
 use crate::baidu::vo::{AsyncType, BaiduFileMeta, BaiduOpera, BaiduQuota, BaiduUser, Token};
-use crate::storage::{FileInfo, Quota, TokenProvider, User};
+use crate::model::{FileInfo, Quota, User};
+use crate::storage::TokenProvider;
+use api::ResponseResult;
+use persistence::meta::CloudMeta;
 
 impl From<BaiduUser> for User {
     fn from(baidu: BaiduUser) -> Self {
@@ -98,7 +98,6 @@ impl From<BaiduQuota> for Quota {
 impl TokenProvider<Token> for CloudMeta{
     fn get_token(&self) -> ResponseResult<Token> {
         let auth_option = self.auth.clone();
-        let token = auth_option.unwrap();
-        Ok(serde_json::from_str(token.as_str()).unwrap())
+        Ok(serde_json::from_str(auth_option.unwrap().as_str())?)
     }
 }

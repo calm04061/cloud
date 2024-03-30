@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct AuthorizationToken {
     pub(crate) token_type: String,
-    pub(crate) expires_in: u32,
+    pub(crate) expires_in: u64,
     scope: String,
     pub(crate) access_token: String,
     authentication_token: Option<String>,

@@ -127,8 +127,8 @@ struct Thumb {
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct FileMetas {
     errmsg: Option<String>,
-    errno: i32,
-    pub(crate) list: Vec<BaiduFileMeta>,
+    pub(crate) errno: i32,
+    pub(crate) list: Option<Vec<BaiduFileMeta>>,
     // names: String,
     request_id: String,
 }
@@ -176,7 +176,7 @@ pub(crate) struct BaiduQuota {
 //{"expires_in":2592000,"refresh_token":"122.6d27d0dac1f3e497a2c5ea18b9bb87be.YGOBz1S9vUHf0FjrFG-XFBS2lSxXVDQ9L5UZZUn.l1Imbw","access_token":"121.fc08dafbfbb8fe068a85bccae729cbc7.YgnZRGeB3OdpwwfnkWhUf3rS9WZ-o7ehMBH_5w-.V8c1Iw","session_secret":"","session_key":"","scope":"basic netdisk"}
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct Token {
-    pub(crate) expires_in: u32,
+    pub(crate) expires_in: u64,
     pub(crate) refresh_token: String,
     pub(crate) access_token: String,
 }

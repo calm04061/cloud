@@ -1,7 +1,8 @@
 use std::future::Future;
 
 use api::ResponseResult;
-use persistence::{CloudMeta, FileBlockMeta, FileMeta, FileMetaType};
+use persistence::meta::{CloudMeta, FileBlockMeta, FileMeta};
+use persistence::FileMetaType;
 
 pub mod cloud;
 pub mod file;
@@ -36,13 +37,14 @@ pub trait FileManager {
 
     fn info_by_id(&self, id: u64) -> impl Future<Output=ResponseResult<FileMeta>> + Send;
 
-    fn delete_file_meta(&self, id: u64) -> impl Future<Output=ResponseResult<FileMeta>> + Send;
+    // fn delete_file_meta(&self, id: u64) -> impl Future<Output=ResponseResult<FileMeta>> + Send;
+    fn delete_one_file_meta(&self, id: u64) -> impl Future<Output=ResponseResult<FileMeta>> + Send;
 
     fn clean_file_meta(&self, id: u64) -> impl Future<Output=ResponseResult<Option<FileMeta>>> + Send;
 
-    fn file_block_meta(&self, file_meta_id: u64) -> impl Future<Output=Vec<FileBlockMeta>> + Send;
+    fn file_block_meta(&self, file_meta_id: u64) -> impl Future<Output=ResponseResult<Vec<FileBlockMeta>>> + Send;
 
-    fn file_block_meta_index(&self, file_meta_id: u64, start: i64) -> impl Future<Output=Option<FileBlockMeta>> + Send;
+    fn file_block_meta_index(&self, file_meta_id: u64, start: i64) -> impl Future<Output=ResponseResult<Option<FileBlockMeta>>> + Send;
 
     fn file_block_meta_info_by_id(&self, id: i32) -> impl Future<Output=ResponseResult<Option<FileBlockMeta>>> + Send;
 

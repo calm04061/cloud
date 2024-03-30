@@ -12,7 +12,7 @@ impl EventMessage {
             "message":"int8 not null",
             "create_time":"int8 not null",
             };
-        return map;
+        map
     }
     fn new(event_type: EventType, result: EventResult, message: String) -> EventMessage {
         let event_message = EventMessage {
@@ -23,13 +23,13 @@ impl EventMessage {
             create_time: DateTime::now(),
 
         };
-        return event_message;
+        event_message
     }
     pub fn success(event_type: EventType, message: String) -> EventMessage {
-        return EventMessage::new(event_type, EventResult::Success, message);
+        EventMessage::new(event_type, EventResult::Success, message)
     }
     pub fn fail(event_type: EventType, message: String) -> EventMessage {
-        return EventMessage::new(event_type, EventResult::Fail, message);
+        EventMessage::new(event_type, EventResult::Fail, message)
     }
 }
 

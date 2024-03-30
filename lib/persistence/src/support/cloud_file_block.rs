@@ -47,6 +47,6 @@ impl CloudFileBlock {
             "create_time":"int8 not null",
             "update_time":"int8 not null",
         };
-        return map;
+        map
     }
 }

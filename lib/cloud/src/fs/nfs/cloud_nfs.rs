@@ -1,8 +1,8 @@
-use nfsserve::nfs::{fattr3, fileid3, filename3, ftype3, mode3, nfsstring, nfstime3, size3, specdata3};
-use tokio::sync::RwLock;
-use persistence::{FileMeta, FileMetaType};
-
 use crate::fs::vfs::VirtualFileSystem;
+use nfsserve::nfs::{fattr3, fileid3, filename3, ftype3, mode3, nfsstring, nfstime3, size3, specdata3};
+use persistence::meta::FileMeta;
+use persistence::FileMetaType;
+use tokio::sync::RwLock;
 
 pub struct CloudNFS {
     pub(crate) vfs: RwLock<VirtualFileSystem>,
@@ -19,12 +19,12 @@ impl CloudNFS {
         let name = name.as_slice();
         let name = String::from_utf8_lossy(name);
         let name = name.to_string();
-        return name;
+        name
     }
     pub(crate) fn convert_name2filename(name: &str) -> nfsstring {
         let bytes: &[u8] = name.as_bytes();
         let slice = filename3::from(bytes);
-        return slice;
+        slice
     }
     pub(crate) fn convert_fattr3(meta: &FileMeta) -> fattr3 {
         let mut fattr = fattr3::default();
@@ -62,6 +62,6 @@ impl CloudNFS {
             seconds: (meta.update_time/1000) as u32,
             nseconds: 0,
         };
-        return fattr;
+        fattr
     }
 }

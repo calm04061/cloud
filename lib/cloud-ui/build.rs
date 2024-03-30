@@ -1,9 +1,9 @@
+use static_files::NpmBuild;
 use std::env;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 use std::process::Command;
-use static_files::NpmBuild;
 fn get_git_version() -> String {
     let version = env::var("CARGO_PKG_VERSION").unwrap();
 

@@ -1,5 +1,5 @@
-use rbs::Value;
 use crate::User;
+use rbs::Value;
 
 impl User {
     pub fn sync_default() -> Value {
@@ -8,6 +8,6 @@ impl User {
             "username":"TEXT",
             "password":"TEXT",
         };
-        return map;
+        map
     }
 }

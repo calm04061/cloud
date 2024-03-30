@@ -1,8 +1,9 @@
+use crate::model::{CreateResponse, FileInfo, Quota, User};
 use api::ResponseResult;
-use persistence::CloudMeta;
+use persistence::meta::CloudMeta;
 
 use crate::onedrive::vo::{AuthorizationToken, DriveItem, OneDriveQuota, OneDriveUser};
-use crate::storage::{CreateResponse, FileInfo, Quota, TokenProvider, User};
+use crate::storage::TokenProvider;
 
 impl From<OneDriveQuota> for Quota {
     fn from(one: OneDriveQuota) -> Self {
@@ -90,7 +91,6 @@ impl From<DriveItem> for FileInfo {
 impl TokenProvider<AuthorizationToken> for CloudMeta {
     fn get_token(&self) -> ResponseResult<AuthorizationToken> {
         let auth_option = self.auth.clone();
-        let token = auth_option.unwrap();
-        Ok(serde_json::from_str(token.as_str()).unwrap())
+        Ok(serde_json::from_str(auth_option.unwrap().as_str())?)
     }
 }

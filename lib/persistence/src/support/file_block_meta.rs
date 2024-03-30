@@ -1,6 +1,6 @@
 use rbs::Value;
 
-use crate::FileBlockMeta;
+use crate::meta::FileBlockMeta;
 
 impl FileBlockMeta {
     pub fn sync_default()  -> Value {
@@ -15,7 +15,7 @@ impl FileBlockMeta {
             "part_hash":"TEXT",
             "status":"int not null",
         };
-        return map;
+        map
     }
 }
 impl Default for FileBlockMeta {

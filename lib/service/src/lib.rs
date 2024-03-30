@@ -1,22 +1,28 @@
 use std::fs;
 
+use api::{CLOUD_FILE_ROOT, ROOT_FILE_ID};
 use once_cell::sync::Lazy;
+use rbatis::table_sync::{sync, SqliteTableMapper};
 use rbatis::RBatis;
-use rbatis::table_sync::{SqliteTableMapper, sync};
-use api::ROOT_FILE_ID;
+use uuid::Uuid;
 
-use persistence::{ApplicationConfig, CloudFileBlock, CloudMeta, Config, EventMessage, FileBlockMeta, FileMeta, FileMetaType, FileStatus, User};
+use crate::config::ConfigManager;
+use persistence::{ApplicationConfig, CloudFileBlock, Config, EventMessage, FileMetaType, FileStatus, User};
 
-use crate::database::cloud_file_block_manager::CloudFileBlockManager;
-use crate::database::config::ConfigManager;
-use crate::database::event_message::EventMessageManager;
-use crate::database::meta::cloud::SimpleCloudMetaManager;
-use crate::database::meta::file::file_block_meta::SimpleFileBlockMetaManager;
-use crate::database::meta::file::file_meta::SimpleFileMetaManager;
-use crate::database::meta::file::SimpleFileManager;
-use crate::database::user_manager::UserManager;
+use crate::cloud_file_block_manager::CloudFileBlockManager;
+use crate::meta::cloud::SimpleCloudMetaManager;
+use crate::meta::file::file_block_meta::SimpleFileBlockMetaManager;
+use crate::meta::file::file_meta::SimpleFileMetaManager;
+use crate::meta::file::SimpleFileManager;
+use crate::user_manager::UserManager;
+use event_message::EventMessageManager;
+use persistence::meta::{CloudMeta, FileBlockMeta, FileMeta};
 
-pub mod database;
+pub mod meta;
+pub mod config;
+pub mod user_manager;
+pub mod event_message;
+pub mod cloud_file_block_manager;
 
 pub static CONTEXT: Lazy<ServiceContext> = Lazy::new(|| ServiceContext::default());
 
@@ -84,12 +90,22 @@ impl ServiceContext {
         }
         let vec = User::select_by_column(&conn, "username", "admin").await.unwrap();
         if vec.is_empty() {
-            let user = User{
+            let user = User {
                 id: None,
                 username: "admin".to_string(),
                 password: "admin".to_string(),
             };
-            User::insert(&conn,&user).await.unwrap();
+            User::insert(&conn, &user).await.unwrap();
+        }
+        let vec1 = Config::select_by_column(&conn, "property", CLOUD_FILE_ROOT).await.unwrap();
+        if vec1.is_empty() {
+            let uuid = Uuid::new_v4();
+            let config = Config {
+                id: None,
+                property: CLOUD_FILE_ROOT.to_string(),
+                value: uuid.to_string(),
+            };
+            Config::insert(&conn, &config).await.unwrap();
         }
     }
 }

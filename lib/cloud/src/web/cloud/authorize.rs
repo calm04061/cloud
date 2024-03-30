@@ -1,11 +1,11 @@
-use actix_web::{get, HttpRequest, HttpResponse, Responder};
 use actix_web::http::header::HeaderMap;
 use actix_web::web::{Path, Query};
+use actix_web::{get, HttpRequest, HttpResponse, Responder};
 use log::error;
+use storage::model::AuthMethod;
 
-use storage::STORAGE_FACADE;
-use storage::storage::AuthMethod;
 use storage::web::auth::Callback;
+use storage::STORAGE_FACADE;
 
 #[get("/authorize/storage/{id}")]
 pub(crate) async fn authorize(
@@ -19,7 +19,7 @@ pub(crate) async fn authorize(
     let mut cloud = STORAGE_FACADE.write().await;
     let vec = cloud.get_auth_methods(id).await;
     if vec.contains(&AuthMethod::OAuth2) {
-        let url = cloud.authorize(&server, id).await;
+        let url = cloud.authorize(&server, id).await.unwrap();
         HttpResponse::MovedPermanently()
             .append_header(("Location", url.as_str()))
             .append_header(("Cache-Control", "no-store"))

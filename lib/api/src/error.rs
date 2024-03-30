@@ -1,10 +1,10 @@
 use std::error::Error;
 use std::fmt::{Display, Formatter, Write};
 
-use actix_web::{error, HttpResponse};
 use actix_web::body::BoxBody;
 use actix_web::http::header;
 use actix_web::http::header::TryIntoHeaderValue;
+use actix_web::{error, HttpResponse};
 use bytes::BytesMut;
 
 #[derive(Debug, PartialEq, Clone, serde_derive::Serialize)]

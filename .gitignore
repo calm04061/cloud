@@ -8,6 +8,5 @@ dist
 /cargo
 /cloud/config/file.db*
 /data
-Cargo.lock
 cloud-ui/web/package-lock.json
 callback/package-lock.json

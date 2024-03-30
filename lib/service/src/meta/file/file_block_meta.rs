@@ -2,11 +2,10 @@ use log::debug;
 use rbatis::RBatis;
 use rbs::to_value;
 
-use api::ResponseResult;
 use api::util::IntoOne;
-use persistence::{CloudFileBlock, CloudMeta, MetaStatus};
-
-use crate::database::meta::FileBlockMeta;
+use api::ResponseResult;
+use persistence::meta::{CloudMeta, FileBlockMeta};
+use persistence::{CloudFileBlock, FileStatus, MetaStatus};
 
 #[derive(Clone)]
 pub struct SimpleFileBlockMetaManager {
@@ -19,8 +18,7 @@ impl SimpleFileBlockMetaManager {
     }
     pub(crate) async fn file_block_meta_info_by_id(&self, id: i32) -> ResponseResult<Option<FileBlockMeta>> {
         let rows = FileBlockMeta::select_by_column(&self.batis.clone(), "id", id)
-            .await
-            .unwrap();
+            .await?;
 
         if rows.is_empty() {
             Ok(None)
@@ -35,8 +33,8 @@ impl SimpleFileBlockMetaManager {
         meta.update_time = chrono::Local::now().timestamp_millis() as u64;
         FileBlockMeta::update_by_column(&self.batis.clone(), &meta, "id")
             .await
-            .unwrap();
-        return self.file_block_meta_info_by_id(meta.id.unwrap()).await;
+            ?;
+        self.file_block_meta_info_by_id(meta.id.unwrap()).await
     }
 
     pub(crate) async fn save_file_block_meta(
@@ -44,25 +42,23 @@ impl SimpleFileBlockMetaManager {
         mut meta: FileBlockMeta,
     ) -> ResponseResult<Option<FileBlockMeta>> {
         if meta.id.is_none() {
-            FileBlockMeta::insert(&self.batis.clone(), &meta).await.unwrap();
-            let option = self.file_block_meta_index(meta.file_meta_id, meta.block_index).await;
+            FileBlockMeta::insert(&self.batis.clone(), &meta).await?;
+            let option = self.file_block_meta_index(meta.file_meta_id, meta.block_index).await?;
             let meta = option.unwrap();
 
             let file_block_meta_id = meta.id.unwrap();
             let vec = CloudMeta::quota_random(&self.batis.clone(), MetaStatus::Enable.into(), 3)
-                .await
-                .unwrap();
+                .await?;
             for cloud in vec {
                 let block = CloudFileBlock::init(file_block_meta_id, cloud.id.unwrap());
-                CloudFileBlock::insert(&self.batis.clone(), &block).await.unwrap();
+                CloudFileBlock::insert(&self.batis.clone(), &block).await?;
             }
             Ok(Some(meta))
         } else {
             meta.update_time = chrono::Local::now().timestamp_millis() as u64;
             FileBlockMeta::update_by_column(&self.batis.clone(), &meta, "id")
-                .await
-                .unwrap();
-            return self.file_block_meta_info_by_id(meta.id.unwrap()).await;
+                .await?;
+            self.file_block_meta_info_by_id(meta.id.unwrap()).await
         }
     }
 
@@ -70,30 +66,28 @@ impl SimpleFileBlockMetaManager {
         &self,
         file_meta_id: u64,
         block_index: i64,
-    ) -> Option<FileBlockMeta> {
+    ) -> ResponseResult<Option<FileBlockMeta>> {
         let vec = FileBlockMeta::select_by_file_meta_id_and_block_index(
             &self.batis.clone(),
             file_meta_id,
             block_index,
         )
-            .await
-            .unwrap();
+            .await?;
         if vec.is_empty() {
-            return None;
+            Ok(None)
         } else {
-            vec.into_one()
+            Ok(vec.into_one())
         }
     }
 
-    pub(crate) async fn file_block_meta(&self, file_meta_id: u64) -> Vec<FileBlockMeta> {
-        FileBlockMeta::select_by_file_meta_id(&self.batis.clone(), file_meta_id)
-            .await
-            .unwrap()
+    pub(crate) async fn file_block_meta(&self, file_meta_id: u64) -> ResponseResult<Vec<FileBlockMeta>> {
+        Ok(FileBlockMeta::select_by_file_meta_id(&self.batis.clone(), file_meta_id)
+            .await?)
     }
 
     pub(crate) async fn modified_blocks(&self, _before: i64) -> ResponseResult<Vec<FileBlockMeta>> {
         let batis = self.batis.clone();
-        return Ok(batis.query_decode("select * from file_block_meta where (part_hash <> cloud_file_hash or cloud_file_hash is null ) and deleted = 0 order by update_time,id", vec![]).await?);
+        Ok(batis.query_decode("select * from file_block_meta where (part_hash <> cloud_file_hash or cloud_file_hash is null ) and deleted = 0 order by update_time,id", vec![]).await?)
     }
 
     pub(crate) async fn delete_file_blocks(
@@ -102,7 +96,7 @@ impl SimpleFileBlockMetaManager {
         block_index: i64,
     ) -> ResponseResult<u64> {
         let batis = self.batis.clone();
-        Ok(batis.exec("update file_block_meta set deleted = 1,update_time=? where file_meta_id=? and block_index>? and deleted = 0", vec![to_value!(chrono::Local::now().timestamp_millis()), to_value!(file_id), to_value!(block_index)]).await.unwrap().rows_affected)
+        Ok(batis.exec("update file_block_meta set deleted = 1,update_time=? where file_meta_id=? and block_index>? and deleted = 0", vec![to_value!(chrono::Local::now().timestamp_millis()), to_value!(file_id), to_value!(block_index)]).await?.rows_affected)
     }
 
     pub(crate) async fn delete_file_meta_block_by_file_meta_id(
@@ -111,18 +105,24 @@ impl SimpleFileBlockMetaManager {
     ) -> ResponseResult<u64> {
         let vec = FileBlockMeta::select_by_column(&self.batis.clone(), "file_meta_id", file_meta_id)
             .await
-            .unwrap();
+            ?;
         for meta in vec {
             CloudFileBlock::delete_by_column(&self.batis.clone(), "cloud_meta_id", meta.id.unwrap())
                 .await
-                .unwrap();
+                ?;
         }
         debug!("delete block meta by file id:{}", file_meta_id);
         Ok(
             FileBlockMeta::delete_by_column(&self.batis.clone(), "file_meta_id", file_meta_id)
                 .await
-                .unwrap()
+                ?
                 .rows_affected,
         )
+    }
+    pub async fn update_by_status(&self, block: &FileBlockMeta, status: FileStatus) -> ResponseResult<u64> {
+        Ok(FileBlockMeta::update_by_status(&self.batis.clone(), block, block.id.unwrap(), status.into()).await?.rows_affected)
+    }
+    pub async fn select_by_status_limit(&self, status: FileStatus, size: usize) -> ResponseResult<Vec<FileBlockMeta>> {
+        Ok(FileBlockMeta::select_by_status_limit(&self.batis.clone(), status.into(), size).await?)
     }
 }

@@ -4,180 +4,15 @@ use bytes::Bytes;
 use log::{debug, error, info};
 use reqwest::{Body, Response, StatusCode};
 use reqwest_middleware::{ClientWithMiddleware, Error};
-use serde::{Deserialize, Serialize};
-use task_local_extensions::Extensions;
 
+use crate::model::AuthMethod::OAuth2;
+use crate::model::{AuthMethod, CreateResponse, Quota};
 use api::error::ErrorInfo;
 use api::ResponseResult;
-use persistence::{CloudMeta, FileBlockMeta, MetaStatus};
+use http::Extensions;
+use persistence::meta::{CloudMeta, FileBlockMeta};
+use persistence::MetaStatus;
 
-use crate::storage::AuthMethod::OAuth2;
-
-#[derive(PartialEq)]
-pub enum AuthMethod {
-    OAuth2,
-    UsernamePassword,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct FileItemWrapper {
-    next_marker: String,
-    punished_file_count: i64,
-    items: Vec<FileItem>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct ImageMediaMetadata {
-    width: i32,
-    height: i32,
-    image_tags: Vec<ImageTag>,
-    image_quality: ImageQuality,
-    cropping_suggestion: Vec<CroppingSuggestion>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Quota {
-    pub total: u64,
-    pub used: u64,
-    pub remaining: u64,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct CroppingSuggestion {
-    aspect_ratio: String,
-    score: f64,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct ImageQuality {
-    overall_score: f64,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct ImageTag {
-    confidence: f64,
-    name: String,
-    tag_level: i32,
-    centric_score: i32,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct ExFieldsInfo {
-    image_count: f64,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct CreateResponse {
-    pub encrypt_mode: String,
-    pub file_id: String,
-    pub file_name: String,
-    #[serde(rename(serialize = "type", deserialize = "type"))]
-    pub file_type: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct FileItem {
-    create_at: Option<String>,
-    creator_id: Option<String>,
-    creator_name: Option<String>,
-    creator_type: Option<String>,
-    domain_id: String,
-    drive_id: String,
-    encrypt_mode: String,
-    file_id: String,
-    hidden: bool,
-    last_modifier_id: Option<String>,
-    last_modifier_name: Option<String>,
-    last_modifier_type: Option<String>,
-    name: String,
-    revision_id: String,
-    starred: bool,
-    status: String,
-    trashed: Option<bool>,
-    #[serde(rename(serialize = "type", deserialize = "type"))]
-    file_type: String,
-    updated_at: String,
-    user_meta: Option<String>,
-    labels: Option<Vec<String>>,
-    upload_id: Option<String>,
-    parent_file_id: Option<String>,
-    crc64_hash: Option<String>,
-    content_hash: Option<String>,
-    content_hash_name: Option<String>,
-    download_url: Option<String>,
-    url: Option<String>,
-    thumbnail: Option<String>,
-    image_media_metadata: Option<ImageMediaMetadata>,
-    category: Option<String>,
-    punish_flag: Option<i32>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct SearchResponse {
-    items: Vec<FileItem>,
-    next_marker: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct FileInfo {
-    pub(crate) create_at: Option<String>,
-    pub(crate) creator_id: Option<String>,
-    pub(crate) creator_name: Option<String>,
-    pub(crate) creator_type: Option<String>,
-    pub(crate) domain_id: Option<String>,
-    pub(crate) drive_id: Option<String>,
-    pub(crate) encrypt_mode: Option<String>,
-    pub(crate) ex_fields_info: Option<ExFieldsInfo>,
-    pub file_id: String,
-    pub(crate) path: Option<String>,
-    pub(crate) hidden: Option<bool>,
-    pub(crate) last_modifier_id: Option<String>,
-    pub(crate) last_modifier_name: Option<String>,
-    pub(crate) last_modifier_type: Option<String>,
-    pub(crate) name: String,
-    pub(crate) revision_id: Option<String>,
-    pub(crate) starred: bool,
-    pub(crate) status: Option<String>,
-    #[serde(rename(serialize = "type", deserialize = "type"))]
-    pub(crate) file_type: String,
-    pub(crate) updated_at: Option<String>,
-    pub(crate) user_meta: Option<String>,
-
-    pub(crate) labels: Option<Vec<String>>,
-    pub(crate) upload_id: Option<String>,
-    pub(crate) parent_file_id: Option<String>,
-    pub(crate) crc64_hash: Option<String>,
-    pub(crate) content_hash: Option<String>,
-    pub(crate) content_hash_name: Option<String>,
-    pub(crate) download_url: Option<String>,
-    pub(crate) url: Option<String>,
-    pub(crate) thumbnail: Option<String>,
-    pub(crate) image_media_metadata: Option<ImageMediaMetadata>,
-    pub(crate) category: Option<String>,
-    pub(crate) punish_flag: Option<i32>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct User {
-    pub(crate) domain_id: Option<String>,
-    pub(crate) user_id: Option<String>,
-    pub(crate) avatar: Option<String>,
-    pub(crate) email: Option<String>,
-    pub(crate) nick_name: Option<String>,
-    pub(crate) phone: Option<String>,
-    pub(crate) role: Option<String>,
-    pub(crate) status: Option<String>,
-    pub(crate) user_name: Option<String>,
-    pub(crate) default_drive_id: Option<String>,
-    // "user_data": {},
-    pub(crate) deny_change_password_by_self: Option<bool>,
-    pub(crate) need_change_password_next_login: Option<bool>,
-    // "permission": null
-    pub(crate) creator: Option<String>,
-
-    pub(crate) created_at: Option<i64>,
-    pub(crate) updated_at: Option<i64>,
-}
 
 pub trait TokenProvider<T> {
     fn get_token(&self) -> ResponseResult<T>;
@@ -190,29 +25,37 @@ pub trait TokenManager {
 
 #[async_trait::async_trait]
 pub trait Storage {
-    /**
-     * 上传body
-     **/
+    ///
+    ///上传文件内容
+    ///
     async fn upload_content(
         &mut self,
         file_block: &FileBlockMeta,
         content: &Vec<u8>,
         cloud_meta: &CloudMeta,
     ) -> ResponseResult<CreateResponse>;
-
+    ///
+    /// 删除文件
+    ///
     async fn delete(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()>;
+    ///
+    /// 读取文件内容
+    ///
     async fn content(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes>;
 
-    /**
-     * 获得容量
-     **/
+    ///
+    /// 获得容量
+    ///
     async fn drive_quota(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<Quota>;
-    /**
-     * 获得支持的认证方法
-     **/
+    ///
+    /// 获得支持的认证方法
+    ///
     fn get_auth_methods(&self) -> Vec<AuthMethod> {
         vec![OAuth2]
     }
+    ///
+    /// 刷新token
+    ///
     async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String>;
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String>;
     async fn callback(&self, _server: String, code: String, cloud_meta: &mut CloudMeta) -> ResponseResult<String>;
@@ -241,12 +84,11 @@ pub trait Network {
         let resp_result = self
             .get_client()
             .get(format!("{}/{}", self.get_api_prefix(), path))
-            .build()
-            .unwrap();
+            .build()?;
         let resp_result = self
             .get_client()
             .execute_with_extensions(resp_result, extensions);
-        return self.get_response_text(resp_result).await;
+        self.get_response_text(resp_result).await
     }
     async fn do_get_bytes(
         &self,
@@ -256,12 +98,11 @@ pub trait Network {
         let resp_result = self
             .get_client()
             .get(format!("{}/{}", self.get_api_prefix(), path))
-            .build()
-            .unwrap();
+            .build()?;
         let resp_result = self
             .get_client()
             .execute_with_extensions(resp_result, extensions);
-        return self.get_request_bytes(resp_result).await;
+        self.get_request_bytes(resp_result).await
     }
     ///
     ///
@@ -276,12 +117,11 @@ pub trait Network {
             .get_client()
             .post(format!("{}/{}", self.get_api_prefix(), path))
             .form(form)
-            .build()
-            .unwrap();
+            .build()?;
         let resp_result = self
             .get_client()
             .execute_with_extensions(resp_result, extensions);
-        return self.get_response_text(resp_result).await;
+        self.get_response_text(resp_result).await
     }
     ///
     ///
@@ -298,12 +138,11 @@ pub trait Network {
             .get_client()
             .put(format!("{}/{}", self.get_api_prefix(), path))
             .body(body)
-            .build()
-            .unwrap();
+            .build()?;
         let resp_result = self
             .get_client()
             .execute_with_extensions(resp_result, extensions);
-        return self.get_response_text(resp_result).await;
+        self.get_response_text(resp_result).await
     }
     ///
     ///
@@ -316,12 +155,11 @@ pub trait Network {
         let resp_result = self
             .get_client()
             .delete(format!("{}/{}", self.get_api_prefix(), path))
-            .build()
-            .unwrap();
+            .build()?;
         let resp_result = self
             .get_client()
             .execute_with_extensions(resp_result, extensions);
-        return self.get_response_text(resp_result).await;
+        self.get_response_text(resp_result).await
     }
 
 
@@ -365,33 +203,31 @@ pub trait Network {
         debug!("future get_response_text");
         let json_string_result = match resp_result {
             Ok(resp) => {
-                debug!("aa");
                 let code = resp.status();
                 if code == StatusCode::OK
                     || code == StatusCode::CREATED
                     || code == StatusCode::BAD_REQUEST
                 {
-                    debug!("bbb");
                     let x = resp.text();
                     x.await
                 } else if code == StatusCode::NO_CONTENT {
-                    info!("NO_CONTENT");
+                    // info!("NO_CONTENT");
                     Ok(String::new())
                 } else if code == StatusCode::FORBIDDEN {
-                    info!("FORBIDDEN");
-                    let body = resp.text().await.unwrap();
+                    // info!("FORBIDDEN");
+                    let body = resp.text().await?;
                     return Err(ErrorInfo::Http401(
                         format!("状态码是{},body:{}", code, body),
                     ));
                 } else if code == StatusCode::UNAUTHORIZED {
-                    info!("UNAUTHORIZED");
-                    let body = resp.text().await.unwrap();
+                    // info!("UNAUTHORIZED");
+                    let body = resp.text().await?;
                     return Err(ErrorInfo::Http401(
                         format!("状态码是{},body:{}", code, body),
                     ));
                 } else if code == StatusCode::NOT_FOUND {
                     let url = resp.url();
-                    info!("NOT_FOUND:{}",url);
+                    // info!("NOT_FOUND:{}",url);
                     return Err(ErrorInfo::Http404(url.to_string()));
                 } else {
                     info!("error");

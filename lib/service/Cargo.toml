@@ -15,4 +15,5 @@ rbatis = { workspace = true }
 rbdc-sqlite = { workspace = true }
 async-recursion = { workspace = true }
 chrono = { workspace = true }
+uuid = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

@@ -1,6 +1,6 @@
 use rbs::Value;
 
-use crate::FileMeta;
+use crate::meta::FileMeta;
 
 impl Default for FileMeta {
     fn default() -> Self {
@@ -37,6 +37,6 @@ impl FileMeta {
             "create_time":"int8 not null",
             "update_time":"int8 not null",
         };
-        return map;
+        map
     }
 }

@@ -1,21 +1,22 @@
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use dotenvy_macro::dotenv;
+use http::Extensions;
 use log::info;
 use reqwest::Client;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
-use task_local_extensions::Extensions;
 use urlencoding::encode;
 
+use crate::model::{CreateResponse, Quota, User};
 use api::error::ErrorInfo;
 use api::ResponseResult;
-use persistence::{CloudMeta, FileBlockMeta};
+use persistence::meta::{CloudMeta, FileBlockMeta};
 
 use crate::onedrive::one_drive_authorization_middleware::OneDriveAuthMiddleware;
 use crate::onedrive::vo::{AuthorizationToken, Drive, DriveItem};
-use crate::storage::{CreateResponse, Network, Quota, Storage, User};
+use crate::storage::{Network, Storage};
 
 const ONE_DRIVE_APP_SECRET: &str = dotenv!("ONE_DRIVE_APP_SECRET");
 const ONE_DRIVE_APP_ID: &str = dotenv!("ONE_DRIVE_APP_ID");
@@ -29,10 +30,11 @@ struct Inner {
 
 pub(crate) struct OneDriveStorage {
     inner: Inner,
+    root:String
 }
 
 impl OneDriveStorage {
-    pub fn new() -> Self {
+    pub fn new(root: &str) -> Self {
         let auth_middleware = OneDriveAuthMiddleware::new();
         let client = Client::builder()
             // .proxy(reqwest::Proxy::https("http://127.0.0.1:8888").unwrap())
@@ -47,6 +49,7 @@ impl OneDriveStorage {
                 api_client,
                 user: None,
             },
+            root: root.to_string(),
         }
     }
 }
@@ -59,16 +62,16 @@ impl Storage for OneDriveStorage {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         let json = self
-            .do_get_json(format!("me/drive/root:{data_root}/{}", file_block.file_part_id).as_str(), &mut extensions)
+            .do_get_json(format!("me/drive/root:{data_root}/{}/{}", self.root, file_block.file_part_id).as_str(), &mut extensions)
             .await;
         let path = match json {
             Ok(json) => {
-                let drive: DriveItem = serde_json::from_str(&json).unwrap();
+                let drive: DriveItem = serde_json::from_str(&json)?;
                 format!("me/drive/items/{}/content", drive.id)
             }
             Err(e) => {
                 if let ErrorInfo::Http404(_url) = e {
-                    format!("me/drive/root:{data_root}/{}:/content", file_block.file_part_id)
+                    format!("me/drive/root:{data_root}/{}/{}:/content", self.root, file_block.file_part_id)
                 } else {
                     return Err(e);
                 }
@@ -85,8 +88,16 @@ impl Storage for OneDriveStorage {
     async fn delete(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
-        self.do_delete(format!("me/drive/items/{cloud_file_id}").as_str(), &mut extensions).await?;
-        Ok(())
+        let result = self.do_delete(format!("me/drive/items/{cloud_file_id}").as_str(), &mut extensions).await;
+        if result.is_ok(){
+            return Ok(())
+        }
+        let e= result.err().unwrap();
+        if let ErrorInfo::Http404(_url) = e {
+            Ok(())
+        } else {
+            Err(e)
+        }
     }
 
     async fn content(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<Bytes> {
@@ -99,19 +110,18 @@ impl Storage for OneDriveStorage {
             return Ok(bo);
         }
         let e = result.unwrap_err();
-        return if let ErrorInfo::Http302(url) = e {
+        if let ErrorInfo::Http302(url) = e {
             let resp_result = self
                 .inner.api_client
                 .get(url.as_str())
-                .build()
-                .unwrap();
+                .build()?;
             let resp_result = self
                 .get_client()
                 .execute(resp_result);
             self.get_request_bytes(resp_result).await
         } else {
             Err(e)
-        };
+        }
     }
 
 
@@ -126,7 +136,7 @@ impl Storage for OneDriveStorage {
         let quota = result.quota;
         let user = result.owner.user;
         self.inner.user = Some(user.into());
-        return Ok(quota.into());
+        Ok(quota.into())
     }
 
     async fn refresh_token(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
@@ -135,8 +145,8 @@ impl Storage for OneDriveStorage {
         let client_id = self.client_id().clone();
         let client_secret = self.client_secret().clone();
         let mut form = vec![];
-        let token = cloud_meta.clone().auth.unwrap();
-        let token: AuthorizationToken = serde_json::from_str(token.as_str())?;
+        let token = cloud_meta.clone().auth;
+        let token: AuthorizationToken = serde_json::from_str(token.unwrap().as_str())?;
         let refresh_token = token.refresh_token.unwrap();
         form.push(("grant_type", "refresh_token"));
         form.push(("refresh_token", refresh_token.as_str()));
@@ -149,7 +159,9 @@ impl Storage for OneDriveStorage {
         let json_text = self.get_response_text(resp_result).await?;
         info!("{}", json_text);
         let token: AuthorizationToken = serde_json::from_str(json_text.as_str())?;
-        cloud_meta.expires_in = Some(token.expires_in - 10);
+        let current_time = SystemTime::now();
+        let seconds_since_epoch = current_time.duration_since(UNIX_EPOCH).unwrap().as_secs();
+        cloud_meta.expires_in = Some(seconds_since_epoch + token.expires_in - 300);
         Ok(String::from(json_text))
     }
 
@@ -185,7 +197,9 @@ impl Storage for OneDriveStorage {
         let json_text = self.get_response_text(resp_result).await?;
         info!("{}", json_text);
         let token: AuthorizationToken = serde_json::from_str(json_text.as_str())?;
-        cloud_meta.expires_in = Some(token.expires_in - 10);
+        let current_time = SystemTime::now();
+        let seconds_since_epoch = current_time.duration_since(UNIX_EPOCH).unwrap().as_secs();
+        cloud_meta.expires_in = Some(seconds_since_epoch + token.expires_in - 300);
         Ok(String::from(json_text))
     }
     fn client_id(&self) -> String {

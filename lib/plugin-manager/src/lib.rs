@@ -1,10 +1,10 @@
+use api::{MetaInfo, Plugin, PluginMetaInfo};
+use libloading::{Error, Library, Symbol};
+use log::{error, info, warn};
+use once_cell::sync::Lazy;
 use std::env;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use libloading::{Error, Library, Symbol};
-use once_cell::sync::Lazy;
-use api::{MetaInfo, Plugin, PluginMetaInfo};
-use log::{error, info, warn};
 
 pub static PLUGIN_MANAGER: Lazy<Arc<PluginManager>> = Lazy::new(|| Arc::new(PluginManager::new()));
 
@@ -60,7 +60,7 @@ impl PluginManager {
                 }
             }
         }
-        return plugins;
+        plugins
     }
 
     /// 1. 参数
@@ -80,7 +80,7 @@ impl PluginManager {
             return None;
         }
         info!("not found plugin dir use default plugin dir ./plugin");
-        return Some("./plugin".into());
+        Some("./plugin".into())
     }
 
     fn load_dynamic_plugin(plugin_file: &str) -> Option<PluginMetaInfo> {
@@ -110,10 +110,10 @@ impl PluginManager {
 
             // let meta_info: MetaInfo = meta_info.into();
             info!("load plugin: {}@{} success", meta_info.name.clone(),meta_info.version.clone());
-            return Some(PluginMetaInfo {
+            Some(PluginMetaInfo {
                 meta_info,
                 library,
-            });
+            })
         }
     }
 

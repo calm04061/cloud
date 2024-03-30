@@ -1,5 +1,5 @@
-use rbatis::RBatis;
 use rbatis::rbdc::db::ExecResult;
+use rbatis::RBatis;
 
 use api::ResponseResult;
 use persistence::EventMessage;

@@ -47,11 +47,11 @@ pub(crate) struct AliExtra {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct AuthToken {
+pub(crate) struct AliAuthToken {
     pub(crate) token_type: String,
     pub(crate) access_token: String,
     pub(crate) refresh_token: Option<String>,
-    pub(crate) expires_in: i32,
+    pub(crate) expires_in: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

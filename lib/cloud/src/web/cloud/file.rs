@@ -1,8 +1,8 @@
-use actix_web::{delete, get, Responder, Result, web};
 use actix_web::web::Json;
+use actix_web::{delete, get, web, Responder, Result};
 
+use service::meta::FileManager;
 use service::CONTEXT;
-use service::database::meta::FileManager;
 
 use crate::web::common::WebResult;
 
@@ -14,8 +14,8 @@ pub(crate) async fn info(id: web::Path<u64>) -> Result<impl Responder> {
 }
 #[delete("/file/{id}")]
 pub(crate) async fn delete(id: web::Path<u64>) -> Result<impl Responder> {
-    let x = CONTEXT.file_manager.delete_file_meta(id.into_inner()).await?;
-    Ok(WebResult::actix_web_json_result(&Some(x)))
+    let meta = CONTEXT.file_manager.delete_file_meta(id.into_inner()).await?;
+    Ok(WebResult::actix_web_json_result(&Some(meta)))
 }
 
 #[get("/files/{file_id}")]

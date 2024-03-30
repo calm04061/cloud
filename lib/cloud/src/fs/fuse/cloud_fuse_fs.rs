@@ -5,11 +5,11 @@ use fuser::{FileAttr, FileType, ReplyEmpty, ReplyEntry};
 use libc::{EEXIST, ENOENT, ENOSYS};
 use log::error;
 
-use api::error::ErrorInfo;
-use persistence::{FileMeta, FileMetaType};
-use persistence::FileMetaType::FILE;
-
 use crate::fs::vfs::VirtualFileSystem;
+use api::error::ErrorInfo;
+use persistence::meta::FileMeta;
+use persistence::FileMetaType;
+use persistence::FileMetaType::FILE;
 
 // 1 second
 pub const TTL: Duration = Duration::new(1, 0);
@@ -106,14 +106,4 @@ impl CloudFuseFS {
         }
         reply.ok();
     }
-
-    // pub(crate) fn file_attr(&self, option: FileMeta, reply: ReplyAttr) {
-    //     match option {
-    //         None => reply.error(ENOENT),
-    //         Some(f) => {
-    //             let attr = self.convert_attr(f);
-    //             reply.attr(&TTL, &attr)
-    //         }
-    //     }
-    // }
 }

@@ -1,13 +1,13 @@
 use rbs::Value;
 
-use crate::CloudMeta;
+use crate::meta::CloudMeta;
 
 impl Default for CloudMeta {
     fn default() -> Self {
         CloudMeta {
             id: None,
             name: "".to_string(),
-            auth: None,
+            auth: Some("{}".to_string()),
             last_work_time: None,
             data_root: None,
             status: 0,
@@ -39,6 +39,6 @@ impl CloudMeta {
             "extra":"TEXT",
             "expires_in":"int",
         };
-        return map;
+        map
     }
 }

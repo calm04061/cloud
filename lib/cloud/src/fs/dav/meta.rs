@@ -1,6 +1,6 @@
 use std::fmt::Debug;
-use std::io::{Error, ErrorKind, SeekFrom};
 use std::io::SeekFrom::Start;
+use std::io::{Error, ErrorKind, SeekFrom};
 use std::time::SystemTime;
 
 use bytes::{Buf, BufMut, Bytes};
@@ -9,9 +9,9 @@ use dav_server::fs::{DavDirEntry, DavFile, DavMetaData, FsFuture, FsResult};
 use futures_util::{future, FutureExt};
 use log::{debug, info};
 
-use persistence::{FileMeta, FileMetaType};
-
 use crate::fs::vfs::VirtualFileSystem;
+use persistence::meta::FileMeta;
+use persistence::FileMetaType;
 
 const BLOCK_SIZE: usize = 1024 * 1024 * 4;
 
@@ -30,7 +30,7 @@ impl CloudFsMetaData {
 
 impl DavMetaData for CloudFsMetaData {
     fn len(&self) -> u64 {
-        self.file_meta.file_length as u64
+        self.file_meta.file_length
     }
 
     fn modified(&self) -> FsResult<SystemTime> {
@@ -42,7 +42,7 @@ impl DavMetaData for CloudFsMetaData {
 
     fn is_dir(&self) -> bool {
         let file_type: FileMetaType = self.file_meta.file_type.into();
-        return file_type == FileMetaType::DIR;
+        file_type == FileMetaType::DIR
     }
 }
 
@@ -129,7 +129,7 @@ impl DavFile for CloudDavFile {
         async move {
             let id = self.file_meta.id.unwrap();
             debug!("read_bytes,{}:{},pos:{},count:{}", id ,self.file_meta.name ,self.pos,count);
-            let result = self.fs.read(id as u64, self.pos as u64, count as u32).await.unwrap();
+            let result = self.fs.read(id, self.pos as u64, count as u32).await.unwrap();
             let bytes = Bytes::copy_from_slice(result.as_slice());
             self.pos += count;
             Ok(bytes)
@@ -145,7 +145,7 @@ impl DavFile for CloudDavFile {
                 }
                 SeekFrom::Current(npos) => (self.pos as u64, npos),
                 SeekFrom::End(npos) => {
-                    let cur_len = self.file_meta.file_length as u64;
+                    let cur_len = self.file_meta.file_length;
                     (cur_len, npos)
                 }
             };

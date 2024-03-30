@@ -1,8 +1,8 @@
 use std::fmt::{Debug, Formatter};
 use std::fs;
 use std::fs::File;
-use std::io::{Read, Seek, Write};
 use std::io::SeekFrom::Start;
+use std::io::{Read, Seek, Write};
 use std::path::Path;
 
 use crypto::digest::Digest;
@@ -11,10 +11,11 @@ use log::{debug, error, info};
 use nfsserve::nfs::fileid3;
 
 use api::error::ErrorInfo;
-use api::ResponseResult;
-use persistence::{FileBlockMeta, FileMeta, FileMetaType, FileStatus};
+use api::{ResponseResult, ROOT_FILE_ID};
+use persistence::meta::{FileBlockMeta, FileMeta};
+use persistence::{FileMetaType, FileStatus};
+use service::meta::FileManager;
 use service::CONTEXT;
-use service::database::meta::FileManager;
 use storage::STORAGE_FACADE;
 
 pub const DEFAULT_TEMP_PATH: &str = "/var/lib/storage/temp";
@@ -74,7 +75,7 @@ impl VirtualFileSystem {
                     option = Some(CONTEXT
                         .file_manager
                         .info_by_id(1)
-                        .await.unwrap());
+                        .await?);
                 } else {
                     option = Some(CONTEXT
                         .file_manager
@@ -138,8 +139,7 @@ impl VirtualFileSystem {
     pub(crate) fn del_file(&self, parent: u64, name: &str) -> ResponseResult<()> {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
-            .build()
-            .unwrap()
+            .build()?
             .block_on(async {
                 self.del_file_sync(parent, name).await
             })
@@ -153,7 +153,7 @@ impl VirtualFileSystem {
         if let Err(_e) = option {
             return Err(ErrorInfo::FileNotFound(name.to_string()));
         }
-        let meta = option.unwrap();
+        let meta = option?;
         CONTEXT
             .file_manager
             .delete_file_meta(meta.id.unwrap())
@@ -161,13 +161,20 @@ impl VirtualFileSystem {
         Ok(())
     }
 
-    pub(crate) async fn delete_file(&self, path: &str) -> ResponseResult<()> {
-        let file_meta = self.path_meta(path).await;
-        let meta = file_meta.unwrap();
+    // pub(crate) async fn delete_file(&self, path: &str) -> ResponseResult<()> {
+    //     let file_meta = self.path_meta(path).await?;
+    //     CONTEXT
+    //         .file_manager
+    //         .delete_file_meta(file_meta.id.unwrap())
+    //         .await?;
+    //     Ok(())
+    // }
+    pub(crate) async fn delete_one_file(&self, path: &str) -> ResponseResult<()> {
+        let file_meta = self.path_meta(path).await?;
         CONTEXT
             .file_manager
-            .delete_file_meta(meta.id.unwrap())
-            .await.unwrap();
+            .delete_one_file_meta(file_meta.id.unwrap())
+            .await?;
         Ok(())
     }
 
@@ -180,9 +187,8 @@ impl VirtualFileSystem {
             let temp = &data[start..];
             let result = self
                 .inner
-                .write(ino, start as u64 + offset , temp)
-                .await
-                .unwrap();
+                .write(ino, start as u64 + offset, temp)
+                .await?;
             start = start + result as usize;
             if start == data.len() {
                 break;
@@ -213,7 +219,7 @@ impl VirtualFileSystem {
                     return Err(e);
                 }
             }
-            let body = body.unwrap();
+            let body = body?;
             let vec = body.to_vec();
             for a in vec {
                 temp_body.push(a);
@@ -222,7 +228,7 @@ impl VirtualFileSystem {
                 }
             }
         }
-        return Ok(temp_body);
+        Ok(temp_body)
     }
 
     pub(crate) async fn rename(
@@ -255,12 +261,12 @@ impl VirtualFileSystem {
 
         source_file.parent_id = new_parent;
         source_file.name = String::from(new_name);
-        CONTEXT.file_manager.update_meta(source_file).await.unwrap();
+        CONTEXT.file_manager.update_meta(source_file).await?;
         Ok(())
     }
     pub(crate) async fn rename_path(&self, from_full_path: &str, to_full_path: &str) -> ResponseResult<()> {
-        let (parent_from, name_from) = self.path_info(from_full_path).await.unwrap();
-        let (parent_to, name_to) = self.path_info(to_full_path).await.unwrap();
+        let (parent_from, name_from) = self.path_info(from_full_path).await?;
+        let (parent_to, name_to) = self.path_info(to_full_path).await?;
         self.rename(parent_from.id.unwrap(), name_from.as_str(), parent_to.id.unwrap(), name_to.as_str()).await.ok();
         Ok(())
     }
@@ -269,8 +275,7 @@ impl VirtualFileSystem {
     pub(crate) fn lookup(&self, parent: u64, name: &str) -> ResponseResult<FileMeta> {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
-            .build()
-            .unwrap()
+            .build()?
             .block_on(async {
                 self.lookup_sync(parent, name).await
             })
@@ -283,13 +288,12 @@ impl VirtualFileSystem {
         if let Ok(f) = result {
             return Ok(f);
         }
-        return Err(ErrorInfo::new_string(3, format!("文件[{}]不存在", name)));
+        Err(ErrorInfo::new_string(3, format!("文件[{}]不存在", name)))
     }
     pub(crate) fn file_info(&self, id: u64) -> ResponseResult<FileMeta> {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
-            .build()
-            .unwrap()
+            .build()?
             .block_on(async { self.file_info_sync(id).await })
     }
     pub(crate) async fn file_info_sync(&self, id: u64) -> ResponseResult<FileMeta> {
@@ -300,19 +304,23 @@ impl VirtualFileSystem {
     }
     pub(crate) async fn file_info_by_path(&self, path: &str) -> ResponseResult<FileMeta> {
         if path.eq("") || path.eq("/") {
-            return CONTEXT.file_manager.info_by_id(1).await;
+            return CONTEXT.file_manager.info_by_id(ROOT_FILE_ID).await;
         }
-        let split = path.split("/");
+        let mut temp_path = path;
+        if path.starts_with("/") {
+            temp_path = &path[1..];
+        }
+        let split = temp_path.split("/");
         let mut file: Option<FileMeta> = None;
         for name in split {
             if let None = file {
-                file = Some(CONTEXT.file_manager.info_by_parent_and_name(1, name).await?);
+                file = Some(CONTEXT.file_manager.info_by_parent_and_name(ROOT_FILE_ID, name).await?);
                 continue;
             }
             let meta = file.unwrap();
             file = Some(CONTEXT.file_manager.info_by_parent_and_name(meta.id.unwrap(), name).await?);
         }
-        return Ok(file.unwrap());
+        Ok(file.unwrap())
     }
 
     pub(crate) async fn read(&self, ino: u64, offset: u64, size: u32) -> ResponseResult<Vec<u8>> {
@@ -322,11 +330,11 @@ impl VirtualFileSystem {
             error!("查询文件{}失败{}", ino, e);
             return Err(e);
         }
-        let f = result.unwrap();
+        let f = result?;
         if f.file_length == 0 {
             return Ok(vec![]);
         }
-        let file_block_metas = CONTEXT.file_manager.file_block_meta(f.id.unwrap()).await;
+        let file_block_metas = CONTEXT.file_manager.file_block_meta(f.id.unwrap()).await?;
         if file_block_metas.is_empty() {
             return Err(ErrorInfo::new(3, "文件块数据不存在"));
         }
@@ -346,14 +354,13 @@ impl VirtualFileSystem {
     ) -> ResponseResult<FileMeta> {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
-            .build()
-            .unwrap()
+            .build()?
             .block_on(async {
                 let result = CONTEXT.file_manager.info_by_id(ino).await;
                 if let Err(e) = result {
                     return Err(e);
                 }
-                let mut f = result.unwrap();
+                let mut f = result?;
 
                 if let Some(size_value) = size {
                     f.file_length = size_value;
@@ -370,7 +377,7 @@ impl Inner {
         if let Err(_e) = result {
             return Err(ErrorInfo::new(10, "文件不存在"));
         }
-        let mut f = result.unwrap();
+        let mut f = result?;
         let mut body: Vec<u8> = Vec::new();
         let result = f.seek(Start(seek));
         match result {
@@ -382,10 +389,10 @@ impl Inner {
             }
         }
         let result = f.read_to_end(&mut body);
-        return match result {
+        match result {
             Ok(_) => Ok(body),
             Err(_) => Err(ErrorInfo::new(11, "读取文件出错")),
-        };
+        }
     }
     ///
     ///  读取文件块
@@ -409,7 +416,7 @@ impl Inner {
         if let Err(e) = result {
             return Err(e);
         }
-        let result = result.unwrap();
+        let result = result?;
         //然后写入到本地
         let result = self.write_local_file(local_cache_file.clone(), result.as_slice(), 0);
         if let Ok(()) = result {
@@ -438,17 +445,17 @@ impl Inner {
             let message = e.to_string();
             return Err(ErrorInfo::new_string(10, message));
         }
-        let mut file = result.unwrap();
+        let mut file = result?;
         let result = file.seek(Start(seek));
         if let Err(e) = result {
             return Err(ErrorInfo::new_string(12, e.to_string()));
         }
         debug!("跳过成功");
         let result = file.write(body);
-        return match result {
+        match result {
             Ok(_) => Ok(()),
             Err(e) => Err(ErrorInfo::new_string(13, format!("文件写入失败:{}", e))),
-        };
+        }
     }
 
     async fn read_content_from_cloud(&self, file_block_id: i32) -> ResponseResult<Vec<u8>> {
@@ -464,7 +471,7 @@ impl Inner {
             Err(e) => Err(e),
         };
         info!("read from :{} end", file_block_id);
-        return a;
+        a
     }
     pub(crate) async fn write(&mut self, ino: u64, offset: u64, data: &[u8]) -> ResponseResult<u32> {
         let mut f = CONTEXT.file_manager.info_by_id(ino).await?;
@@ -478,23 +485,23 @@ impl Inner {
             let sub = data.len() - (block_size - CLOUD_FILE_BLOCK_SIZE);
             temp = &data[0..sub];
             self.upload_block_content(f.id.unwrap(), block_index as i64, block_offset as u64, temp)
-                .await;
+                .await?;
             f.file_length = (offset as usize + temp.len()) as u64;
             Ok(temp.len() as u32)
         } else {
             f.file_length = (offset as usize + data.len()) as u64;
             temp = data;
             self.upload_block_content(f.id.unwrap(), block_index as i64, block_offset as u64, temp)
-                .await;
-            CONTEXT.file_manager.update_meta(f).await.unwrap();
+                .await?;
+            CONTEXT.file_manager.update_meta(f).await?;
             Ok(data.len() as u32)
         }
     }
-    async fn upload_block_content(&mut self, file_meta_id: u64, block_index: i64, seek: u64, data: &[u8]) {
+    async fn upload_block_content(&mut self, file_meta_id: u64, block_index: i64, seek: u64, data: &[u8]) -> ResponseResult<()> {
         let file_block_meta_opt = CONTEXT
             .file_manager
             .file_block_meta_index(file_meta_id, block_index)
-            .await;
+            .await?;
         let mut md5 = Md5::new();
         md5.input(data);
         let md5_value = md5.result_str();
@@ -527,8 +534,8 @@ impl Inner {
         CONTEXT
             .file_manager
             .save_file_block_meta(file_block_meta)
-            .await
-            .unwrap();
+            .await?;
+        Ok(())
     }
     fn write_block(&mut self, file_block_meta: &FileBlockMeta, body: &[u8], seek: u64) {
         let local_cache_file = format!("{}/{}", self.cache_file, file_block_meta.file_part_id);

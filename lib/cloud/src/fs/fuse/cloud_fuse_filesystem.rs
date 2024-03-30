@@ -2,7 +2,7 @@ use std::ffi::OsStr;
 use std::time::SystemTime;
 
 use fuser::{
-    Filesystem, FileType, ReplyAttr, ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyWrite,
+    FileType, Filesystem, ReplyAttr, ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyWrite,
     Request, TimeOrNow,
 };
 use libc::{EEXIST, ENOENT, ENOSYS};
@@ -217,7 +217,7 @@ impl Filesystem for CloudFuseFS {
                 if offset == 0 {
                     let _ = reply.add(ino, 0, FileType::Directory, ".");
                     let _ = reply.add(ino, 1, FileType::Directory, "..");
-                    let vec = self.vfs.list_by_parent(ino as u64).await;
+                    let vec = self.vfs.list_by_parent(ino).await;
                     if let Err(e) = vec {
                         error!("{}", e);
                         reply.ok();
@@ -233,7 +233,7 @@ impl Filesystem for CloudFuseFS {
                             kind = FileType::Directory;
                         }
                         info!("readdir:{}:{}", ino, file.name);
-                        let _ = reply.add(file.id.unwrap() as u64, index, kind, file.name);
+                        let _ = reply.add(file.id.unwrap(), index, kind, file.name);
                         index = index + 1;
                     }
                 }

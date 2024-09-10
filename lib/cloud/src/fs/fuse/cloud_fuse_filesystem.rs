@@ -233,7 +233,7 @@ impl Filesystem for CloudFuseFS {
                             kind = FileType::Directory;
                         }
                         info!("readdir:{}:{}", ino, file.name);
-                        let _ = reply.add(file.id.unwrap(), index, kind, file.name);
+                        let _ = reply.add(file.id.unwrap() as u64, index, kind, file.name);
                         index = index + 1;
                     }
                 }

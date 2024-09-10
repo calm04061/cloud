@@ -51,15 +51,15 @@ impl CloudNFS {
         fattr.fileid = meta.id.unwrap() as fileid3;
 
         fattr.ctime = nfstime3 {
-            seconds: (meta.create_time/1000) as u32,
+            seconds: (meta.create_time.timestamp_millis()/1000) as u32,
             nseconds: 0,
         };
         fattr.mtime = nfstime3 {
-            seconds: (meta.update_time/1000) as u32,
+            seconds: (meta.update_time.timestamp_millis()/1000) as u32,
             nseconds: 0,
         };
         fattr.atime = nfstime3 {
-            seconds: (meta.update_time/1000) as u32,
+            seconds: (meta.update_time.timestamp_millis()/1000) as u32,
             nseconds: 0,
         };
         fattr

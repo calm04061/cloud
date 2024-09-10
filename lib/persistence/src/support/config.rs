@@ -1,4 +1,4 @@
-use rbs::Value;
+// use rbs::Value;
 
 use crate::Config;
 
@@ -11,13 +11,13 @@ impl Default for Config {
         }
     }
 }
-impl Config {
-    pub fn sync_default() -> Value {
-        let map = rbs::to_value! {
-            "id":"INTEGER PRIMARY KEY AUTOINCREMENT",
-            "property":"TEXT",
-            "value":"TEXT",
-        };
-        map
-    }
-}
+// impl Config {
+//     pub fn sync_default() -> Value {
+//         let map = rbs::to_value! {
+//             "id":"INTEGER PRIMARY KEY AUTOINCREMENT",
+//             "property":"TEXT",
+//             "value":"TEXT",
+//         };
+//         map
+//     }
+// }

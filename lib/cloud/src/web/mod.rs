@@ -17,7 +17,7 @@ use log::info;
 use api::{Capacity, PluginMetaInfo};
 use service::CONTEXT;
 
-use crate::fs::dav::cluod_dav_filesystem::DAV_PREFIX;
+use crate::fs::dav::cloud_dav_filesystem::DAV_PREFIX;
 use crate::web::common::add_error_header;
 
 mod cloud;

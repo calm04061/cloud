@@ -257,9 +257,23 @@ impl Storage for BaiduStorage {
             )
             .await;
         match result {
-            Ok(str) => {
-                debug!("delete file result :{:?}", str);
-                Ok(())
+            Ok(baidu_result) => {
+                debug!("delete file result :{:?}", baidu_result);
+                match baidu_result.errno {
+                    0 => {
+                        Ok(())
+                    }
+                    12 => {
+                        let info = baidu_result.info;
+                        let msg = info.iter().map(|x| {
+                            format!("{}:{}", x.path, x.errno.unwrap())
+                        }).collect::<Vec<String>>().join("\n");
+                        Err(ErrorInfo::OTHER(baidu_result.errno, msg))
+                    }
+                    _ => {
+                        Err(ErrorInfo::OTHER(baidu_result.errno, "调用百度删除问题件失败".to_string()))
+                    }
+                }
             }
             Err(e) => Err(e),
         }
@@ -319,7 +333,7 @@ impl Storage for BaiduStorage {
         let token: Token = serde_json::from_str(json_text.as_str())?;
         let current_time = SystemTime::now();
         let seconds_since_epoch = current_time.duration_since(UNIX_EPOCH).unwrap().as_secs();
-        cloud_meta.expires_in = Some(seconds_since_epoch + token.expires_in - 300);
+        cloud_meta.expires_in = Some((seconds_since_epoch + token.expires_in - 300) as i64);
         Ok(json_text)
     }
 
@@ -339,7 +353,7 @@ impl Storage for BaiduStorage {
         let token: Token = serde_json::from_str(json_text.as_str())?;
         let current_time = SystemTime::now();
         let seconds_since_epoch = current_time.duration_since(UNIX_EPOCH).unwrap().as_secs();
-        cloud_meta.expires_in = Some(seconds_since_epoch + token.expires_in - 300);
+        cloud_meta.expires_in = Some((seconds_since_epoch + token.expires_in - 300) as i64);
         Ok(String::from(json_text))
     }
     fn client_id(&self) -> String {

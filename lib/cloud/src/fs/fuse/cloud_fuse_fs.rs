@@ -34,15 +34,15 @@ impl CloudFuseFS {
         } else {
             kind = FileType::Directory;
         }
-        let uid = f.uid;
-        let gid = f.gid;
+        let uid = f.uid as u32;
+        let gid = f.gid as u32;
 
-        let create_time = UNIX_EPOCH + Duration::from_millis(f.create_time as u64);
+        let create_time = UNIX_EPOCH + Duration::from_millis(f.create_time.timestamp_millis() as u64);
 
-        let update_time = UNIX_EPOCH + Duration::from_millis(f.update_time as u64);
+        let update_time = UNIX_EPOCH + Duration::from_millis(f.update_time.timestamp_millis() as u64);
         FileAttr {
-            ino: f.id.unwrap(),
-            size: f.file_length,
+            ino: f.id.unwrap() as u64,
+            size: f.file_length as u64,
             blocks: 1,
             atime: update_time,
             mtime: update_time,

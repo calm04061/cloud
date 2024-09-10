@@ -1,6 +1,7 @@
 use crate::fs::nfs::cloud_nfs::CloudNFS;
 use api::ROOT_FILE_ID;
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use log::{error, info};
 use nfsserve::nfs::set_atime::SET_TO_CLIENT_TIME;
 use nfsserve::nfs::set_gid3::gid;
@@ -58,24 +59,25 @@ impl NFSFileSystem for CloudNFS {
         let guard = self.vfs.write().await;
         let mut meta = guard.file_info_sync(id as u64).await.unwrap();
         if let mode(mode_value) = setattr.mode {
-            meta.mode = mode_value;
+            meta.mode = mode_value as i32;
         }
         if let uid(uid_value) = setattr.uid {
-            meta.uid = uid_value;
+            meta.uid = uid_value as i32;
         }
         if let gid(gid_value) = setattr.gid {
-            meta.gid = gid_value;
+            meta.gid = gid_value as i32;
         }
         if let size(size_value) = setattr.size {
-            meta.file_length = size_value;
+            meta.file_length = size_value as i64;
         }
         match setattr.atime {
             set_atime::DONT_CHANGE => {}
             set_atime::SET_TO_SERVER_TIME => {
-                meta.update_time = chrono::Utc::now().timestamp();
+                meta.update_time = Utc::now();
             }
             SET_TO_CLIENT_TIME(time) => {
-                meta.update_time = time.seconds as i64 * 1000;
+                let option = DateTime::from_timestamp(time.seconds as i64, time.nseconds).unwrap();
+                meta.update_time = option;
             }
         }
         let meta = guard.update_file_meta(meta).await.unwrap();
@@ -97,7 +99,7 @@ impl NFSFileSystem for CloudNFS {
             return Err(nfsstat3::NFS3ERR_NOENT);
         }
         let vec = vec.unwrap();
-        let end = meta.file_length <= offset + (count as u64);
+        let end = meta.file_length <= (offset + (count as u64)) as i64;
         Ok((vec, end))
     }
 
@@ -114,7 +116,7 @@ impl NFSFileSystem for CloudNFS {
         let guard = self.vfs.write().await;
         let parent_file = guard.file_info_sync(dirid as u64).await.unwrap();
         let name = Self::convert_name2string(&filename);
-        let meta = guard.create_file(parent_file.id.unwrap(), &name, FileMetaType::FILE).await.unwrap();
+        let meta = guard.create_file(parent_file.id.unwrap() as u64, &name, FileMetaType::FILE).await.unwrap();
         Ok((meta.id.unwrap() as fileid3, Self::convert_fattr3(&meta)))
     }
 

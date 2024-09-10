@@ -1,7 +1,6 @@
+use crate::error::ErrorInfo;
 use libloading::Library;
 use serde::{Deserialize, Serialize};
-
-use crate::error::ErrorInfo;
 
 pub mod error;
 pub mod util;

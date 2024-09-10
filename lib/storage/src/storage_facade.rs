@@ -144,8 +144,8 @@ impl StorageFacade {
         let cloud_file_id = cloud_file_id.unwrap();
         let cloud_file_id = cloud_file_id.as_str();
         let result = self.inner.delete(cloud_file_id, &cloud_meta).await;
-        if let Ok(_e)=result{
-            return Ok(())
+        if let Ok(_e) = result {
+            return Ok(());
         }
         let e = result.err().unwrap();
         if let Http401(_url) = e {
@@ -253,7 +253,7 @@ impl Inner {
                 CloudType::Baidu => Ok(Box::new(Arc::new(Mutex::new(BaiduStorage::new(&root))))),
                 CloudType::Local => Ok(Box::new(Arc::new(Mutex::new(LocalStorage::new(&root))))),
                 CloudType::OneDrive => Ok(Box::new(Arc::new(Mutex::new(OneDriveStorage::new(&root))))),
-				#[cfg(not(windows))]
+                #[cfg(not(windows))]
                 CloudType::Sftp => Ok(Box::new(Arc::new(Mutex::new(SftpStorage::new(&root))))),
             };
             cloud.unwrap()
@@ -288,10 +288,24 @@ impl Inner {
             ?;
         let cloud = self.get_cloud(cloud_meta.cloud_type.into()).await?;
         let mut cloud = cloud.lock().await;
-        let result = cloud.refresh_token(&mut cloud_meta).await?;
-        cloud_meta.auth = Some(result.clone());
-        self.update_meta_info(&cloud_meta).await?;
-        Ok(cloud_meta)
+        let result = cloud.refresh_token(&mut cloud_meta).await;
+        if let Ok(r) = result {
+            cloud_meta.auth = Some(r);
+            self.update_meta_info(&cloud_meta).await?;
+            return Ok(cloud_meta);
+        }
+        let error = result.err().unwrap();
+
+        match error {
+            ErrorInfo::Http402(m) => {
+                cloud_meta.status = MetaStatus::InvalidRefresh.into();
+                self.update_meta_info(&cloud_meta).await?;
+                Err(ErrorInfo::Http402(m))
+            }
+            _ => {
+                Err(error)
+            }
+        }
     }
     ///
     /// 上传文件
@@ -326,8 +340,8 @@ impl Inner {
         info!("delete {} from {:?}({})", cloud_file_id,cloud_type, cloud_meta.name);
 
         let cloud = self.get_cloud(cloud_type).await?;
-        // let mut cloud = cloud.lock().unwrap();
-        let result = cloud.lock().await.delete(cloud_file_id, &cloud_meta).await;
+        let mut cloud = cloud.lock().await;
+        let result = cloud.delete(cloud_file_id, &cloud_meta).await;
         result
     }
     ///

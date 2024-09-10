@@ -30,11 +30,13 @@ impl CloudFsMetaData {
 
 impl DavMetaData for CloudFsMetaData {
     fn len(&self) -> u64 {
-        self.file_meta.file_length
+        self.file_meta.file_length as u64
     }
 
     fn modified(&self) -> FsResult<SystemTime> {
-        let date = Local.timestamp_millis_opt(self.file_meta.create_time);
+        let time_number = self.file_meta.create_time.timestamp_millis();// 微秒
+        let time_number = time_number / 1000; //转化为毫秒
+        let date = Local.timestamp_millis_opt(time_number);
         let time = date.unwrap();
         let time = SystemTime::from(time);
         Ok(time)
@@ -112,7 +114,7 @@ impl DavFile for CloudDavFile {
             let temp_size = self.temp_buf.len();
             if temp_size > BLOCK_SIZE {
                 debug!("write_block_bytes,{}:{},pos:{},len:{}", id,self.file_meta.name,self.temp_pos,self.temp_buf.len());
-                self.fs.write(id, self.temp_pos as u64, self.temp_buf.as_ref()).await.unwrap();
+                self.fs.write(id as u64, self.temp_pos as u64, self.temp_buf.as_ref()).await.unwrap();
                 self.temp_buf.clear();
                 self.pos += buf.len();
                 self.temp_pos = self.pos;
@@ -129,7 +131,7 @@ impl DavFile for CloudDavFile {
         async move {
             let id = self.file_meta.id.unwrap();
             debug!("read_bytes,{}:{},pos:{},count:{}", id ,self.file_meta.name ,self.pos,count);
-            let result = self.fs.read(id, self.pos as u64, count as u32).await.unwrap();
+            let result = self.fs.read(id as u64, self.pos as u64, count as u32).await.unwrap();
             let bytes = Bytes::copy_from_slice(result.as_slice());
             self.pos += count;
             Ok(bytes)
@@ -146,7 +148,7 @@ impl DavFile for CloudDavFile {
                 SeekFrom::Current(npos) => (self.pos as u64, npos),
                 SeekFrom::End(npos) => {
                     let cur_len = self.file_meta.file_length;
-                    (cur_len, npos)
+                    (cur_len as u64, npos)
                 }
             };
             if offset < 0 {
@@ -168,7 +170,7 @@ impl DavFile for CloudDavFile {
             let id = self.file_meta.id.unwrap();
             let temp_size = self.temp_buf.len();
             if temp_size > 0 {
-                self.fs.write(id, self.temp_pos as u64, self.temp_buf.as_ref()).await.unwrap();
+                self.fs.write(id as u64, self.temp_pos as u64, self.temp_buf.as_ref()).await.unwrap();
                 self.temp_buf.clear();
             }
             self.pos = 0;

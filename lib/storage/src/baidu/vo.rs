@@ -148,18 +148,18 @@ pub(crate) enum AsyncType {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct ManageFile {
-    path: String,
-    newname: Option<String>,
-    dest: Option<String>,
-    errno: Option<i32>,
+    pub(crate) path: String,
+    pub(crate) newname: Option<String>,
+    pub(crate) dest: Option<String>,
+    pub(crate) errno: Option<i32>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct BaiduFileManagerResult {
-    errmsg: Option<String>,
-    errno: i32,
+    pub(crate) errmsg: Option<String>,
+    pub(crate) errno: i32,
     request_id: i64,
-    info: Vec<ManageFile>,
+    pub(crate) info: Vec<ManageFile>,
     taskid: Option<i64>,
 }
 

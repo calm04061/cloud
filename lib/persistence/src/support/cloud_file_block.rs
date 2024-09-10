@@ -1,5 +1,5 @@
-use rbatis::rbdc::DateTime;
-use rbs::Value;
+use chrono::Utc;
+// use rbs::Value;
 
 use crate::{CloudFileBlock, FileStatus};
 
@@ -13,8 +13,8 @@ impl CloudFileBlock {
             cloud_file_hash: None,
             status: FileStatus::Init.into(),
             deleted: 0,
-            create_time: DateTime::now(),
-            update_time: DateTime::now(),
+            create_time: Utc::now(),
+            update_time: Utc::now(),
         }
     }
 }
@@ -29,24 +29,24 @@ impl Default for CloudFileBlock {
             cloud_file_hash: None,
             status: 0,
             deleted: 0,
-            create_time: DateTime::now(),
-            update_time: DateTime::now(),
+            create_time: Utc::now(),
+            update_time: Utc::now(),
         }
     }
 }
-impl CloudFileBlock {
-    pub fn sync_default() -> Value {
-        let map = rbs::to_value! {
-            "id":"INTEGER PRIMARY KEY AUTOINCREMENT",
-            "file_block_id":"int not null",
-            "cloud_meta_id":"int not null",
-            "cloud_file_id":"TEXT",
-            "cloud_file_hash":"TEXT",
-            "status":"int not null",
-            "deleted":"int not null",
-            "create_time":"int8 not null",
-            "update_time":"int8 not null",
-        };
-        map
-    }
-}
+// impl CloudFileBlock {
+//     pub fn sync_default() -> Value {
+//         let map = rbs::to_value! {
+//             "id":"INTEGER PRIMARY KEY AUTOINCREMENT",
+//             "file_block_id":"int not null",
+//             "cloud_meta_id":"int not null",
+//             "cloud_file_id":"TEXT",
+//             "cloud_file_hash":"TEXT",
+//             "status":"int not null",
+//             "deleted":"int not null",
+//             "create_time":"int8 not null",
+//             "update_time":"int8 not null",
+//         };
+//         map
+//     }
+// }

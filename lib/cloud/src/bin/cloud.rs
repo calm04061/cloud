@@ -13,8 +13,8 @@ use tokio_cron_scheduler::JobScheduler;
 use cloud::task::task;
 use cloud::web::run_web;
 use plugin_manager::PLUGIN_MANAGER;
-const HOSTPORT: u32 = 11111;
-#[main]
+const HOST_PORT: u32 = 11111;
+#[main(flavor = "multi_thread", worker_threads = 50)]
 async fn main() -> Result<(), Box<dyn Error>> {
     dotenv().expect(".env不存在");
     let result = log4rs::init_file("log4rs.yaml", Default::default()); //.unwrap();
@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let nfs = CloudNFS::new(&cache_file);
     info!("starting nfs server");
-    let listener = NFSTcpListener::bind(&format!("0.0.0.0:{HOSTPORT}"), nfs)
+    let listener = NFSTcpListener::bind(&format!("0.0.0.0:{HOST_PORT}"), nfs)
         .await
         .unwrap();
     tokio::spawn(async move {
@@ -67,20 +67,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 // #[cfg(not(windows))]
 // fn sigint_handler(server_handle: ServerHandle) {
-    // use log::error;
-    // let signals = signal_hook::iterator::Signals::new(&[
-    //     signal_hook::consts::SIGINT,
-    //     signal_hook::consts::SIGTERM,
-    // ]);
-    // if let Err(e) = signals {
-    //     error!("{}", e);
-    //     return;
-    // }
-    // let mut signals = signals.unwrap();
-    // for sig in signals.forever() {
-    //     info!("Received signal {:?}", sig);
-    //     rt::System::new().block_on(server_handle.stop(true));
-    //     info!("rt stopped");
-    //     break;
-    // }
+// use log::error;
+// let signals = signal_hook::iterator::Signals::new(&[
+//     signal_hook::consts::SIGINT,
+//     signal_hook::consts::SIGTERM,
+// ]);
+// if let Err(e) = signals {
+//     error!("{}", e);
+//     return;
+// }
+// let mut signals = signals.unwrap();
+// for sig in signals.forever() {
+//     info!("Received signal {:?}", sig);
+//     rt::System::new().block_on(server_handle.stop(true));
+//     info!("rt stopped");
+//     break;
+// }
 // }

@@ -10,3 +10,4 @@ dist
 /data
 cloud-ui/web/package-lock.json
 callback/package-lock.json
+data_backup

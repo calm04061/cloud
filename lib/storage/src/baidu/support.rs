@@ -1,3 +1,4 @@
+use api::error::ErrorInfo;
 use crate::baidu::vo::{AsyncType, BaiduFileMeta, BaiduOpera, BaiduQuota, BaiduUser, Token};
 use crate::model::{FileInfo, Quota, User};
 use crate::storage::TokenProvider;
@@ -88,9 +89,9 @@ impl From<AsyncType> for &str {
 impl From<BaiduQuota> for Quota {
     fn from(baidu: BaiduQuota) -> Self {
         Quota {
-            total: baidu.total,
-            used: baidu.used,
-            remaining: baidu.total - baidu.used,
+            total: baidu.total as i64,
+            used: baidu.used as i64,
+            remaining: (baidu.total - baidu.used) as i64,
         }
     }
 }
@@ -98,6 +99,10 @@ impl From<BaiduQuota> for Quota {
 impl TokenProvider<Token> for CloudMeta{
     fn get_token(&self) -> ResponseResult<Token> {
         let auth_option = self.auth.clone();
-        Ok(serde_json::from_str(auth_option.unwrap().as_str())?)
+        if let None = auth_option {
+           return  Err(ErrorInfo::Http402("".to_string()));
+        }
+        let auth = auth_option.unwrap();
+        Ok(serde_json::from_str(&auth)?)
     }
 }

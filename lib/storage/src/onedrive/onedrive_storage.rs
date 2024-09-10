@@ -30,7 +30,7 @@ struct Inner {
 
 pub(crate) struct OneDriveStorage {
     inner: Inner,
-    root:String
+    root: String,
 }
 
 impl OneDriveStorage {
@@ -89,10 +89,10 @@ impl Storage for OneDriveStorage {
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         let result = self.do_delete(format!("me/drive/items/{cloud_file_id}").as_str(), &mut extensions).await;
-        if result.is_ok(){
-            return Ok(())
+        if result.is_ok() {
+            return Ok(());
         }
-        let e= result.err().unwrap();
+        let e = result.err().unwrap();
         if let ErrorInfo::Http404(_url) = e {
             Ok(())
         } else {
@@ -147,6 +147,9 @@ impl Storage for OneDriveStorage {
         let mut form = vec![];
         let token = cloud_meta.clone().auth;
         let token: AuthorizationToken = serde_json::from_str(token.unwrap().as_str())?;
+        if token.refresh_token.is_none() {
+            return Err(ErrorInfo::Http402("refresh_token is none".to_string()));
+        }
         let refresh_token = token.refresh_token.unwrap();
         form.push(("grant_type", "refresh_token"));
         form.push(("refresh_token", refresh_token.as_str()));
@@ -161,7 +164,7 @@ impl Storage for OneDriveStorage {
         let token: AuthorizationToken = serde_json::from_str(json_text.as_str())?;
         let current_time = SystemTime::now();
         let seconds_since_epoch = current_time.duration_since(UNIX_EPOCH).unwrap().as_secs();
-        cloud_meta.expires_in = Some(seconds_since_epoch + token.expires_in - 300);
+        cloud_meta.expires_in = Some((seconds_since_epoch + token.expires_in.unwrap() - 300) as i64);
         Ok(String::from(json_text))
     }
 
@@ -199,7 +202,7 @@ impl Storage for OneDriveStorage {
         let token: AuthorizationToken = serde_json::from_str(json_text.as_str())?;
         let current_time = SystemTime::now();
         let seconds_since_epoch = current_time.duration_since(UNIX_EPOCH).unwrap().as_secs();
-        cloud_meta.expires_in = Some(seconds_since_epoch + token.expires_in - 300);
+        cloud_meta.expires_in = Some((seconds_since_epoch + token.expires_in.unwrap() - 300) as i64);
         Ok(String::from(json_text))
     }
     fn client_id(&self) -> String {

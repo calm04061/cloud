@@ -41,10 +41,10 @@ bytes = { workspace = true }
 dotenvy = { workspace = true }
 dotenvy_macro = { workspace = true }
 #openssl = { workspace = true }
-rbs = { workspace = true }
-rbatis = { workspace = true }
-rbdc-sqlite = { workspace = true }
-fastdate = { workspace = true }
+#rbs = { workspace = true }
+#rbatis = { workspace = true }
+sqlx = {workspace = true}
+#fastdate = { workspace = true }
 libloading = { workspace = true }
 
 signal-hook = { workspace = true }
@@ -61,8 +61,8 @@ storage = { path = "../storage" }
 plugin-manager = { path = "../plugin-manager" }
 async-ssh2-lite = { workspace = true, features = ["tokio", "async-io"] }
 strum = { workspace = true }
-tracing-subscriber = "0.3.18"
-tracing = "0.1.40"
+#tracing-subscriber = "0.3.18"
+#tracing = "0.1.40"
 
 [target.'cfg(not(windows))'.dependencies]
 fuser = { workspace = true }

@@ -8,10 +8,14 @@ edition = "2021"
 [dependencies]
 api = { path = "../api" }
 serde = { workspace = true, features = ["derive"] }
-rbs = { workspace = true }
-rbatis = { workspace = true }
+#rbs = { workspace = true }
+#rbatis = { workspace = true }
+sqlx-sqlite = { workspace = true }
+sqlx = { workspace = true }
+tokio = { workspace = true }
 strum = { workspace = true }
 strum_macros = { workspace = true }
 log = { workspace = true }
 serde_yaml = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
 

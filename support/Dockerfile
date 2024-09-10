@@ -1,6 +1,6 @@
 FROM debian:bullseye-slim
-ARG RUST_VERSION=1.77.0
-ARG NODE_VERSION=20.11.1
+ARG RUST_VERSION=1.81.0
+ARG NODE_VERSION=20.17.0
 WORKDIR /src
 
 ENV PATH="/root/.cargo/bin:/opt/node/bin:${PATH}"

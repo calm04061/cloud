@@ -1,40 +1,40 @@
-use rbatis::rbdc::datetime::DateTime;
 use strum_macros::EnumIter;
+use chrono::{DateTime, Utc};
 
-pub mod mapper;
 pub mod support;
 pub mod service;
 pub mod meta {
-    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+    use chrono::{DateTime, Utc};
+
+    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
     pub struct FileMeta {
-        pub id: Option<u64>,
+        pub id: Option<i64>,
         pub name: String,
-        pub parent_id: u64,
+        pub parent_id: i64,
         pub file_type: i8,
-        pub mode: u32,
-        pub gid: u32,
-        pub uid: u32,
-        pub file_length: u64,
+        pub mode: i32,
+        pub gid: i32,
+        pub uid: i32,
+        pub file_length: i64,
         pub status: i8,
         pub deleted: i8,
-        pub create_time: i64,
-        pub update_time: i64,
+        pub create_time: DateTime<Utc>,
+        pub update_time: DateTime<Utc>,
     }
 
-    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
     pub struct FileBlockMeta {
         pub id: Option<i32>,
         pub block_index: i64,
         pub file_part_id: String,
-        pub update_time: u64,
-        pub file_modify_time: u64,
+        pub update_time: DateTime<Utc>,
+        pub file_modify_time: i64,
         pub deleted: i8,
-        pub file_meta_id: u64,
+        pub file_meta_id: i64,
         pub part_hash: String,
         pub status: i8,
     }
-
-    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
     pub struct CloudMeta {
         pub id: Option<i32>,
         pub name: String,
@@ -44,15 +44,15 @@ pub mod meta {
         pub status: i8,
         pub deleted: i8,
         pub cloud_type: i8,
-        pub total_quota: Option<u64>,
-        pub used_quota: Option<u64>,
-        pub remaining_quota: Option<u64>,
+        pub total_quota: Option<i64>,
+        pub used_quota: Option<i64>,
+        pub remaining_quota: Option<i64>,
         pub extra: Option<String>,
-        pub expires_in: Option<u64>,
+        pub expires_in: Option<i64>,
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct CloudFileBlock {
     pub id: Option<i32>,
     pub file_block_id: i32,
@@ -61,8 +61,8 @@ pub struct CloudFileBlock {
     pub cloud_file_hash: Option<String>,
     pub status: i8,
     pub deleted: i8,
-    pub create_time: DateTime,
-    pub update_time: DateTime,
+    pub create_time: DateTime<Utc>,
+    pub update_time: DateTime<Utc>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -79,7 +79,7 @@ pub enum FileStatus {
     CleanFail,
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct Config {
     pub id: Option<i32>,
     pub property: String,
@@ -92,7 +92,7 @@ pub struct EventMessage {
     pub event_type: i8,
     pub event_result: i8,
     pub message: String,
-    pub create_time: DateTime,
+    pub create_time: DateTime<Utc>,
 }
 
 pub enum EventType {
@@ -138,7 +138,7 @@ pub struct ApplicationConfig {
     pub database_url: String,
 }
 
-#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct User {
     pub id: Option<i32>,
     pub username: String,

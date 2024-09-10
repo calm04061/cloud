@@ -1,5 +1,5 @@
 use std::future::Future;
-
+use chrono::{DateTime, Utc};
 use api::ResponseResult;
 use persistence::meta::{CloudMeta, FileBlockMeta, FileMeta};
 use persistence::FileMetaType;
@@ -16,35 +16,35 @@ pub trait CloudMetaManager {
 }
 
 pub trait FileManager {
-    fn list_deleted_file(&self, update_time: i64) -> impl Future<Output=ResponseResult<Vec<FileMeta>>> + Send;
+    fn list_deleted_file(&self, update_time: DateTime<Utc>) -> impl Future<Output=ResponseResult<Vec<FileMeta>>> + Send;
 
-    fn list_by_parent(&self, parent_id: u64) -> impl Future<Output=ResponseResult<Vec<FileMeta>>> + Send;
+    fn list_by_parent(&self, parent_id: i64) -> impl Future<Output=ResponseResult<Vec<FileMeta>>> + Send;
 
-    fn list_by_parent_page(&self, parent_id: u64, start: u64, size: usize) -> impl Future<Output=ResponseResult<(Vec<FileMeta>, bool)>> + Send;
+    fn list_by_parent_page(&self, parent_id: i64, start: i64, size: usize) -> impl Future<Output=ResponseResult<(Vec<FileMeta>, bool)>> + Send;
 
-    fn info_by_parent_and_name(&self, parent_id: u64, name: &str) -> impl Future<Output=ResponseResult<FileMeta>> + Send;
+    fn info_by_parent_and_name(&self, parent_id: i64, name: &str) -> impl Future<Output=ResponseResult<FileMeta>> + Send;
 
     fn new_file(
         &self,
-        parent_id: u64,
+        parent_id: i64,
         name: &str,
         file_type: FileMetaType,
     ) -> impl Future<Output=ResponseResult<FileMeta>> + Send;
 
     fn update_meta(&self, meta: FileMeta) -> impl Future<Output=ResponseResult<FileMeta>> + Send;
     fn update_file_content(&self, meta: FileMeta, block_index: usize) -> impl Future<Output=ResponseResult<FileMeta>> + Send;
-    fn delete_file_blocks(&self, id: u64, block_index: i64) -> impl Future<Output=()>;
+    fn delete_file_blocks(&self, id: i64, block_index: i64) -> impl Future<Output=()>;
 
-    fn info_by_id(&self, id: u64) -> impl Future<Output=ResponseResult<FileMeta>> + Send;
+    fn info_by_id(&self, id: i64) -> impl Future<Output=ResponseResult<FileMeta>> + Send;
 
     // fn delete_file_meta(&self, id: u64) -> impl Future<Output=ResponseResult<FileMeta>> + Send;
-    fn delete_one_file_meta(&self, id: u64) -> impl Future<Output=ResponseResult<FileMeta>> + Send;
+    fn delete_one_file_meta(&self, id: i64) -> impl Future<Output=ResponseResult<FileMeta>> + Send;
 
-    fn clean_file_meta(&self, id: u64) -> impl Future<Output=ResponseResult<Option<FileMeta>>> + Send;
+    fn clean_file_meta(&self, id: i64) -> impl Future<Output=ResponseResult<Option<FileMeta>>> + Send;
 
-    fn file_block_meta(&self, file_meta_id: u64) -> impl Future<Output=ResponseResult<Vec<FileBlockMeta>>> + Send;
+    fn file_block_meta(&self, file_meta_id: i64) -> impl Future<Output=ResponseResult<Vec<FileBlockMeta>>> + Send;
 
-    fn file_block_meta_index(&self, file_meta_id: u64, start: i64) -> impl Future<Output=ResponseResult<Option<FileBlockMeta>>> + Send;
+    fn file_block_meta_index(&self, file_meta_id: i64, start: i64) -> impl Future<Output=ResponseResult<Option<FileBlockMeta>>> + Send;
 
     fn file_block_meta_info_by_id(&self, id: i32) -> impl Future<Output=ResponseResult<Option<FileBlockMeta>>> + Send;
 

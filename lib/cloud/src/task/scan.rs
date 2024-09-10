@@ -1,10 +1,8 @@
 use std::fs::File;
 use std::io::{ErrorKind, Read};
 use std::sync::Arc;
-
+use chrono::Utc;
 use log::{error, info};
-use rbatis::dark_std::err;
-use rbatis::rbdc::datetime::DateTime;
 use tokio::sync::Semaphore;
 
 use api::error::ErrorInfo;
@@ -18,7 +16,7 @@ pub(crate) async fn scan(semaphore: Arc<Semaphore>) -> ResponseResult<()> {
     info!("scan");
     let cloud_file_block_result = CONTEXT.cloud_file_block_manager.select_to_upload().await;
     if let Err(e) = cloud_file_block_result {
-        err!("select_to_upload error {:?}", e);
+        error!("select_to_upload error {:?}", e);
         return Ok(());
     }
     let cloud_file_blocks = cloud_file_block_result.unwrap();
@@ -40,7 +38,7 @@ async fn process_block(mut file_block: CloudFileBlock, semaphore: Arc<Semaphore>
     }
     info!("available_permits:{}",semaphore.available_permits());
     let origin_status = file_block.status.try_into()?;
-    file_block.update_time = DateTime::now();
+    file_block.update_time = Utc::now();
     file_block.status = FileStatus::Uploading.into();
     let count = CONTEXT.cloud_file_block_manager.update_by_status(&file_block, origin_status)
         .await?;
@@ -137,7 +135,7 @@ async fn do_execute_one_block(file_block: &mut CloudFileBlock) -> ResponseResult
             Err(ErrorInfo::OTHER(0, format!("上传文件{cache_file}:{}", e.to_string())))
         }
     };
-    file_block.update_time = DateTime::now();
+    file_block.update_time = Utc::now();
     CONTEXT.cloud_file_block_manager.update_by_status(&file_block, FileStatus::Uploading).await?;
     res
 }

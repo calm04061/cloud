@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::SeekFrom::Start;
 use std::io::{Read, Seek, Write};
 use std::path::Path;
-
+use chrono::Utc;
 use crypto::digest::Digest;
 use crypto::md5::Md5;
 use log::{debug, error, info};
@@ -106,14 +106,14 @@ impl VirtualFileSystem {
     ) -> ResponseResult<FileMeta> {
         let option = CONTEXT
             .file_manager
-            .info_by_parent_and_name(parent, name)
+            .info_by_parent_and_name(parent as i64, name)
             .await;
         if let Ok(_) = option {
             return Err(ErrorInfo::FileAlreadyExist(name.to_string()));
         }
         CONTEXT
             .file_manager
-            .new_file(parent, name, file_type)
+            .new_file(parent as i64, name, file_type)
             .await
     }
     pub(crate) async fn create_dir(&self, path: &str) -> ResponseResult<FileMeta> {
@@ -148,7 +148,7 @@ impl VirtualFileSystem {
         info!("del_file {:?}@{}", name, parent);
         let option = CONTEXT
             .file_manager
-            .info_by_parent_and_name(parent, name)
+            .info_by_parent_and_name(parent as i64, name)
             .await;
         if let Err(_e) = option {
             return Err(ErrorInfo::FileNotFound(name.to_string()));
@@ -240,7 +240,7 @@ impl VirtualFileSystem {
     ) -> ResponseResult<()> {
         let source_file = CONTEXT
             .file_manager
-            .info_by_parent_and_name(parent, name)
+            .info_by_parent_and_name(parent as i64, name)
             .await;
         let mut source_file = match source_file {
             Ok(f) => {
@@ -253,13 +253,13 @@ impl VirtualFileSystem {
 
         let target_file = CONTEXT
             .file_manager
-            .info_by_parent_and_name(new_parent, new_name)
+            .info_by_parent_and_name(new_parent as i64, new_name)
             .await;
         if let Ok(_e) = target_file {
             return Err(ErrorInfo::FileAlreadyExist("目标文件已经存在".to_string()));
         }
 
-        source_file.parent_id = new_parent;
+        source_file.parent_id = new_parent as i64;
         source_file.name = String::from(new_name);
         CONTEXT.file_manager.update_meta(source_file).await?;
         Ok(())
@@ -267,7 +267,7 @@ impl VirtualFileSystem {
     pub(crate) async fn rename_path(&self, from_full_path: &str, to_full_path: &str) -> ResponseResult<()> {
         let (parent_from, name_from) = self.path_info(from_full_path).await?;
         let (parent_to, name_to) = self.path_info(to_full_path).await?;
-        self.rename(parent_from.id.unwrap(), name_from.as_str(), parent_to.id.unwrap(), name_to.as_str()).await.ok();
+        self.rename(parent_from.id.unwrap() as u64, name_from.as_str(), parent_to.id.unwrap() as u64, name_to.as_str()).await.ok();
         Ok(())
     }
 
@@ -283,7 +283,7 @@ impl VirtualFileSystem {
     pub(crate) async fn lookup_sync(&self, parent: u64, name: &str) -> ResponseResult<FileMeta> {
         let result = CONTEXT
             .file_manager
-            .info_by_parent_and_name(parent, name)
+            .info_by_parent_and_name(parent as i64, name)
             .await;
         if let Ok(f) = result {
             return Ok(f);
@@ -297,14 +297,14 @@ impl VirtualFileSystem {
             .block_on(async { self.file_info_sync(id).await })
     }
     pub(crate) async fn file_info_sync(&self, id: u64) -> ResponseResult<FileMeta> {
-        CONTEXT.file_manager.info_by_id(id).await
+        CONTEXT.file_manager.info_by_id(id as i64).await
     }
     pub(crate) async fn update_file_meta(&self, f: FileMeta) -> ResponseResult<FileMeta> {
         CONTEXT.file_manager.update_meta(f).await
     }
     pub(crate) async fn file_info_by_path(&self, path: &str) -> ResponseResult<FileMeta> {
         if path.eq("") || path.eq("/") {
-            return CONTEXT.file_manager.info_by_id(ROOT_FILE_ID).await;
+            return CONTEXT.file_manager.info_by_id(ROOT_FILE_ID as i64).await;
         }
         let mut temp_path = path;
         if path.starts_with("/") {
@@ -314,7 +314,7 @@ impl VirtualFileSystem {
         let mut file: Option<FileMeta> = None;
         for name in split {
             if let None = file {
-                file = Some(CONTEXT.file_manager.info_by_parent_and_name(ROOT_FILE_ID, name).await?);
+                file = Some(CONTEXT.file_manager.info_by_parent_and_name(ROOT_FILE_ID as i64, name).await?);
                 continue;
             }
             let meta = file.unwrap();
@@ -325,7 +325,7 @@ impl VirtualFileSystem {
 
     pub(crate) async fn read(&self, ino: u64, offset: u64, size: u32) -> ResponseResult<Vec<u8>> {
         debug!("read file id {},from {:?}:size={}", ino, offset, size);
-        let result = CONTEXT.file_manager.info_by_id(ino).await;
+        let result = CONTEXT.file_manager.info_by_id(ino as i64).await;
         if let Err(e) = result {
             error!("查询文件{}失败{}", ino, e);
             return Err(e);
@@ -341,10 +341,10 @@ impl VirtualFileSystem {
         self.read_content(file_block_metas, offset, size).await
     }
     pub(crate) async fn list_by_parent(&self, ino: u64) -> ResponseResult<Vec<FileMeta>> {
-        CONTEXT.file_manager.list_by_parent(ino).await
+        CONTEXT.file_manager.list_by_parent(ino as i64).await
     }
     pub(crate) async fn list_by_parent_page(&self, dirid: fileid3, ino: u64, max_entries: usize) -> ResponseResult<(Vec<FileMeta>, bool)> {
-        CONTEXT.file_manager.list_by_parent_page(dirid, ino, max_entries).await
+        CONTEXT.file_manager.list_by_parent_page(dirid as i64, ino as i64, max_entries).await
     }
 
     pub(crate) fn setattr(
@@ -356,14 +356,14 @@ impl VirtualFileSystem {
             .enable_all()
             .build()?
             .block_on(async {
-                let result = CONTEXT.file_manager.info_by_id(ino).await;
+                let result = CONTEXT.file_manager.info_by_id(ino as i64).await;
                 if let Err(e) = result {
                     return Err(e);
                 }
                 let mut f = result?;
 
                 if let Some(size_value) = size {
-                    f.file_length = size_value;
+                    f.file_length = size_value as i64;
                 }
                 CONTEXT.file_manager.update_meta(f).await
             })
@@ -474,7 +474,7 @@ impl Inner {
         a
     }
     pub(crate) async fn write(&mut self, ino: u64, offset: u64, data: &[u8]) -> ResponseResult<u32> {
-        let mut f = CONTEXT.file_manager.info_by_id(ino).await?;
+        let mut f = CONTEXT.file_manager.info_by_id(ino as i64).await?;
 
         let block_index = (offset as usize) / CLOUD_FILE_BLOCK_SIZE;
         let block_offset = (offset as usize) % CLOUD_FILE_BLOCK_SIZE;
@@ -486,10 +486,10 @@ impl Inner {
             temp = &data[0..sub];
             self.upload_block_content(f.id.unwrap(), block_index as i64, block_offset as u64, temp)
                 .await?;
-            f.file_length = (offset as usize + temp.len()) as u64;
+            f.file_length = (offset as usize + temp.len()) as i64;
             Ok(temp.len() as u32)
         } else {
-            f.file_length = (offset as usize + data.len()) as u64;
+            f.file_length = (offset as usize + data.len())  as i64;
             temp = data;
             self.upload_block_content(f.id.unwrap(), block_index as i64, block_offset as u64, temp)
                 .await?;
@@ -497,7 +497,7 @@ impl Inner {
             Ok(data.len() as u32)
         }
     }
-    async fn upload_block_content(&mut self, file_meta_id: u64, block_index: i64, seek: u64, data: &[u8]) -> ResponseResult<()> {
+    async fn upload_block_content(&mut self, file_meta_id: i64, block_index: i64, seek: u64, data: &[u8]) -> ResponseResult<()> {
         let file_block_meta_opt = CONTEXT
             .file_manager
             .file_block_meta_index(file_meta_id, block_index)
@@ -517,8 +517,8 @@ impl Inner {
                     id: None,
                     file_part_id: file_name_hash,
                     block_index,
-                    update_time: chrono::Local::now().timestamp_millis() as u64,
-                    file_modify_time: chrono::Local::now().timestamp_millis() as u64,
+                    update_time: Utc::now(),
+                    file_modify_time: chrono::Local::now().timestamp_millis(),
                     file_meta_id,
                     deleted: 0,
                     part_hash: md5_value,

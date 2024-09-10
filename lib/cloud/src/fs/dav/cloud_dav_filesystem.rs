@@ -67,6 +67,7 @@ impl DavFileSystem for CloudDavFs {
                 meta = result.unwrap();
             }
             let data = CloudDavFile::new(meta, self.inner.fs.clone());
+            info!("FS: openned {:?},options:{:?}", full_path,options);
             Ok(Box::new(data) as Box<dyn DavFile>)
         }.boxed()
     }
@@ -75,7 +76,7 @@ impl DavFileSystem for CloudDavFs {
         async move {
             let full_path = self.fs_path(path);
             let result = self.inner.fs.file_info_by_path(full_path.as_str()).await;
-            let result = self.inner.fs.list_by_parent(result.unwrap().id.unwrap()).await.unwrap();
+            let result = self.inner.fs.list_by_parent(result.unwrap().id.unwrap() as u64).await.unwrap();
 
             let mut v: Vec<Box<dyn DavDirEntry>> = Vec::new();
             for file in result {

@@ -10,6 +10,7 @@ use persistence::FileStatus;
 use storage::STORAGE_FACADE;
 
 use crate::task::clean_cloud_file::clean_cloud_file;
+use crate::task::clean_recode::clean_recode;
 use crate::task::mark_clean::mark_clean;
 use crate::task::re_balance::re_balance;
 use crate::task::refresh_token::refresh_token;
@@ -22,7 +23,7 @@ mod reset;
 mod re_balance;
 mod refresh_token;
 mod mark_clean;
-
+mod clean_recode;
 
 pub async fn task(sched: &JobScheduler) {
     let locked = Job::new_async("* * * * * *", move |_uuid, _l| clean_cloud_file_task()).unwrap();
@@ -44,6 +45,9 @@ pub async fn task(sched: &JobScheduler) {
     let locked = Job::new_async("0 * * * * *", move |_uuid, _l| refresh_token_task()).unwrap();
     sched.add(locked).await.unwrap();
     let locked = Job::new_async("*/5 * * * * *", move |_uuid, _l| mark_clean_task()).unwrap();
+    sched.add(locked).await.unwrap();
+
+    let locked = Job::new_async("*/5 * * * * *", move |_uuid, _l| clean_deleted_task()).unwrap();
     sched.add(locked).await.unwrap();
 }
 
@@ -79,19 +83,19 @@ fn scan_task(semaphore: Arc<Semaphore>) -> Pin<Box<impl Future<Output=()> + Size
 fn reset_task() -> Pin<Box<impl Future<Output=()> + Sized>> {
     Box::pin({
         async move {
-            let result = reset(FileStatus::Uploading, FileStatus::Init, 60 * 5).await;
+            let result = reset(FileStatus::Uploading, FileStatus::Init, 60 * 10).await;
             if let Err(e) = result {
                 log::error!("reset error: {}", e);
             }
-            let result = reset(FileStatus::UploadFail, FileStatus::Init, 60).await;
+            let result = reset(FileStatus::UploadFail, FileStatus::Init, 60 * 10).await;
             if let Err(e) = result {
                 log::error!("reset error: {}", e);
             }
-            let result = reset(FileStatus::Cleaning, FileStatus::WaitClean, 60 * 5).await;
+            let result = reset(FileStatus::Cleaning, FileStatus::WaitClean, 60 * 10).await;
             if let Err(e) = result {
                 log::error!("reset error: {}", e);
             }
-            let result = reset(FileStatus::CleanFail, FileStatus::WaitClean, 60).await;
+            let result = reset(FileStatus::CleanFail, FileStatus::WaitClean, 60 * 10).await;
             if let Err(e) = result {
                 log::error!("reset error: {}", e);
             }
@@ -128,6 +132,13 @@ fn refresh_token_task() -> Pin<Box<impl Future<Output=()> + Sized>> {
             if let Err(e) = result {
                 log::error!("refresh_token error: {}", e);
             }
+        }
+    })
+}
+fn clean_deleted_task() -> Pin<Box<impl Future<Output=()> + Sized>> {
+    Box::pin({
+        async move {
+            clean_recode().await;
         }
     })
 }

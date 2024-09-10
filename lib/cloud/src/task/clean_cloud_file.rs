@@ -26,7 +26,7 @@ pub async fn clean_cloud_file() {
     }
     let cache_file = dotenvy::var("TEMP_PATH").unwrap_or_else(|_| String::from("/var/lib/storage/temp"));
 
-    let file_block_metas = CONTEXT.file_block_meta_manager.select_by_status_limit(FileStatus::WaitClean, 10).await;
+    let file_block_metas = CONTEXT.file_block_meta_manager.select_by_status_limit(FileStatus::WaitClean, 30).await;
     if let Err(e) = file_block_metas {
         error!("Failed to select file block meta: {}", e);
         return;

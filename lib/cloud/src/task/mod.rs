@@ -1,16 +1,14 @@
-use log::error;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use tokio::sync::Semaphore;
+use tokio::sync::{Mutex, Semaphore};
 use tokio_cron_scheduler::{Job, JobScheduler};
 
 use persistence::FileStatus;
 use storage::STORAGE_FACADE;
 
 use crate::task::clean_cloud_file::clean_cloud_file;
-use crate::task::mark_clean::mark_clean;
 use crate::task::re_balance::re_balance;
 use crate::task::refresh_token::refresh_token;
 use crate::task::reset::reset;
@@ -21,11 +19,11 @@ mod scan;
 mod reset;
 mod re_balance;
 mod refresh_token;
-mod mark_clean;
-
 
 pub async fn task(sched: &JobScheduler) {
-    let locked = Job::new_async("* * * * * *", move |_uuid, _l| clean_cloud_file_task()).unwrap();
+    let worker_id: Arc<Mutex<Option<i64>>> = Arc::new(Mutex::new(None));
+
+    let locked = Job::new_async("5 * * * * *", move |_uuid, _l| clean_cloud_file_task(worker_id.clone())).unwrap();
     sched.add(locked).await.unwrap();
     let semaphore = Arc::new(Semaphore::new(16));
 
@@ -43,27 +41,16 @@ pub async fn task(sched: &JobScheduler) {
     sched.add(locked).await.unwrap();
     let locked = Job::new_async("0 * * * * *", move |_uuid, _l| refresh_token_task()).unwrap();
     sched.add(locked).await.unwrap();
-    let locked = Job::new_async("*/5 * * * * *", move |_uuid, _l| mark_clean_task()).unwrap();
-    sched.add(locked).await.unwrap();
 }
 
-fn clean_cloud_file_task() -> Pin<Box<impl Future<Output=()> + Sized>> {
+fn clean_cloud_file_task(worker_id: Arc<Mutex<Option<i64>>>) -> Pin<Box<impl Future<Output=()> + Sized>> {
     Box::pin({
         async move {
-            clean_cloud_file().await;
+            clean_cloud_file(worker_id.clone()).await;
         }
     })
 }
 
-fn mark_clean_task() -> Pin<Box<impl Future<Output=()> + Sized>> {
-    Box::pin({
-        async move {
-            error!("=========================mark_clean_task start==================================");
-            mark_clean().await;
-            error!("=========================mark_clean_task end==================================");
-        }
-    })
-}
 
 fn scan_task(semaphore: Arc<Semaphore>) -> Pin<Box<impl Future<Output=()> + Sized>> {
     Box::pin({
@@ -79,19 +66,19 @@ fn scan_task(semaphore: Arc<Semaphore>) -> Pin<Box<impl Future<Output=()> + Size
 fn reset_task() -> Pin<Box<impl Future<Output=()> + Sized>> {
     Box::pin({
         async move {
-            let result = reset(FileStatus::Uploading, FileStatus::Init, 60 * 5).await;
+            let result = reset(FileStatus::Uploading, FileStatus::Init, 60 * 10).await;
             if let Err(e) = result {
                 log::error!("reset error: {}", e);
             }
-            let result = reset(FileStatus::UploadFail, FileStatus::Init, 60).await;
+            let result = reset(FileStatus::UploadFail, FileStatus::Init, 60 * 10).await;
             if let Err(e) = result {
                 log::error!("reset error: {}", e);
             }
-            let result = reset(FileStatus::Cleaning, FileStatus::WaitClean, 60 * 5).await;
+            let result = reset(FileStatus::Cleaning, FileStatus::WaitClean, 60 * 10).await;
             if let Err(e) = result {
                 log::error!("reset error: {}", e);
             }
-            let result = reset(FileStatus::CleanFail, FileStatus::WaitClean, 60).await;
+            let result = reset(FileStatus::CleanFail, FileStatus::WaitClean, 60 * 10).await;
             if let Err(e) = result {
                 log::error!("reset error: {}", e);
             }
@@ -131,3 +118,4 @@ fn refresh_token_task() -> Pin<Box<impl Future<Output=()> + Sized>> {
         }
     })
 }
+

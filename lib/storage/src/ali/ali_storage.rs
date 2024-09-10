@@ -92,7 +92,16 @@ impl AliStorage {
     async fn create_file(&mut self, create_file: &CreateFile, cloud_meta: &CloudMeta) -> ResponseResult<UploadPreResult> {
         let json = self.inner.post_api_json("adrive/v1.0/openFile/create", create_file, Some(cloud_meta)).await?;
         info!("openFile/create:{}", json);
-        let result: UploadPreResult = serde_json::from_str(json.as_str())?;
+        let result = serde_json::from_str(json.as_str());
+        let result = match result {
+            Ok(data) => {
+                data
+            }
+            Err(_e) => {
+                let result: ErrorMessage = serde_json::from_str(json.as_str())?;
+                return Err(ErrorInfo::FileNotFound(result.code.unwrap()));
+            }
+        };
         Ok(result)
     }
 
@@ -115,8 +124,8 @@ impl Storage for AliStorage {
         content: &Vec<u8>,
         cloud_meta: &CloudMeta,
     ) -> ResponseResult<CreateResponse> {
-        let extra = cloud_meta.extra.as_ref().unwrap();
-        let mut extra: AliExtra = serde_json::from_str(extra.as_str())?;
+        let extra_string = cloud_meta.extra.as_ref().unwrap();
+        let mut extra: AliExtra = serde_json::from_str(extra_string.as_str())?;
         let root_file_id;
         if extra.root_file_id.is_none() {
             root_file_id = self.resolve_root_dir_not_exist(&cloud_meta.clone()).await?;
@@ -148,7 +157,7 @@ impl Storage for AliStorage {
             index += 1;
         }
 
-        let create_file = CreateFile {
+        let mut create_file = CreateFile {
             drive_id: drive_id.clone(),
             parent_file_id: root_file_id,
             part_info_list: part_infos,
@@ -162,7 +171,18 @@ impl Storage for AliStorage {
             proof_code: None,
             proof_version: None,
         };
-        let mut result = self.create_file(&create_file, cloud_meta).await?;
+        let mut result = self.create_file(&create_file, cloud_meta).await;
+        if let Err(_e) = result {
+            let parent_file_id = self.resolve_root_dir_not_exist(&cloud_meta).await?;
+            let mut extra: AliExtra = serde_json::from_str(extra_string.as_str())?;
+            extra.root_file_id = Some(parent_file_id.clone());
+            let mut meta = cloud_meta.to_owned();
+            meta.extra = Some(serde_json::to_string(&extra)?);
+            CONTEXT.cloud_meta_manager.update_meta(&meta).await?;
+            create_file.parent_file_id = parent_file_id;
+            result = self.create_file(&create_file, &meta).await;
+        }
+        let mut result = result.unwrap();
         if let Some(true) = result.exist {
             self.delete_file(&result.file_id, cloud_meta).await?;
             result = self.create_file(&create_file, cloud_meta).await?;
@@ -273,7 +293,7 @@ impl Storage for AliStorage {
         let token: AliAuthToken = serde_json::from_str(json.as_str())?;
         let current_time = SystemTime::now();
         let seconds_since_epoch = current_time.duration_since(UNIX_EPOCH).unwrap().as_secs();
-        cloud_meta.expires_in = Some(seconds_since_epoch + token.expires_in - 300);
+        cloud_meta.expires_in = Some((seconds_since_epoch + token.expires_in - 300) as i64);
         Ok(json)
     }
 
@@ -301,7 +321,7 @@ impl Storage for AliStorage {
         let token: AliAuthToken = serde_json::from_str(json_text.as_str())?;
         let current_time = SystemTime::now();
         let seconds_since_epoch = current_time.duration_since(UNIX_EPOCH).unwrap().as_secs();
-        cloud_meta.expires_in = Some(seconds_since_epoch + token.expires_in - 300);
+        cloud_meta.expires_in = Some((seconds_since_epoch + token.expires_in - 300) as i64);
         Ok(String::from(json_text))
     }
     async fn after_callback(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<()> {

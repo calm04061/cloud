@@ -24,8 +24,7 @@ impl From<FileStatus> for i8 {
             FileStatus::FileReadError => 6,
             FileStatus::WaitClean => 7,
             FileStatus::Cleaning => 8,
-            FileStatus::Cleaned => 9,
-            FileStatus::CleanFail => 10,
+            FileStatus::CleanFail => 9,
         }
     }
 }
@@ -42,8 +41,7 @@ impl TryFrom<i8> for FileStatus {
             6 => Ok(FileStatus::FileReadError),
             7 => Ok(FileStatus::WaitClean),
             8 => Ok(FileStatus::Cleaning),
-            9 => Ok(FileStatus::Cleaned),
-            10 => Ok(FileStatus::CleanFail),
+            9 => Ok(FileStatus::CleanFail),
             _ => Err(ErrorInfo::new(1,"")),
         }
     }

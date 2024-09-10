@@ -3,7 +3,7 @@ use dav_server::actix::{DavRequest, DavResponse};
 use dav_server::fakels::FakeLs;
 use dav_server::{DavConfig, DavHandler};
 
-use crate::fs::dav::cluod_dav_filesystem::{CloudDavFs, DAV_PREFIX};
+use crate::fs::dav::cloud_dav_filesystem::{CloudDavFs, DAV_PREFIX};
 use crate::fs::vfs::DEFAULT_TEMP_PATH;
 
 pub async fn dav_handler(req: DavRequest, dav_handler: web::Data<DavHandler>) -> DavResponse {

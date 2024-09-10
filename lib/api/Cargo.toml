@@ -13,5 +13,6 @@ serde_json = { workspace = true }
 actix-web = { workspace = true }
 reqwest = { workspace = true }
 async-ssh2-lite = { workspace = true, features = ["tokio", "async-io"] }
-rbatis = { workspace = true }
+#rbatis = { workspace = true }
+sqlx = { workspace = true }
 libloading = { workspace = true }

@@ -4,6 +4,7 @@ use http::Extensions;
 use persistence::meta::CloudMeta;
 use reqwest::{Request, Response};
 use reqwest_middleware::{Middleware, Next};
+use api::error::ErrorInfo;
 
 pub struct OneDriveAuthMiddleware {}
 
@@ -30,8 +31,13 @@ impl Middleware for OneDriveAuthMiddleware {
                 return Err(middleware);
             }
             let token: AuthorizationToken = result.unwrap();
+            if token.access_token.is_none() || token.token_type.is_none() {
+                let err = anyhow::Error::msg(ErrorInfo::Http401("access_token or token type is none".to_string()));
+                let middleware = reqwest_middleware::Error::Middleware(err);
+                return Err(middleware);
+            }
             let header_map = req.headers_mut();
-            let authorization = format!("{} {}", token.token_type, token.access_token);
+            let authorization = format!("{} {}", token.token_type.unwrap(), token.access_token.unwrap());
             header_map.insert("authorization", authorization.parse().unwrap());
         }
         next.run(req, extensions).await

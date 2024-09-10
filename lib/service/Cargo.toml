@@ -10,10 +10,13 @@ persistence = { path = "../persistence" }
 api = { path = "../api" }
 log = { workspace = true }
 once_cell = { workspace = true }
-rbs = { workspace = true }
-rbatis = { workspace = true }
-rbdc-sqlite = { workspace = true }
+#rbs = { workspace = true }
+#rbatis = { workspace = true }
+#rbdc-sqlite = { workspace = true }
 async-recursion = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+sqlx = {workspace = true, features = ["derive"] }
+sqlx-sqlite = {workspace = true}
+tokio = {workspace = true}

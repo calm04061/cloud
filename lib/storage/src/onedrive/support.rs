@@ -1,3 +1,4 @@
+use api::error::ErrorInfo;
 use crate::model::{CreateResponse, FileInfo, Quota, User};
 use api::ResponseResult;
 use persistence::meta::CloudMeta;
@@ -8,9 +9,9 @@ use crate::storage::TokenProvider;
 impl From<OneDriveQuota> for Quota {
     fn from(one: OneDriveQuota) -> Self {
         Quota {
-            total: one.total,
-            used: one.used,
-            remaining: one.remaining,
+            total: one.total as i64,
+            used: one.used as i64,
+            remaining: one.remaining as i64,
         }
     }
 }
@@ -91,6 +92,10 @@ impl From<DriveItem> for FileInfo {
 impl TokenProvider<AuthorizationToken> for CloudMeta {
     fn get_token(&self) -> ResponseResult<AuthorizationToken> {
         let auth_option = self.auth.clone();
-        Ok(serde_json::from_str(auth_option.unwrap().as_str())?)
+        if let None = auth_option {
+            return  Err(ErrorInfo::Http402("".to_string()));
+        }
+        let auth = auth_option.unwrap();
+        Ok(serde_json::from_str(&auth)?)
     }
 }

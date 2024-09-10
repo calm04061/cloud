@@ -7,9 +7,9 @@ use persistence::meta::CloudMeta;
 impl From<DriveCapacity> for Quota {
     fn from(baidu: DriveCapacity) -> Self {
         Quota {
-            total: baidu.total_size,
-            used: baidu.used_size,
-            remaining: baidu.total_size - baidu.used_size,
+            total: baidu.total_size as i64,
+            used: baidu.used_size as i64,
+            remaining: (baidu.total_size - baidu.used_size) as i64,
         }
     }
 }

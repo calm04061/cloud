@@ -24,9 +24,9 @@ pub(crate) struct ImageMediaMetadata {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Quota {
-    pub total: u64,
-    pub used: u64,
-    pub remaining: u64,
+    pub total: i64,
+    pub used: i64,
+    pub remaining: i64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

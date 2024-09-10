@@ -14,6 +14,7 @@ pub enum ErrorInfo {
     FileAlreadyExist(String),
     Http302(String),
     Http401(String),
+    Http402(String),
     Http404(String),
     NoneCloudFileId(i32),
     NoneCloudMeta(i32),
@@ -39,7 +40,8 @@ impl Display for ErrorInfo {
             ErrorInfo::FileNotFound(f) => (4000, f.clone()),
             ErrorInfo::FileAlreadyExist(f) => (4001, f.clone()),
             ErrorInfo::Http302(url) => (5302, url.clone()),
-            ErrorInfo::Http401(msg) => (5401, String::from(msg.as_str())),
+            ErrorInfo::Http401(url) => (5401, String::from(url.as_str())),
+            ErrorInfo::Http402(msg) => (5402, String::from(msg.as_str())),
             ErrorInfo::Http404(url) => (5404, String::from(url.as_str())),
             ErrorInfo::Http(code) => (5000 + code, String::from("")),
             ErrorInfo::OTHER(code, msg) => (6000 + code, msg.clone()),
@@ -81,8 +83,13 @@ impl From<std::io::Error> for ErrorInfo {
         ErrorInfo::OTHER(20, value.to_string())
     }
 }
-impl From<rbatis::rbdc::Error> for ErrorInfo{
-    fn from(value: rbatis::rbdc::Error) -> Self {
-        ErrorInfo::new(1,value.to_string().as_str())
+// impl From<rbatis::rbdc::Error> for ErrorInfo {
+//     fn from(value: rbatis::rbdc::Error) -> Self {
+//         ErrorInfo::new(1, value.to_string().as_str())
+//     }
+// }
+impl From<sqlx::Error> for ErrorInfo {
+    fn from(value: sqlx::Error) -> Self {
+        ErrorInfo::new(1, value.to_string().as_str())
     }
 }

@@ -14,18 +14,20 @@ use crate::meta::file::file_meta::SimpleFileMetaManager;
 use crate::meta::file::SimpleFileManager;
 use crate::user_manager::UserManager;
 use event_message::EventMessageManager;
+use crate::temp_cloud_file_manager::TempCloudFileManager;
 
 pub mod meta;
 pub mod config;
 pub mod user_manager;
 pub mod event_message;
 pub mod cloud_file_block_manager;
+mod temp_cloud_file_manager;
+
 pub type DbPool = Pool<Sqlite>;
 pub static CONTEXT: Lazy<ServiceContext> = Lazy::new(|| ServiceContext::default());
 
 pub struct ServiceContext {
     pub config: ApplicationConfig,
-    // pub rb: RBatis,
     pub pool: Pool<Sqlite>,
     pub cloud_meta_manager: SimpleCloudMetaManager,
     pub file_meta_manager: SimpleFileMetaManager,
@@ -35,6 +37,7 @@ pub struct ServiceContext {
     pub event_message_manager: EventMessageManager,
     pub cloud_file_block_manager: CloudFileBlockManager,
     pub user_manager: UserManager,
+    pub temp_cloud_file_manager: TempCloudFileManager,
 }
 
 impl ServiceContext {
@@ -126,12 +129,13 @@ impl Default for ServiceContext {
             cloud_meta_manager: SimpleCloudMetaManager::new(db_pool.clone()),
             file_meta_manager: file_meta_manager.clone(),
             file_block_meta_manager: file_block_meta_manager.clone(),
-            file_manager: SimpleFileManager::new(db_pool.clone(), file_meta_manager.clone(), file_block_meta_manager.clone(), cloud_file_block_manager.clone()),
+            file_manager: SimpleFileManager::new(db_pool.clone(), file_meta_manager.clone(), file_block_meta_manager.clone()),
             config_manager: ConfigManager::new(db_pool.clone()),
             event_message_manager: EventMessageManager::new(db_pool.clone()),
             cloud_file_block_manager,
             user_manager: UserManager::new(db_pool.clone()),
             pool: db_pool.clone(),
+            temp_cloud_file_manager: TempCloudFileManager::new(db_pool.clone()),
         }
     }
 }

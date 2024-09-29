@@ -2,7 +2,6 @@ use strum_macros::EnumIter;
 use chrono::{DateTime, Utc};
 
 pub mod support;
-pub mod service;
 pub mod meta {
     use chrono::{DateTime, Utc};
 
@@ -64,6 +63,15 @@ pub struct CloudFileBlock {
     pub create_time: DateTime<Utc>,
     pub update_time: DateTime<Utc>,
 }
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
+pub struct TempCloudFile {
+    pub id: Option<i32>,
+    pub cloud_meta_id: i32,
+    pub cloud_file_id: Option<String>,
+    pub status: i8,
+    pub create_time: DateTime<Utc>,
+    pub update_time: DateTime<Utc>,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum FileStatus {
@@ -75,7 +83,6 @@ pub enum FileStatus {
     FileReadError,
     WaitClean,
     Cleaning,
-    Cleaned,
     CleanFail,
 }
 

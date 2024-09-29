@@ -21,23 +21,3 @@ impl Default for FileMeta {
         }
     }
 }
-
-// impl FileMeta {
-//     pub fn sync_default() -> Value {
-//         let map = rbs::to_value! {
-//             "id":"INTEGER PRIMARY KEY AUTOINCREMENT",
-//             "name":"TEXT not null",
-//             "parent_id":"INT not null",
-//             "file_type":"int not null",
-//             "mode":"int not null default 0",
-//             "gid":"int not null default 0",
-//             "uid":"int not null default 0",
-//             "file_length":"int8 not null",
-//             "status":"int not null",
-//             "deleted":"int not null",
-//             "create_time":"int8 not null",
-//             "update_time":"int8 not null",
-//         };
-//         map
-//     }
-// }

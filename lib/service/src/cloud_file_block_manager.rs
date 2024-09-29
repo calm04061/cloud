@@ -16,14 +16,18 @@ impl CloudFileBlockManager {
             db_pool,
         }
     }
-    pub async fn clean_deleted_block(&self) -> ResponseResult<u64> {
-        let result = query("delete from cloud_file_block where deleted = ? and status = ?")
-            .bind(1)
-            .bind::<i8>(FileStatus::Cleaned.into())
+
+    pub async fn update_status(&self, block: &CloudFileBlock, target_status: FileStatus) -> ResponseResult<u64> {
+        let result = query("update cloud_file_block set status = ? where id = ? and status = ?")
+            .bind::<i8>(target_status.into())
+            .bind(&block.id)
+            .bind(&block.status)
             .execute(&self.db_pool)
             .await?;
         Ok(result.rows_affected())
+
     }
+
     pub async fn update_by_status(&self, block: &CloudFileBlock, status: FileStatus) -> ResponseResult<u64> {
         let sql = String::from("update cloud_file_block set ");
         let sql = sql.add(" id = ? ,\

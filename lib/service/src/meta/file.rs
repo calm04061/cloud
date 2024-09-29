@@ -7,8 +7,6 @@ use api::error::ErrorInfo;
 use api::util::IntoOne;
 use api::ResponseResult;
 use persistence::meta::{FileBlockMeta, FileMeta};
-use persistence::{FileStatus};
-use crate::cloud_file_block_manager::CloudFileBlockManager;
 use crate::DbPool;
 
 pub mod file_block_meta;
@@ -19,67 +17,66 @@ pub struct SimpleFileManager {
     db_pool: DbPool,
     file_meta_manager: SimpleFileMetaManager,
     file_block_meta_manager: SimpleFileBlockMetaManager,
-    cloud_file_block_manager: CloudFileBlockManager,
 }
 
 impl SimpleFileManager {
-    pub fn new(db_pool: DbPool, file_meta_manager: SimpleFileMetaManager, file_block_meta_manager: SimpleFileBlockMetaManager, cloud_file_block_manager: CloudFileBlockManager) -> Self {
-        SimpleFileManager { db_pool, file_meta_manager, file_block_meta_manager, cloud_file_block_manager }
+    pub fn new(db_pool: DbPool, file_meta_manager: SimpleFileMetaManager, file_block_meta_manager: SimpleFileBlockMetaManager) -> Self {
+        SimpleFileManager { db_pool, file_meta_manager, file_block_meta_manager }
     }
-    pub async fn mark_clean_file_block(&self, meta: &mut FileMeta) -> ResponseResult<()> {
-        // let batis = self.batis.clone();
-        let file_block_metas = self.file_block_meta_manager.file_block_meta(meta.id.unwrap()).await?;
-        // let file_block_metas = FileBlockMeta::select_by_file_meta_id(&batis, meta.id.unwrap()).await?;
-        // let mut tran = batis.acquire_begin().await?;
-        for mut file_block_meta in file_block_metas {
-            let cloud_file_blocks = self.cloud_file_block_manager.select_by_file_block_id(file_block_meta.id.unwrap()).await?;
-            // let cloud_file_blocks = CloudFileBlock::select_by_file_block_id(&tran, file_block_meta.id.unwrap()).await?;
-            for mut cloud_file_block in cloud_file_blocks {
-                let status: FileStatus = cloud_file_block.status.try_into()?;
-                if status == FileStatus::Cleaning {
-                    continue;
-                }
-                if cloud_file_block.deleted == 1 && status == FileStatus::Cleaned {
-                    continue;
-                }
-                cloud_file_block.status = FileStatus::WaitClean.into();
-                cloud_file_block.deleted = 1;
-                self.cloud_file_block_manager.update(&cloud_file_block).await?;
-                // CloudFileBlock::update_by_column(&tran, &cloud_file_block, "id").await?;
-            }
-            let status: FileStatus = file_block_meta.status.try_into()?;
-            if status == FileStatus::Cleaning {
-                continue;
-            }
-            if file_block_meta.deleted == 1 && status == FileStatus::Cleaned {
-                continue;
-            }
-            if file_block_meta.deleted != 1 || status != FileStatus::WaitClean {
-                file_block_meta.deleted = 1;
-                file_block_meta.status = FileStatus::WaitClean.into();
-                self.file_block_meta_manager.update(&file_block_meta).await?;
-                // FileBlockMeta::update_by_column(&tran, &file_block_meta, "id").await?;
-            }
-        }
-
-        let status: FileStatus = meta.status.try_into()?;
-        if status == FileStatus::Cleaning {
-            // tran.commit().await?;
-            return Ok(());
-        }
-        if meta.deleted == 1 && status == FileStatus::Cleaned {
-            // tran.commit().await?;
-            return Ok(());
-        }
-        if meta.deleted != 1 || status != FileStatus::WaitClean {
-            meta.deleted = 1;
-            meta.status = FileStatus::WaitClean.into();
-            self.file_meta_manager.update_meta(meta).await?;
-            // FileMeta::update_by_column(&tran, &meta, "id").await?;
-        }
-        // tran.commit().await?;
-        Ok(())
-    }
+    // pub async fn mark_clean_file_block(&self, meta: &mut FileMeta) -> ResponseResult<()> {
+    //     // let batis = self.batis.clone();
+    //     let file_block_metas = self.file_block_meta_manager.file_block_meta(meta.id.unwrap()).await?;
+    //     // let file_block_metas = FileBlockMeta::select_by_file_meta_id(&batis, meta.id.unwrap()).await?;
+    //     // let mut tran = batis.acquire_begin().await?;
+    //     for mut file_block_meta in file_block_metas {
+    //         let cloud_file_blocks = self.cloud_file_block_manager.select_by_file_block_id(file_block_meta.id.unwrap()).await?;
+    //         // let cloud_file_blocks = CloudFileBlock::select_by_file_block_id(&tran, file_block_meta.id.unwrap()).await?;
+    //         for mut cloud_file_block in cloud_file_blocks {
+    //             let status: FileStatus = cloud_file_block.status.try_into()?;
+    //             if status == FileStatus::Cleaning {
+    //                 continue;
+    //             }
+    //             if cloud_file_block.deleted == 1 && status == FileStatus::Cleaned {
+    //                 continue;
+    //             }
+    //             cloud_file_block.status = FileStatus::WaitClean.into();
+    //             cloud_file_block.deleted = 1;
+    //             self.cloud_file_block_manager.update(&cloud_file_block).await?;
+    //             // CloudFileBlock::update_by_column(&tran, &cloud_file_block, "id").await?;
+    //         }
+    //         let status: FileStatus = file_block_meta.status.try_into()?;
+    //         if status == FileStatus::Cleaning {
+    //             continue;
+    //         }
+    //         if file_block_meta.deleted == 1 && status == FileStatus::Cleaned {
+    //             continue;
+    //         }
+    //         if file_block_meta.deleted != 1 || status != FileStatus::WaitClean {
+    //             file_block_meta.deleted = 1;
+    //             file_block_meta.status = FileStatus::WaitClean.into();
+    //             self.file_block_meta_manager.update(&file_block_meta).await?;
+    //             // FileBlockMeta::update_by_column(&tran, &file_block_meta, "id").await?;
+    //         }
+    //     }
+    //
+    //     let status: FileStatus = meta.status.try_into()?;
+    //     if status == FileStatus::Cleaning {
+    //         // tran.commit().await?;
+    //         return Ok(());
+    //     }
+    //     if meta.deleted == 1 && status == FileStatus::Cleaned {
+    //         // tran.commit().await?;
+    //         return Ok(());
+    //     }
+    //     if meta.deleted != 1 || status != FileStatus::WaitClean {
+    //         meta.deleted = 1;
+    //         meta.status = FileStatus::WaitClean.into();
+    //         self.file_meta_manager.update_meta(meta).await?;
+    //         // FileMeta::update_by_column(&tran, &meta, "id").await?;
+    //     }
+    //     // tran.commit().await?;
+    //     Ok(())
+    // }
     pub async fn delete_file_meta(&self, id: i64) -> ResponseResult<FileMeta> {
         self
             .file_meta_manager
@@ -98,8 +95,9 @@ impl SimpleFileManager {
 }
 
 impl FileManager for SimpleFileManager {
-    async fn list_deleted_file(&self, update_time: DateTime<Utc>) -> ResponseResult<Vec<FileMeta>> {
-        let vec = sqlx::query_as("select * from file_meta where update_time <= ? and file_type in (1,3) and deleted = 1 and status <> 7 order by update_time desc limit 1000")
+    async fn list_deleted_file(&self, update_time: DateTime<Utc>, pre_id: i64) -> ResponseResult<Vec<FileMeta>> {
+        let vec = sqlx::query_as("select * from file_meta where id> ? and update_time <= ? and file_type in (1,3) and deleted = 1 and status <> 7 order by id limit 30")
+            .bind(pre_id)
             .bind(update_time)
             .fetch_all(&self.db_pool)
             .await?;

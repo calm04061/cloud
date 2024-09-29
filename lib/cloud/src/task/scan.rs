@@ -7,7 +7,7 @@ use tokio::sync::Semaphore;
 
 use api::error::ErrorInfo;
 use api::ResponseResult;
-use persistence::{CloudFileBlock, EventMessage, EventType, FileStatus, MetaStatus};
+use persistence::{CloudFileBlock, EventMessage, EventType, FileStatus, MetaStatus, TempCloudFile};
 use service::meta::{CloudMetaManager, FileManager};
 use service::CONTEXT;
 use storage::STORAGE_FACADE;
@@ -19,7 +19,7 @@ pub(crate) async fn scan(semaphore: Arc<Semaphore>) -> ResponseResult<()> {
         error!("select_to_upload error {:?}", e);
         return Ok(());
     }
-    let cloud_file_blocks = cloud_file_block_result.unwrap();
+    let cloud_file_blocks = cloud_file_block_result?;
     info!("{} block to upload", cloud_file_blocks.len());
     for file_block in cloud_file_blocks {
         let semaphore = semaphore.clone();
@@ -58,8 +58,8 @@ async fn process_block(mut file_block: CloudFileBlock, semaphore: Arc<Semaphore>
             EventMessage::fail(EventType::UploadFileBlock, format!("{} upload fail:{}", file_block.id.unwrap(), e.to_string()))
         }
     };
-    CONTEXT.event_message_manager.insert(&message).await.unwrap();
-    return Ok(());
+    CONTEXT.event_message_manager.insert(&message).await?;
+    Ok(())
 }
 
 async fn do_execute_one_block(file_block: &mut CloudFileBlock) -> ResponseResult<()> {
@@ -75,8 +75,7 @@ async fn do_execute_one_block(file_block: &mut CloudFileBlock) -> ResponseResult
     let file_block_meta = CONTEXT
         .file_manager
         .file_block_meta_info_by_id(file_block.file_block_id)
-        .await
-        .unwrap();
+        .await?;
     let mut file_block_meta = file_block_meta.unwrap();
     let cache_file = dotenvy::var("TEMP_PATH").unwrap_or(String::from("/var/lib/storage/temp"));
 
@@ -101,7 +100,7 @@ async fn do_execute_one_block(file_block: &mut CloudFileBlock) -> ResponseResult
             .await?;
         return Err(info);
     }
-    let mut file = result.unwrap();
+    let mut file = result?;
     let mut body: Vec<u8> = Vec::new();
     let result = file.read_to_end(&mut body);
     if let Err(e) = result {
@@ -136,6 +135,35 @@ async fn do_execute_one_block(file_block: &mut CloudFileBlock) -> ResponseResult
         }
     };
     file_block.update_time = Utc::now();
-    CONTEXT.cloud_file_block_manager.update_by_status(&file_block, FileStatus::Uploading).await?;
+    let result = CONTEXT.cloud_file_block_manager.update_by_status(&file_block, FileStatus::Uploading).await;
+    match result {
+        Ok(count) => {
+            match count {
+                0 => {
+                    let temp = TempCloudFile{
+                        id: None,
+                        cloud_meta_id: file_block.cloud_meta_id.clone(),
+                        cloud_file_id: file_block.cloud_file_id.clone(),
+                        status: FileStatus::WaitClean.into(),
+                        create_time: Default::default(),
+                        update_time: Default::default(),
+                    };
+                    let result = CONTEXT.temp_cloud_file_manager.add(&temp).await;
+                    match result {
+                        Ok(_) => {
+
+                        }
+                        Err(e) => {
+                            error!("临时文件数据库更新失败:{}",e);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        Err(e) => {
+            return Err(ErrorInfo::OTHER(0, format!("文件块{}更新文件块状态失败: {}", file_block.id.unwrap(), e.to_string())))
+        }
+    }
     res
 }

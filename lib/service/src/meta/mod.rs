@@ -16,7 +16,7 @@ pub trait CloudMetaManager {
 }
 
 pub trait FileManager {
-    fn list_deleted_file(&self, update_time: DateTime<Utc>) -> impl Future<Output=ResponseResult<Vec<FileMeta>>> + Send;
+    fn list_deleted_file(&self, update_time: DateTime<Utc>, pre_id: i64) -> impl Future<Output=ResponseResult<Vec<FileMeta>>> + Send;
 
     fn list_by_parent(&self, parent_id: i64) -> impl Future<Output=ResponseResult<Vec<FileMeta>>> + Send;
 

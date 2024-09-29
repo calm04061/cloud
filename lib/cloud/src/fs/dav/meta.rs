@@ -166,7 +166,7 @@ impl DavFile for CloudDavFile {
 
     fn flush(&mut self) -> FsFuture<()> {
         async move {
-            info!("{}:flush",self.file_meta.id.unwrap());
+            debug!("{}:flush",self.file_meta.id.unwrap());
             let id = self.file_meta.id.unwrap();
             let temp_size = self.temp_buf.len();
             if temp_size > 0 {

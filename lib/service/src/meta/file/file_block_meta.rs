@@ -125,7 +125,7 @@ impl SimpleFileBlockMetaManager {
         }
     }
 
-    pub(crate) async fn file_block_meta(&self, file_meta_id: i64) -> ResponseResult<Vec<FileBlockMeta>> {
+    pub async fn file_block_meta(&self, file_meta_id: i64) -> ResponseResult<Vec<FileBlockMeta>> {
         Ok(sqlx::query_as("select * from file_block_meta where deleted = 0 and file_meta_id =?")
             .bind(file_meta_id)
             .fetch_all(&self.db_pool)
@@ -154,7 +154,7 @@ impl SimpleFileBlockMetaManager {
         // let batis = self.batis.clone();
         // Ok(batis.exec("update file_block_meta set deleted = 1,update_time=? where file_meta_id=? and block_index>? and deleted = 0", vec![to_value!(chrono::Local::now().timestamp_millis()), to_value!(file_id), to_value!(block_index)]).await?.rows_affected)
     }
-    pub async fn clean_file_meta(&self) ->ResponseResult<u64>{
+    pub async fn clean_file_meta(&self) -> ResponseResult<u64> {
         let result = sqlx::query(r#"
             delete from file_block_meta where id in(
             select t1.id from (
@@ -183,6 +183,14 @@ impl SimpleFileBlockMetaManager {
         Ok(
             result.rows_affected()
         )
+    }
+    pub async fn update_status(&self, block: &FileBlockMeta, target_status: FileStatus) -> ResponseResult<u64> {
+        let x = sqlx::query("update file_block_meta set status=? where id =? and status =?")
+            .bind::<i8>(target_status.into())
+            .bind(&block.id)
+            .bind(&block.status)
+            .execute(&self.db_pool).await?;
+        Ok(x.rows_affected())
     }
     pub async fn update_by_status(&self, block: &FileBlockMeta, status: FileStatus) -> ResponseResult<u64> {
         let sql = self.update_field_sql();

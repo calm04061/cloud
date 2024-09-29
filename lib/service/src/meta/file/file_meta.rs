@@ -15,18 +15,27 @@ pub struct SimpleFileMetaManager {
     db_pool: DbPool,
 }
 
+impl SimpleFileMetaManager {}
+
 impl SimpleFileMetaManager {
     pub fn new(db_pool: DbPool) -> Self {
         SimpleFileMetaManager { db_pool }
     }
 
-    pub(crate) async fn delete_meta(&self, meta: &FileMeta) -> ResponseResult<u64> {
+    pub async fn delete_meta(&self, meta: &FileMeta) -> ResponseResult<u64> {
         let result = sqlx::query!("delete from file_meta where id = ?",meta.id)
             .execute(&self.db_pool)
             .await?;
         Ok(result.rows_affected())
     }
-
+    pub async fn update_status(&self, file_meta: &FileMeta, target_status: FileStatus) -> ResponseResult<u64> {
+        let x = sqlx::query("update file_meta set status=? where id =? and status =?")
+            .bind::<i8>(target_status.into())
+            .bind(&file_meta.id)
+            .bind(&file_meta.status)
+            .execute(&self.db_pool).await?;
+        Ok(x.rows_affected())
+    }
     pub async fn update_meta(&self, meta: &FileMeta) -> ResponseResult<FileMeta> {
         self.update(&meta).await?;
 
@@ -68,9 +77,6 @@ impl SimpleFileMetaManager {
             .bind(name)
             .fetch_all(&self.db_pool)
             .await?;
-        // let vec = FileMeta::info_by_parent_and_name(&self.batis.clone(), parent_id, name)
-        //     .await
-        //     ?;
         if vec.is_empty() {
             Err(ErrorInfo::new(7000, &format!("文件{name}")))
         } else {
@@ -132,7 +138,7 @@ impl SimpleFileMetaManager {
             create_time: Utc::now(),
             update_time: Utc::now(),
         };
-        Ok( self.insert(&value).await?)
+        Ok(self.insert(&value).await?)
         // Ok(FileMeta::insert(&self.batis.clone(), &value)
         //     .await
         //     ?

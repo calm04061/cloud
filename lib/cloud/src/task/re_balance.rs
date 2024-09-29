@@ -44,6 +44,7 @@ pub(crate) async fn re_balance() -> ResponseResult<()> {
             }
             using_cloud_id.push(row.cloud_meta_id);
         }
+        remove_index.reverse();
         for index in remove_index {
             cloud_file_blocks.remove(index);
         }

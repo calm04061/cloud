@@ -26,8 +26,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     info!("spawning thread for server");
     let plugin_arc = PLUGIN_MANAGER.get_plugins();
-    // let facade = StorageFacade::new();
-    // let facade = Arc::new(Mutex::new(facade));
     let mut sched = JobScheduler::new().await.unwrap();
     task(&sched).await;
     sched.start().await.unwrap();
@@ -51,36 +49,3 @@ async fn main() -> Result<(), Box<dyn Error>> {
     info!("scheduler stopped");
     Ok(())
 }
-
-// #[cfg(windows)]
-// fn sigint_handler(server_handle: ServerHandle) {
-//     let (tx, rx) = channel();
-//     ctrlc::set_handler(move || {
-//         tx.send(()).expect("failed to set Ctrl-C handler");
-//         rt::System::new().block_on(server_handle.stop(true));
-//         info!("stop")
-//     }).expect("failed to set Ctrl-C handler");
-//
-//     info!("File system is mounted, press Ctrl-C to unmount.");
-//     rx.recv().unwrap();
-// }
-
-// #[cfg(not(windows))]
-// fn sigint_handler(server_handle: ServerHandle) {
-// use log::error;
-// let signals = signal_hook::iterator::Signals::new(&[
-//     signal_hook::consts::SIGINT,
-//     signal_hook::consts::SIGTERM,
-// ]);
-// if let Err(e) = signals {
-//     error!("{}", e);
-//     return;
-// }
-// let mut signals = signals.unwrap();
-// for sig in signals.forever() {
-//     info!("Received signal {:?}", sig);
-//     rt::System::new().block_on(server_handle.stop(true));
-//     info!("rt stopped");
-//     break;
-// }
-// }

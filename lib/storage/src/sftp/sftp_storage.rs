@@ -7,9 +7,10 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::{AsyncReadExt, AsyncWriteExt};
 
-use crate::model::{AuthMethod, CreateResponse, Quota};
+use crate::model::{AuthMethod, Quota};
 use api::ResponseResult;
 use persistence::meta::{CloudMeta, FileBlockMeta};
+use persistence::CloudFileBlock;
 
 use crate::sftp::vo::HostUser;
 use crate::storage::Storage;
@@ -36,9 +37,10 @@ impl Storage for SftpStorage {
     async fn upload_content(
         &mut self,
         file_block: &FileBlockMeta,
+        cloud_file_block: &mut CloudFileBlock,
         content: &Vec<u8>,
         cloud_meta: &CloudMeta,
-    ) -> ResponseResult<CreateResponse> {
+    ) -> ResponseResult<CloudFileBlock> {
         let user: HostUser = cloud_meta.auth.clone().unwrap().into();
         let port = user.port.parse::<u16>().unwrap();
         let addr1 = IpAddr::from_str(user.hostname.as_str()).unwrap();
@@ -57,12 +59,14 @@ impl Storage for SftpStorage {
         remote_file.wait_close().await?;
 
         let cloud_file_id = remote_path.display().to_string();
-        Ok(CreateResponse {
-            encrypt_mode: "".to_string(),
-            file_id: cloud_file_id,
-            file_name: file_block.file_part_id.clone(),
-            file_type: "".to_string(),
-        })
+        cloud_file_block.cloud_file_id = Some(cloud_file_id);
+        Ok(cloud_file_block.clone())
+        // Ok(CreateResponse {
+        //     encrypt_mode: "".to_string(),
+        //     file_id: cloud_file_id,
+        //     file_name: file_block.file_part_id.clone(),
+        //     file_type: "".to_string(),
+        // })
     }
 
     async fn delete(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {

@@ -4,10 +4,11 @@ use bytes::Bytes;
 use log::info;
 use tokio::fs;
 
-use crate::model::{AuthMethod, CreateResponse, Quota};
+use crate::model::{AuthMethod, Quota};
 use crate::storage::Storage;
 use api::ResponseResult;
 use persistence::meta::{CloudMeta, FileBlockMeta};
+use persistence::CloudFileBlock;
 
 
 pub struct LocalStorage {
@@ -25,18 +26,21 @@ impl Storage for LocalStorage {
     async fn upload_content(
         &mut self,
         file_block: &FileBlockMeta,
+        cloud_file_block: &mut CloudFileBlock,
         content: &Vec<u8>,
         cloud_meta: &CloudMeta,
-    ) -> ResponseResult<CreateResponse> {
+    ) -> ResponseResult<CloudFileBlock> {
         let data_root = cloud_meta.data_root.clone().unwrap();
         let path_str = format!("{}/{}/{}", data_root, self.root, file_block.file_part_id);
         fs::write(path_str, content).await.ok();
-        Ok(CreateResponse {
-            encrypt_mode: "".to_string(),
-            file_id: file_block.file_part_id.clone(),
-            file_name: file_block.file_part_id.clone(),
-            file_type: "".to_string(),
-        })
+        // Ok(CreateResponse {
+        //     encrypt_mode: "".to_string(),
+        //     file_id: file_block.file_part_id.clone(),
+        //     file_name: file_block.file_part_id.clone(),
+        //     file_type: "".to_string(),
+        // })
+        cloud_file_block.cloud_file_id = Some(file_block.file_part_id.clone());
+        Ok(cloud_file_block.clone())
     }
 
     async fn delete(&mut self, cloud_file_id: &str, cloud_meta: &CloudMeta) -> ResponseResult<()> {

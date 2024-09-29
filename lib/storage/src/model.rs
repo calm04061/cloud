@@ -53,14 +53,14 @@ pub(crate) struct ExFieldsInfo {
     image_count: f64,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct CreateResponse {
-    pub encrypt_mode: String,
-    pub file_id: String,
-    pub file_name: String,
-    #[serde(rename(serialize = "type", deserialize = "type"))]
-    pub file_type: String,
-}
+// #[derive(Serialize, Deserialize, Debug)]
+// pub struct CreateResponse {
+//     pub encrypt_mode: String,
+//     pub file_id: String,
+//     pub file_name: String,
+//     #[serde(rename(serialize = "type", deserialize = "type"))]
+//     pub file_type: String,
+// }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FileItem {

@@ -9,10 +9,11 @@ use reqwest::Client;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use urlencoding::encode;
 
-use crate::model::{CreateResponse, Quota, User};
+use crate::model::{Quota, User};
 use api::error::ErrorInfo;
 use api::ResponseResult;
 use persistence::meta::{CloudMeta, FileBlockMeta};
+use persistence::CloudFileBlock;
 
 use crate::onedrive::one_drive_authorization_middleware::OneDriveAuthMiddleware;
 use crate::onedrive::vo::{AuthorizationToken, Drive, DriveItem};
@@ -57,7 +58,7 @@ impl OneDriveStorage {
 
 #[async_trait]
 impl Storage for OneDriveStorage {
-    async fn upload_content(&mut self, file_block: &FileBlockMeta, content: &Vec<u8>, cloud_meta: &CloudMeta) -> ResponseResult<CreateResponse> {
+    async fn upload_content(&mut self, file_block: &FileBlockMeta, cloud_file_block: &mut CloudFileBlock, content: &Vec<u8>, cloud_meta: &CloudMeta) -> ResponseResult<CloudFileBlock> {
         let data_root = cloud_meta.data_root.clone().unwrap();
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
@@ -81,7 +82,9 @@ impl Storage for OneDriveStorage {
         extensions.insert(cloud_meta.clone());
         let x = self.do_put_bytes(path.as_str(), content, &mut extensions).await?;
         let drive: DriveItem = serde_json::from_str(&x)?;
-        Ok(drive.into())
+        // Ok(drive.into())
+        cloud_file_block.cloud_file_id = Some(drive.id);
+        Ok(cloud_file_block.clone())
     }
 
 

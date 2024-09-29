@@ -1,26 +1,24 @@
-use std::collections::HashMap;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
 use bytes::Bytes;
 use dotenvy_macro::dotenv;
-use http::Extensions;
 use log::{debug, info};
-use reqwest::{Body, Client, IntoUrl};
+use reqwest::{Body, Client};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use serde::Serialize;
+use std::collections::HashMap;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use urlencoding::encode;
 
 use api::error::ErrorInfo;
 use api::ResponseResult;
 use persistence::meta::{CloudMeta, FileBlockMeta};
-use persistence::MetaStatus;
+use persistence::{CloudFileBlock, MetaStatus};
 use service::meta::CloudMetaManager;
 use service::CONTEXT;
 
 use crate::ali::ali_authorization_middleware::AliAuthMiddleware;
 use crate::ali::vo::{AliAuthToken, AliExtra, CompleteRequest, CreateFile, DevicePersonalInfo, DownloadUrl, DriveFile, DriveInfo, ErrorMessage, FileInfo, PartInfo, UploadPreResult};
-use crate::model::{CreateResponse, Quota};
-use crate::storage::{Network, Storage, TokenProvider};
+use crate::model::Quota;
+use crate::storage::{ExtraStorage, Network, Storage, TokenProvider};
 
 //128mb
 const CHUNK_SIZE: usize = 134217728;
@@ -64,7 +62,7 @@ impl AliStorage {
         }
     }
 
-    async fn create_dir(&mut self, cloud_meta: &CloudMeta, path: &str) -> ResponseResult<FileInfo> {
+    async fn mkdir(&mut self, cloud_meta: &CloudMeta, path: &str) -> ResponseResult<FileInfo> {
         let result = self.inner.create_dir(&cloud_meta.clone(), path).await;
         let result = match result {
             Ok(r) => {
@@ -86,7 +84,7 @@ impl AliStorage {
         if let Ok(file_id) = file_id {
             return Ok(file_id);
         }
-        let info = self.create_dir(&cloud_meta.clone(), &data_root).await?;
+        let info = self.mkdir(&cloud_meta.clone(), &data_root).await?;
         Ok(info.file_id.unwrap())
     }
     async fn create_file(&mut self, create_file: &CreateFile, cloud_meta: &CloudMeta) -> ResponseResult<UploadPreResult> {
@@ -121,9 +119,10 @@ impl Storage for AliStorage {
     async fn upload_content(
         &mut self,
         file_block: &FileBlockMeta,
+        cloud_file_block: &mut CloudFileBlock,
         content: &Vec<u8>,
         cloud_meta: &CloudMeta,
-    ) -> ResponseResult<CreateResponse> {
+    ) -> ResponseResult<CloudFileBlock> {
         let extra_string = cloud_meta.extra.as_ref().unwrap();
         let mut extra: AliExtra = serde_json::from_str(extra_string.as_str())?;
         let root_file_id;
@@ -216,7 +215,10 @@ impl Storage for AliStorage {
         };
         let json = self.inner.post_api_json("adrive/v1.0/openFile/complete", &complete, Some(cloud_meta)).await?;
         debug!("complete:{}", json);
-        Ok(complete.into())
+        cloud_file_block.cloud_file_id = Some(complete.file_id.clone());
+        // Ok()
+        // Ok(complete.into())
+        Ok(cloud_file_block.clone())
     }
 
 
@@ -345,7 +347,18 @@ impl Storage for AliStorage {
         ALI_YUN_APP_SECRET.to_string()
     }
 }
-
+#[async_trait::async_trait]
+impl ExtraStorage for AliStorage {
+    async fn build_extra(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
+        let result = self.get_drive_id(cloud_meta).await?;
+        let extra = AliExtra {
+            drive_id: Some(result),
+            root_file_id: None,
+        };
+        let extra = serde_json::to_string(&extra)?;
+        Ok(extra)
+    }
+}
 impl Network for Inner {
     fn get_client(&self) -> &ClientWithMiddleware {
         &self.api_client
@@ -417,24 +430,7 @@ impl Inner {
         let result: FileInfo = serde_json::from_str(json.as_str())?;
         Ok(result)
     }
-    async fn post_api_json<T: Serialize + ?Sized>(&self, path: &str, body: &T, cloud_meta: Option<&CloudMeta>) -> ResponseResult<String> {
+    async fn post_api_json<T: Serialize + ?Sized + Sync>(&self, path: &str, body: &T, cloud_meta: Option<&CloudMeta>) -> ResponseResult<String> {
         self.post_json(format!("{}/{}", API_DOMAIN_PREFIX, path), body, cloud_meta).await
-    }
-    async fn post_json<T: Serialize + ?Sized, U: IntoUrl>(&self, url: U, body: &T, cloud_meta: Option<&CloudMeta>) -> ResponseResult<String> {
-        let resp_result = self
-            .api_client
-            .post(url)
-            .json(body)
-            .build()?;
-        if let Some(cloud_meta) = cloud_meta {
-            let mut extensions = Extensions::new();
-            extensions.insert(cloud_meta.clone());
-            let resp_result = self.api_client
-                .execute_with_extensions(resp_result, &mut extensions);
-            self.get_response_text(resp_result).await
-        } else {
-            let resp_result = self.api_client.execute(resp_result);
-            self.get_response_text(resp_result).await
-        }
     }
 }

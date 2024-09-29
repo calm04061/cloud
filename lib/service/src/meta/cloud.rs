@@ -1,11 +1,10 @@
-use log::error;
-use api::error::ErrorInfo;
 use crate::meta::CloudMetaManager;
+use crate::DbPool;
+use api::error::ErrorInfo;
 use api::util::IntoOne;
 use api::ResponseResult;
 use persistence::meta::CloudMeta;
 use persistence::MetaStatus;
-use crate::DbPool;
 
 #[derive(Debug, Clone)]
 pub struct SimpleCloudMetaManager {
@@ -135,18 +134,7 @@ impl CloudMetaManager for SimpleCloudMetaManager {
     async fn info(&self, id: i32) -> ResponseResult<CloudMeta> {
         let vec = sqlx::query_as("select * from cloud_meta where id =?")
             .bind(id)
-            .fetch_all(&self.db_pool).await;
-        // let vec = CloudMeta::select_by_column(&self.batis.clone(), "id", id)
-        //     .await;
-        let vec = match vec {
-            Ok(v) => {
-                v
-            }
-            Err(e) => {
-                error!("{}",e);
-                return Err(ErrorInfo::from(e));
-            }
-        };
+            .fetch_all(&self.db_pool).await?;
         if vec.is_empty() {
             return Err(ErrorInfo::NoneCloudMeta(id));
         }
@@ -157,9 +145,6 @@ impl CloudMetaManager for SimpleCloudMetaManager {
         }
     }
     async fn update_meta(&self, meta: &CloudMeta) -> ResponseResult<CloudMeta> {
-        // CloudMeta::update_by_column(&self.batis.clone(), meta, "id")
-        //     .await
-        //     ?;
         self.update(&meta).await?;
 
         self.info(meta.id.unwrap()).await

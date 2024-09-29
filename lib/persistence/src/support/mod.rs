@@ -12,6 +12,7 @@ mod file_meta_type;
 mod meta_status;
 pub mod application_config;
 mod user;
+mod temp_cloud_file;
 
 impl From<FileStatus> for i8 {
     fn from(status: FileStatus) -> Self {

@@ -9,6 +9,7 @@ use persistence::FileStatus;
 use storage::STORAGE_FACADE;
 
 use crate::task::clean_cloud_file::clean_cloud_file;
+use crate::task::clean_temp_cloud_file::clean_temp_cloud_file;
 use crate::task::re_balance::re_balance;
 use crate::task::refresh_token::refresh_token;
 use crate::task::reset::reset;
@@ -19,11 +20,13 @@ mod scan;
 mod reset;
 mod re_balance;
 mod refresh_token;
+mod clean_temp_cloud_file;
 
 pub async fn task(sched: &JobScheduler) {
-    let worker_id: Arc<Mutex<Option<i64>>> = Arc::new(Mutex::new(None));
+    let file_worker_id: Arc<Mutex<Option<i64>>> = Arc::new(Mutex::new(None));
+    let temp_file_worker_id: Arc<Mutex<Option<i64>>> = Arc::new(Mutex::new(None));
 
-    let locked = Job::new_async("5 * * * * *", move |_uuid, _l| clean_cloud_file_task(worker_id.clone())).unwrap();
+    let locked = Job::new_async("5 * * * * *", move |_uuid, _l| clean_cloud_file_task(file_worker_id.clone())).unwrap();
     sched.add(locked).await.unwrap();
     let semaphore = Arc::new(Semaphore::new(16));
 
@@ -40,6 +43,8 @@ pub async fn task(sched: &JobScheduler) {
     let locked = Job::new_async("0/5 * * * * *", move |_uuid, _l| re_balance_task()).unwrap();
     sched.add(locked).await.unwrap();
     let locked = Job::new_async("0 * * * * *", move |_uuid, _l| refresh_token_task()).unwrap();
+    sched.add(locked).await.unwrap();
+    let locked = Job::new_async("*/20 * * * * *", move |_uuid, _l| clean_temp_cloud_file_task(temp_file_worker_id.clone())).unwrap();
     sched.add(locked).await.unwrap();
 }
 
@@ -115,6 +120,14 @@ fn refresh_token_task() -> Pin<Box<impl Future<Output=()> + Sized>> {
             if let Err(e) = result {
                 log::error!("refresh_token error: {}", e);
             }
+        }
+    })
+}
+fn clean_temp_cloud_file_task(worker_id: Arc<Mutex<Option<i64>>>) -> Pin<Box<impl Future<Output=()> + Sized>> {
+    Box::pin({
+        async move {
+             clean_temp_cloud_file(worker_id).await;
+
         }
     })
 }

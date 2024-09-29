@@ -2,16 +2,17 @@ use std::future::Future;
 
 use bytes::Bytes;
 use log::{debug, error, info};
-use reqwest::{Body, Response, StatusCode};
+use reqwest::{multipart, Body, IntoUrl, Request, Response, StatusCode};
 use reqwest_middleware::{ClientWithMiddleware, Error};
 
 use crate::model::AuthMethod::OAuth2;
-use crate::model::{AuthMethod, CreateResponse, Quota};
+use crate::model::{AuthMethod, Quota};
 use api::error::ErrorInfo;
 use api::ResponseResult;
 use http::Extensions;
 use persistence::meta::{CloudMeta, FileBlockMeta};
-use persistence::MetaStatus;
+use persistence::{CloudFileBlock, MetaStatus};
+use serde::Serialize;
 
 
 pub trait TokenProvider<T> {
@@ -31,9 +32,10 @@ pub trait Storage {
     async fn upload_content(
         &mut self,
         file_block: &FileBlockMeta,
+        cloud_file_block: &mut CloudFileBlock,
         content: &Vec<u8>,
         cloud_meta: &CloudMeta,
-    ) -> ResponseResult<CreateResponse>;
+    ) -> ResponseResult<CloudFileBlock>;
     ///
     /// 删除文件
     ///
@@ -71,7 +73,17 @@ pub trait Storage {
         "client_secret".to_string()
     }
 }
-
+#[async_trait::async_trait]
+pub trait ExtraStorage: Storage {
+    async fn after_callback(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<()> {
+        let extra = self.build_extra(cloud_meta).await?;
+        cloud_meta.extra = Some(extra);
+        cloud_meta.data_root = Some("/app/share-desk".to_string());
+        cloud_meta.status = MetaStatus::Enable.into();
+        Ok(())
+    }
+    async fn build_extra(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<String>;
+}
 #[async_trait::async_trait]
 pub trait Network {
     fn get_client(&self) -> &ClientWithMiddleware;
@@ -123,6 +135,13 @@ pub trait Network {
             .execute_with_extensions(resp_result, extensions);
         self.get_response_text(resp_result).await
     }
+    async fn do_post_multipart<U: IntoUrl + Send + std::fmt::Display>(&self, path: U, body: multipart::Form, cloud_meta: Option<&CloudMeta>) -> ResponseResult<String> {
+        self.do_inner_post_multipart(format!("{}/{}", self.get_api_prefix(), path), body, cloud_meta).await
+    }
+
+    async fn do_patch_multipart<U: IntoUrl + Send + std::fmt::Display>(&self, path: U, body: multipart::Form, cloud_meta: Option<&CloudMeta>) -> ResponseResult<String> {
+        self.do_inner_patch_multipart(format!("{}/{}", self.get_api_prefix(), path), body, cloud_meta).await
+    }
     ///
     ///
     ///
@@ -132,11 +151,66 @@ pub trait Network {
         content: &Vec<u8>,
         extensions: &mut Extensions,
     ) -> ResponseResult<String> {
+        self.do_inner_put_bytes(format!("{}/{}", self.get_api_prefix(), path).as_str(), content, extensions).await
+        // let vec = content.clone();
+        // let body = Body::from(vec);
+        // let resp_result = self
+        //     .get_client()
+        //     .put(format!("{}/{}", self.get_api_prefix(), path))
+        //     .body(body)
+        //     .build()?;
+        // let resp_result = self
+        //     .get_client()
+        //     .execute_with_extensions(resp_result, extensions);
+        // self.get_response_text(resp_result).await
+    }
+    ///
+    ///
+    ///
+    async fn do_inner_put_bytes(
+        &self,
+        url: &str,
+        content: &Vec<u8>,
+        extensions: &mut Extensions,
+    ) -> ResponseResult<String> {
         let vec = content.clone();
         let body = Body::from(vec);
         let resp_result = self
             .get_client()
-            .put(format!("{}/{}", self.get_api_prefix(), path))
+            .put(url)
+            .body(body)
+            .build()?;
+        let resp_result = self
+            .get_client()
+            .execute_with_extensions(resp_result, extensions);
+        self.get_response_text(resp_result).await
+    }
+    ///
+    ///
+    ///
+    async fn do_post_bytes(
+        &self,
+        path: &str,
+        content: &Vec<u8>,
+        extensions: &mut Extensions,
+    ) -> ResponseResult<String> {
+        self.do_inner_post_bytes(format!("{}/{}", self.get_api_prefix(), path).as_str(), content, extensions).await
+    }
+    ///
+    ///
+    ///
+    async fn do_inner_post_bytes(
+        &self,
+        url: &str,
+        content: &Vec<u8>,
+        extensions: &mut Extensions,
+    ) -> ResponseResult<String> {
+        let vec = content.clone();
+        let body = Body::from(vec);
+        let resp_result = self
+            .get_client()
+            .post(url)
+            .header("Content-Type", "application/octet-stream")
             .body(body)
             .build()?;
         let resp_result = self
@@ -192,6 +266,64 @@ pub trait Network {
                 }
             }
         }
+    }
+    async fn post_json<T: Serialize + ?Sized + Sync, U: IntoUrl + Send>(&self, url: U, body: &T, cloud_meta: Option<&CloudMeta>) -> ResponseResult<String> {
+        let resp_result = self
+            .get_client()
+            .post(url)
+            .json(body)
+            .build()?;
+        self.do_request(resp_result, cloud_meta).await
+    }
+
+    async fn do_inner_post_multipart<U: IntoUrl + Send>(&self, url: U, body: multipart::Form, cloud_meta: Option<&CloudMeta>) -> ResponseResult<String> {
+        let resp_result = self
+            .get_client()
+            .post(url)
+            .multipart(body)
+            .build()?;
+        self.do_request(resp_result, cloud_meta).await
+    }
+
+    async fn do_inner_patch_multipart<U: IntoUrl + Send>(&self, url: U, body: multipart::Form, cloud_meta: Option<&CloudMeta>) -> ResponseResult<String> {
+        let resp_result = self
+            .get_client()
+            .patch(url)
+            .multipart(body)
+            .build()?;
+        self.do_request(resp_result, cloud_meta).await
+    }
+    async fn get_json<U: IntoUrl + Send>(&self, url: U, cloud_meta: Option<&CloudMeta>) -> ResponseResult<String> {
+        let resp_result = self
+            .get_client()
+            .get(url)
+            .build()?;
+        self.do_request(resp_result, cloud_meta).await
+    }
+    async fn do_request(&self, resp_result: Request, cloud_meta: Option<&CloudMeta>) -> ResponseResult<String> {
+        if let Some(cloud_meta) = cloud_meta {
+            let mut extensions = Extensions::new();
+            extensions.insert(cloud_meta.clone());
+            self.execute_with_extensions(resp_result, &mut extensions).await
+        } else {
+            let resp_result = self
+                .get_client().execute(resp_result);
+            self.get_response_text(resp_result).await
+        }
+    }
+
+    async fn execute_with_extensions(&self, resp_result: Request, extensions: &mut Extensions) -> ResponseResult<String> {
+        let resp_result = self
+            .get_client()
+            .execute_with_extensions(resp_result, extensions);
+        self.get_response_text(resp_result).await
+    }
+
+    async fn execute(&self, resp_result: Request) -> ResponseResult<String> {
+        let resp_result = self
+            .get_client()
+            .execute(resp_result);
+        self.get_response_text(resp_result).await
     }
 
     async fn get_response_text(

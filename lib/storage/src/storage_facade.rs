@@ -11,15 +11,16 @@ use api::error::ErrorInfo::Http401;
 use api::util::IntoOne;
 use api::{Capacity, ResponseResult, CLOUD_FILE_ROOT};
 use persistence::meta::{CloudMeta, FileBlockMeta};
-use persistence::{CloudFileBlock, CloudType, MetaStatus};
+use persistence::{CloudFileBlock, CloudType, MetaStatus, TempCloudFile};
 use plugin_manager::PLUGIN_MANAGER;
 use service::meta::CloudMetaManager;
 use service::CONTEXT;
 
 use crate::ali::ali_storage::AliStorage;
 use crate::baidu::baidu_storage::BaiduStorage;
+use crate::google::google_drive_storage::GoogleDriveStorage;
 use crate::local::local_storage::LocalStorage;
-use crate::model::{AuthMethod, CreateResponse};
+use crate::model::AuthMethod;
 use crate::onedrive::onedrive_storage::OneDriveStorage;
 #[cfg(not(windows))]
 use crate::sftp::sftp_storage::SftpStorage;
@@ -111,10 +112,11 @@ impl StorageFacade {
     pub async fn upload_content(
         &mut self,
         block_meta: &FileBlockMeta,
+        cloud_file_block: &mut CloudFileBlock,
         meta: &CloudMeta,
         content: &Vec<u8>,
-    ) -> ResponseResult<CreateResponse> {
-        let result = self.inner.upload_content(meta, &block_meta, content).await;
+    ) -> ResponseResult<CloudFileBlock> {
+        let result = self.inner.upload_content(meta, cloud_file_block, &block_meta, content).await;
         if let Ok(o) = result {
             return Ok(o);
         }
@@ -122,7 +124,7 @@ impl StorageFacade {
         if let Http401(_url) = e {
             let result = self.inner.refresh_token(&meta).await;
             match result {
-                Ok(_) => self.inner.upload_content(&meta, &block_meta, content).await,
+                Ok(_) => self.inner.upload_content(&meta, cloud_file_block, &block_meta, content).await,
                 Err(e) => Err(e),
             }
         } else {
@@ -133,6 +135,39 @@ impl StorageFacade {
     /// 删除文件
     ///
     pub async fn delete(&mut self, cloud_file_block: &CloudFileBlock) -> ResponseResult<()> {
+        let cloud_meta = self
+            .inner
+            .get_meta_info(cloud_file_block.cloud_meta_id)
+            .await?;
+        let cloud_file_id = cloud_file_block.cloud_file_id.clone();
+        if let None = cloud_file_id {
+            return Err(ErrorInfo::NoneCloudFileId(cloud_file_block.cloud_meta_id));
+        }
+        let cloud_file_id = cloud_file_id.unwrap();
+        let cloud_file_id = cloud_file_id.as_str();
+        let result = self.inner.delete(cloud_file_id, &cloud_meta).await;
+        if let Ok(_e) = result {
+            return Ok(());
+        }
+        let e = result.err().unwrap();
+        if let Http401(_url) = e {
+            let result = self.refresh_token(cloud_meta.id.unwrap()).await;
+
+            match result {
+                Ok(_e) => {
+                    self.inner.delete(cloud_file_id, &cloud_meta).await
+                }
+                Err(e) => Err(e),
+            }
+        } else {
+            Err(e)
+        }
+    }
+
+    ///
+    /// 删除文件
+    ///
+    pub async fn delete_temp_file(&mut self, cloud_file_block: &TempCloudFile) -> ResponseResult<()> {
         let cloud_meta = self
             .inner
             .get_meta_info(cloud_file_block.cloud_meta_id)
@@ -253,6 +288,7 @@ impl Inner {
                 CloudType::Baidu => Ok(Box::new(Arc::new(Mutex::new(BaiduStorage::new(&root))))),
                 CloudType::Local => Ok(Box::new(Arc::new(Mutex::new(LocalStorage::new(&root))))),
                 CloudType::OneDrive => Ok(Box::new(Arc::new(Mutex::new(OneDriveStorage::new(&root))))),
+                CloudType::GoogleDrive => Ok(Box::new(Arc::new(Mutex::new(GoogleDriveStorage::new(&root))))),
                 #[cfg(not(windows))]
                 CloudType::Sftp => Ok(Box::new(Arc::new(Mutex::new(SftpStorage::new(&root))))),
             };
@@ -313,16 +349,17 @@ impl Inner {
     pub(crate) async fn upload_content(
         &mut self,
         cloud_meta: &CloudMeta,
+        cloud_file_block: &mut CloudFileBlock,
         block_meta: &FileBlockMeta,
         content: &Vec<u8>,
-    ) -> ResponseResult<CreateResponse> {
+    ) -> ResponseResult<CloudFileBlock> {
         // let cloud_meta = self.get_token(1).await.unwrap();
         let cloud_type = cloud_meta.cloud_type.into();
         info!("upload start {} to {:?}({})", block_meta.file_part_id,cloud_type, cloud_meta.name);
         let cloud = self.get_cloud(cloud_type).await?;
         // let mut cloud = cloud.lock().unwrap();
         let result = cloud.lock().await
-            .upload_content(&block_meta, &content, &cloud_meta)
+            .upload_content(&block_meta, cloud_file_block, &content, &cloud_meta)
             .await;
         info!("upload finish {} to {:?}({})", block_meta.file_part_id,cloud_type, cloud_meta.name);
         result

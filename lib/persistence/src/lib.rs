@@ -1,5 +1,5 @@
-use strum_macros::EnumIter;
 use chrono::{DateTime, Utc};
+use strum_macros::EnumIter;
 
 pub mod support;
 pub mod meta {
@@ -38,7 +38,7 @@ pub mod meta {
         pub id: Option<i32>,
         pub name: String,
         pub auth: Option<String>,
-        pub last_work_time: Option<i64>,
+        pub last_work_time: Option<DateTime<Utc>,>,
         pub data_root: Option<String>,
         pub status: i8,
         pub deleted: i8,
@@ -65,7 +65,7 @@ pub struct CloudFileBlock {
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct TempCloudFile {
-    pub id: Option<i32>,
+    pub id: Option<i64>,
     pub cloud_meta_id: i32,
     pub cloud_file_id: Option<String>,
     pub status: i8,
@@ -124,6 +124,7 @@ pub enum CloudType {
     Baidu,
     Local,
     OneDrive,
+    GoogleDrive,
     #[cfg(not(windows))]
     Sftp,
 }

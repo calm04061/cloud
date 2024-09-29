@@ -15,13 +15,14 @@ use urlencoding::encode;
 
 use crate::baidu::baidu_authorization_middleware::BaiduAuthMiddleware;
 use crate::baidu::vo::{AsyncType, BaiduCreate, BaiduFileManagerResult, BaiduOpera, BaiduPreCreate, BaiduQuota, FileMetas, Token};
-use crate::model::{CreateResponse, FileInfo, Quota, User};
+use crate::model::{FileInfo, Quota, User};
 use crate::storage::{Network, Storage, TokenProvider};
 use api::error::ErrorInfo;
 use api::error::ErrorInfo::{Http, Http302};
 use api::util::IntoOne;
 use api::ResponseResult;
 use persistence::meta::{CloudMeta, FileBlockMeta};
+use persistence::CloudFileBlock;
 
 const BAIDU_YUN_APP_SECRET: &str = dotenv!("BAIDU_YUN_APP_SECRET");
 const BAIDU_YUN_APP_ID: &str = dotenv!("BAIDU_YUN_APP_ID");
@@ -127,9 +128,10 @@ impl Storage for BaiduStorage {
     async fn upload_content(
         &mut self,
         file_block: &FileBlockMeta,
+        cloud_file_block: &mut CloudFileBlock,
         content: &Vec<u8>,
         cloud_meta: &CloudMeta,
-    ) -> ResponseResult<CreateResponse> {
+    ) -> ResponseResult<CloudFileBlock> {
         let len = content.len();
         let mut blocks = vec![];
         let mut start = 0;
@@ -227,12 +229,14 @@ impl Storage for BaiduStorage {
             .await?;
         debug!("create:{json}");
         let result: BaiduCreate = serde_json::from_str(json.as_str())?;
-        Ok(CreateResponse {
-            encrypt_mode: "".to_string(),
-            file_id: result.fs_id.unwrap().to_string(),
-            file_name: "".to_string(),
-            file_type: "".to_string(),
-        })
+        // Ok(CreateResponse {
+        //     encrypt_mode: "".to_string(),
+        //     file_id: result.fs_id.unwrap().to_string(),
+        //     file_name: "".to_string(),
+        //     file_type: "".to_string(),
+        // })
+        cloud_file_block.cloud_file_id = Some(result.fs_id.unwrap().to_string());
+        Ok(cloud_file_block.clone())
     }
 
 

@@ -1,5 +1,5 @@
-use crate::ali::vo::{AliAuthToken, CompleteRequest, DriveCapacity, UploadPreResult};
-use crate::model::{CreateResponse, Quota};
+use crate::ali::vo::{AliAuthToken, DriveCapacity};
+use crate::model::Quota;
 use crate::storage::TokenProvider;
 use api::ResponseResult;
 use persistence::meta::CloudMeta;
@@ -20,24 +20,24 @@ impl TokenProvider<AliAuthToken> for CloudMeta {
     }
 }
 
-impl From<CompleteRequest> for CreateResponse {
-    fn from(value: CompleteRequest) -> Self {
-        CreateResponse {
-            encrypt_mode: "".to_string(),
-            file_id: value.file_id,
-            file_name: "".to_string(),
-            file_type: "".to_string(),
-        }
-    }
-}
-
-impl From<UploadPreResult> for CreateResponse {
-    fn from(value: UploadPreResult) -> Self {
-        CreateResponse {
-            encrypt_mode: value.encrypt_mode,
-            file_id: value.file_id,
-            file_name: value.file_name,
-            file_type: value.file_type,
-        }
-    }
-}
+// impl From<CompleteRequest> for CreateResponse {
+//     fn from(value: CompleteRequest) -> Self {
+//         CreateResponse {
+//             encrypt_mode: "".to_string(),
+//             file_id: value.file_id,
+//             file_name: "".to_string(),
+//             file_type: "".to_string(),
+//         }
+//     }
+// }
+//
+// impl From<UploadPreResult> for CreateResponse {
+//     fn from(value: UploadPreResult) -> Self {
+//         CreateResponse {
+//             encrypt_mode: value.encrypt_mode,
+//             file_id: value.file_id,
+//             file_name: value.file_name,
+//             file_type: value.file_type,
+//         }
+//     }
+// }

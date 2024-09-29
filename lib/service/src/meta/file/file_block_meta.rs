@@ -1,13 +1,13 @@
-use std::cell::Cell;
-use chrono::Utc;
 use crate::{DbPool, CONTEXT};
 use api::util::IntoOne;
 use api::ResponseResult;
+use chrono::Utc;
 use log::debug;
-use sqlx::Transaction;
-use sqlx_sqlite::Sqlite;
 use persistence::meta::{CloudMeta, FileBlockMeta};
 use persistence::{CloudFileBlock, FileStatus, MetaStatus};
+use sqlx::Transaction;
+use sqlx_sqlite::Sqlite;
+use std::cell::Cell;
 thread_local!(static TRANSACTION: Cell<Option<Transaction<'static,Sqlite>> > = Cell::new(None));
 
 #[derive(Clone)]
@@ -31,6 +31,13 @@ impl SimpleFileBlockMetaManager {
             Ok(rows.into_one())
         }
     }
+
+    pub async fn delete_by_id(&self, id: i32) -> ResponseResult<u64>{
+        Ok(sqlx::query("delete from file_block_meta where id =?")
+            .bind(id)
+            .execute(&self.db_pool).await?.rows_affected())
+    }
+
     pub async fn update_file_block_meta(
         &self,
         meta: &mut FileBlockMeta,

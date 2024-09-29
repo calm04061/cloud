@@ -1,12 +1,11 @@
 use dotenvy_macro::dotenv;
 use std::cmp::min;
 use std::collections::HashMap;
-
 use api::ResponseResult;
 use log::info;
 use rand::random;
 
-use persistence::{CloudFileBlock, MetaStatus};
+use persistence::{CloudFileBlock, MetaStatus, TempCloudFile};
 use service::CONTEXT;
 
 const MAX_SHARD: &str = dotenv!("MAX_NUMBER_OF_SHARD");
@@ -34,9 +33,16 @@ pub(crate) async fn re_balance() -> ResponseResult<()> {
 
         let mut remove_index = Vec::new();
         let mut using_cloud_id = Vec::new();
-
+        while cloud_file_blocks.len() > size {
+            let block = cloud_file_blocks.remove(0);
+            if let Some(cloud_file_id) = block.cloud_file_id {
+                let temp = TempCloudFile::new(block.cloud_meta_id, cloud_file_id);
+                CONTEXT.temp_cloud_file_manager.add(&temp).await?;
+            }
+            CONTEXT.cloud_file_block_manager.delete_by_id(block.id.unwrap()).await?;
+        }
         for (index, row) in cloud_file_blocks.iter().enumerate() {
-            let option = id2cloud.get(&row.cloud_meta_id);//移除非法的cloud_file_block
+            let option = id2cloud.get(&row.cloud_meta_id); //移除非法的cloud_file_block
             if option.is_none() {
                 CONTEXT.cloud_file_block_manager.delete_by_id(file_block_id).await?;
                 remove_index.push(index);

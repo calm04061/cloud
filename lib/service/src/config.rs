@@ -1,7 +1,6 @@
-
+use crate::DbPool;
 use api::util::IntoOne;
 use persistence::Config;
-use crate::DbPool;
 
 pub struct ConfigManager {
     db_pool: DbPool,

@@ -14,23 +14,18 @@ pub(crate) async fn authorize(
 ) -> impl Responder {
     let headers = request.headers();
     let server = header_value(headers, "Host", "pan.calm0406.com:8080");
-    let server= format!("http://{server}");
+    let server = format!("http://{server}");
     let id = id.into_inner();
     let mut cloud = STORAGE_FACADE.write().await;
     let vec = cloud.get_auth_methods(id).await;
+    let mut target = String::from("/cloud");
     if vec.contains(&AuthMethod::OAuth2) {
-        let url = cloud.authorize(&server, id).await.unwrap();
-        HttpResponse::Found()
-            .append_header(("Location", url.as_str()))
-            .append_header(("Cache-Control", "no-store"))
-            .finish()
-    } else {
-        HttpResponse::Found()
-            .append_header(("Location", "/cloud"))
-            .append_header(("Cache-Control", "no-store"))
-            .finish()
+        target = cloud.authorize(&server, id).await.unwrap();
     }
-
+    HttpResponse::Found()
+        .append_header(("Location", target))
+        .append_header(("Cache-Control", "no-store"))
+        .finish()
 }
 
 #[get("/cloud/callback")]
@@ -40,22 +35,13 @@ pub(crate) async fn callback(state: Query<Callback>, request: HttpRequest) -> im
 
     let url = "/cloud".to_string();
     let result = STORAGE_FACADE.write().await.callback(&server, &state.into_inner()).await;
-    match result {
-        Ok(_) => {
-            HttpResponse::Found()
-                .append_header(("Location", url.as_str()))
-                .append_header(("Cache-Control", "no-store"))
-                .finish()
-        }
-        Err(e) => {
-            error!("{}", e);
-            HttpResponse::Found()
-                .append_header(("Location", url.as_str()))
-                .append_header(("Cache-Control", "no-store"))
-                .finish()
-        }
+    if let Err(e) = result {
+        error!("{:?}", e);
     }
-
+    HttpResponse::Found()
+        .append_header(("Location", url.as_str()))
+        .append_header(("Cache-Control", "no-store"))
+        .finish()
 }
 
 fn header_value(headers: &HeaderMap, header: &str, default_value: &str) -> String {
@@ -69,5 +55,4 @@ fn header_value(headers: &HeaderMap, header: &str, default_value: &str) -> Strin
         }
     };
     server.to_string()
-
 }

@@ -1,6 +1,6 @@
+use crate::DbPool;
 use api::ResponseResult;
 use persistence::EventMessage;
-use crate::DbPool;
 
 pub struct EventMessageManager {
     db_pool: DbPool,

@@ -1,7 +1,7 @@
+use crate::DbPool;
 use api::util::IntoOne;
 use api::ResponseResult;
 use persistence::User;
-use crate::DbPool;
 
 pub struct UserManager {
     db_pool: DbPool,

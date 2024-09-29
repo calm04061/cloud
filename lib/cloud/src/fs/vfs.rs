@@ -1,14 +1,14 @@
+use chrono::Utc;
+use crypto::digest::Digest;
+use crypto::md5::Md5;
+use log::{debug, error, info};
+use nfsserve::nfs::fileid3;
 use std::fmt::{Debug, Formatter};
 use std::fs;
 use std::fs::File;
 use std::io::SeekFrom::Start;
 use std::io::{Read, Seek, Write};
 use std::path::Path;
-use chrono::Utc;
-use crypto::digest::Digest;
-use crypto::md5::Md5;
-use log::{debug, error, info};
-use nfsserve::nfs::fileid3;
 
 use api::error::ErrorInfo;
 use api::{ResponseResult, ROOT_FILE_ID};

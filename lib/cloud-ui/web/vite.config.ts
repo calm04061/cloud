@@ -14,7 +14,7 @@ export default defineConfig({
     },
     server: {
         proxy: {
-            "/api": "http://192.168.1.199:8088"
+            "/api": "http://127.0.0.1:8088"
         }
     }
 })

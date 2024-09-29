@@ -1,10 +1,10 @@
 use crate::onedrive::vo::AuthorizationToken;
 use crate::storage::TokenProvider;
+use api::error::ErrorInfo;
 use http::Extensions;
 use persistence::meta::CloudMeta;
 use reqwest::{Request, Response};
 use reqwest_middleware::{Middleware, Next};
-use api::error::ErrorInfo;
 
 pub struct OneDriveAuthMiddleware {}
 

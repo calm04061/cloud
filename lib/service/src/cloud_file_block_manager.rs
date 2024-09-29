@@ -1,9 +1,9 @@
-use std::ops::Add;
-use chrono::Utc;
-use sqlx::{query};
-use api::ResponseResult;
-use persistence::{CloudFileBlock, FileStatus};
 use crate::DbPool;
+use api::ResponseResult;
+use chrono::Utc;
+use persistence::{CloudFileBlock, FileStatus};
+use sqlx::query;
+use std::ops::Add;
 #[derive(Clone)]
 pub struct CloudFileBlockManager {
     db_pool: DbPool,
@@ -20,12 +20,11 @@ impl CloudFileBlockManager {
     pub async fn update_status(&self, block: &CloudFileBlock, target_status: FileStatus) -> ResponseResult<u64> {
         let result = query("update cloud_file_block set status = ? where id = ? and status = ?")
             .bind::<i8>(target_status.into())
-            .bind(&block.id)
+            .bind(&block.id.unwrap())
             .bind(&block.status)
             .execute(&self.db_pool)
             .await?;
         Ok(result.rows_affected())
-
     }
 
     pub async fn update_by_status(&self, block: &CloudFileBlock, status: FileStatus) -> ResponseResult<u64> {
@@ -56,7 +55,7 @@ impl CloudFileBlockManager {
         // Ok(CloudFileBlock::update_by_status(&self.batis.clone(), block, block.id.unwrap(), status.into()).await?.rows_affected)
     }
     pub async fn select_by_file_block_id(&self, file_block_id: i32) -> ResponseResult<Vec<CloudFileBlock>> {
-        let vec = sqlx::query_as("select * from cloud_file_block where file_block_id =?")
+        let vec = sqlx::query_as("select * from cloud_file_block where file_block_id =? order by cloud_file_hash")
             .bind(file_block_id)
             .fetch_all(&self.db_pool)
             .await?;
@@ -139,8 +138,8 @@ impl CloudFileBlockManager {
             left join cloud_file_block cfb on fbm.id = cfb.file_block_id
             left join file_meta fm on fbm.file_meta_id = fm.id
             where fm.deleted = 0
-            group by cfb.id
-        ) where size < ? limit 50
+            group by fbm.id
+        ) where size <> ? limit 50
         "#;
         Ok(sqlx::query_as(sql)
             .bind(size)

@@ -60,6 +60,7 @@ impl From<i8> for CloudType {
             4 => CloudType::OneDrive,
             #[cfg(not(windows))]
             5 => CloudType::Sftp,
+            6 => CloudType::GoogleDrive,
             _ => CloudType::AliYun,
         }
     }
@@ -74,6 +75,7 @@ impl From<&CloudType> for i8 {
             CloudType::OneDrive => 4,
             #[cfg(not(windows))]
             CloudType::Sftp => 5,
+            CloudType::GoogleDrive => 6,
         }
     }
 }
@@ -84,6 +86,7 @@ impl From<&CloudType> for String {
             CloudType::Baidu => "百度云盘".to_string(),
             CloudType::Local => "本地磁盘".to_string(),
             CloudType::OneDrive => "OneDrive".to_string(),
+            CloudType::GoogleDrive => "GoogleDrive".to_string(),
             #[cfg(not(windows))]
             CloudType::Sftp => "Sftp".to_string(),
         }

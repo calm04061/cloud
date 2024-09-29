@@ -1,7 +1,7 @@
-use api::error::ErrorInfo;
 use crate::baidu::vo::{AsyncType, BaiduFileMeta, BaiduOpera, BaiduQuota, BaiduUser, Token};
 use crate::model::{FileInfo, Quota, User};
 use crate::storage::TokenProvider;
+use api::error::ErrorInfo;
 use api::ResponseResult;
 use persistence::meta::CloudMeta;
 

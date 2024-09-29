@@ -1,8 +1,8 @@
+use chrono::Utc;
+use log::{error, info};
 use std::fs::File;
 use std::io::{ErrorKind, Read};
 use std::sync::Arc;
-use chrono::Utc;
-use log::{error, info};
 use tokio::sync::Semaphore;
 
 use api::error::ErrorInfo;
@@ -62,19 +62,19 @@ async fn process_block(mut file_block: CloudFileBlock, semaphore: Arc<Semaphore>
     Ok(())
 }
 
-async fn do_execute_one_block(file_block: &mut CloudFileBlock) -> ResponseResult<()> {
+async fn do_execute_one_block(cloud_file_block: &mut CloudFileBlock) -> ResponseResult<()> {
     let cloud_meta = CONTEXT
         .cloud_meta_manager
-        .info(file_block.cloud_meta_id)
+        .info(cloud_file_block.cloud_meta_id)
         .await?;
     let status: MetaStatus = cloud_meta.status.into();
     if status != MetaStatus::Enable {
         info!("storage status error {:?}", status);
-        return Err(ErrorInfo::OTHER(0, format!(" storage meta [{}] status error {:?}", file_block.cloud_meta_id, status)));
+        return Err(ErrorInfo::OTHER(0, format!(" storage meta [{}] status error {:?}", cloud_file_block.cloud_meta_id, status)));
     }
     let file_block_meta = CONTEXT
         .file_manager
-        .file_block_meta_info_by_id(file_block.file_block_id)
+        .file_block_meta_info_by_id(cloud_file_block.file_block_id)
         .await?;
     let mut file_block_meta = file_block_meta.unwrap();
     let cache_file = dotenvy::var("TEMP_PATH").unwrap_or(String::from("/var/lib/storage/temp"));
@@ -120,39 +120,30 @@ async fn do_execute_one_block(file_block: &mut CloudFileBlock) -> ResponseResult
     }
 
     let result = STORAGE_FACADE.write().await
-        .upload_content(&file_block_meta, &cloud_meta, &body)
+        .upload_content(&file_block_meta, &mut cloud_file_block.clone(), &cloud_meta, &body)
         .await;
     let res = match result {
         Ok(cr) => {
-            file_block.status = FileStatus::UploadSuccess.into();
-            file_block.cloud_file_id = Some(cr.file_id);
-            file_block.cloud_file_hash = Some(file_block_meta.part_hash);
+            cloud_file_block.status = FileStatus::UploadSuccess.into();
+            cloud_file_block.cloud_file_id = cr.cloud_file_id;
+            cloud_file_block.cloud_file_hash = Some(file_block_meta.part_hash);
             Ok(())
         }
         Err(e) => {
-            file_block.status = FileStatus::UploadFail.into();
+            cloud_file_block.status = FileStatus::UploadFail.into();
             Err(ErrorInfo::OTHER(0, format!("上传文件{cache_file}:{}", e.to_string())))
         }
     };
-    file_block.update_time = Utc::now();
-    let result = CONTEXT.cloud_file_block_manager.update_by_status(&file_block, FileStatus::Uploading).await;
+    cloud_file_block.update_time = Utc::now();
+    let result = CONTEXT.cloud_file_block_manager.update_by_status(&cloud_file_block, FileStatus::Uploading).await;
     match result {
         Ok(count) => {
             match count {
                 0 => {
-                    let temp = TempCloudFile{
-                        id: None,
-                        cloud_meta_id: file_block.cloud_meta_id.clone(),
-                        cloud_file_id: file_block.cloud_file_id.clone(),
-                        status: FileStatus::WaitClean.into(),
-                        create_time: Default::default(),
-                        update_time: Default::default(),
-                    };
+                    let temp = TempCloudFile::new(cloud_file_block.cloud_meta_id.clone(),cloud_file_block.cloud_file_id.clone().unwrap());
                     let result = CONTEXT.temp_cloud_file_manager.add(&temp).await;
                     match result {
-                        Ok(_) => {
-
-                        }
+                        Ok(_) => {}
                         Err(e) => {
                             error!("临时文件数据库更新失败:{}",e);
                         }
@@ -162,7 +153,7 @@ async fn do_execute_one_block(file_block: &mut CloudFileBlock) -> ResponseResult
             }
         }
         Err(e) => {
-            return Err(ErrorInfo::OTHER(0, format!("文件块{}更新文件块状态失败: {}", file_block.id.unwrap(), e.to_string())))
+            return Err(ErrorInfo::OTHER(0, format!("文件块{}更新文件块状态失败: {}", cloud_file_block.id.unwrap(), e.to_string())))
         }
     }
     res

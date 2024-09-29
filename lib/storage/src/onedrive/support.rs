@@ -1,5 +1,5 @@
+use crate::model::{FileInfo, Quota, User};
 use api::error::ErrorInfo;
-use crate::model::{CreateResponse, FileInfo, Quota, User};
 use api::ResponseResult;
 use persistence::meta::CloudMeta;
 
@@ -34,17 +34,6 @@ impl From<OneDriveUser> for User {
             creator: None,
             created_at: None,
             updated_at: None,
-        }
-    }
-}
-
-impl From<DriveItem> for CreateResponse {
-    fn from(item: DriveItem) -> Self {
-        CreateResponse {
-            encrypt_mode: "".to_string(),
-            file_id: item.id,
-            file_name: item.name,
-            file_type: "".to_string(),
         }
     }
 }

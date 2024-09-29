@@ -9,7 +9,7 @@ use crate::web::common::WebResult;
 #[get("/file/{id}")]
 pub(crate) async fn info(id: web::Path<i64>) -> Result<impl Responder> {
     let x = CONTEXT.file_manager.info_by_id(id.into_inner()).await;
-    let x1 = x.unwrap();
+    let x1 = x?;
     Ok(WebResult::actix_web_json_result(&Some(x1)))
 }
 #[delete("/file/{id}")]

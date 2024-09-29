@@ -1,18 +1,18 @@
 // 从clean.rs文件中提取的Rust代码，用于清理文件和云文件块
 
-use std::io::{ErrorKind};
-use std::ops::Sub;
-use std::sync::Arc;
-use chrono::{TimeDelta, Utc};
-use log::{debug, error, info};
-use tokio::sync::Mutex;
 use api::error::ErrorInfo;
 use api::ResponseResult;
+use chrono::{TimeDelta, Utc};
+use log::{debug, error, info};
 use persistence::meta::{FileBlockMeta, FileMeta};
-use persistence::{CloudFileBlock, FileStatus};
-use service::CONTEXT;
+use persistence::{CloudFileBlock, FileMetaType, FileStatus};
 use service::meta::FileManager;
+use service::CONTEXT;
+use std::io::ErrorKind;
+use std::ops::Sub;
+use std::sync::Arc;
 use storage::STORAGE_FACADE;
+use tokio::sync::Mutex;
 
 pub async fn clean_cloud_file(worker_id: Arc<Mutex<Option<i64>>>) {
     info!("start clean");
@@ -87,6 +87,12 @@ async fn do_clean_file_meta(file_meta: &FileMeta, cache_file: &String) -> Respon
             return Err(e);
         }
     }
+    if file_meta.file_type == FileMetaType::DIR.get_code() {
+        let vec = CONTEXT.file_manager.list_all_by_parent(file_meta.id.unwrap()).await?;
+        if vec.len() > 0 {
+            return Ok(0);
+        }
+    }
     CONTEXT.file_meta_manager.delete_meta(file_meta).await
 }
 ///
@@ -121,7 +127,7 @@ async fn do_clean_file_block(file_block_meta: &FileBlockMeta, cache_file: &Strin
             return Err(e);
         }
     }
-    CONTEXT.cloud_file_block_manager.delete_by_id(file_block_meta.id.unwrap()).await
+    CONTEXT.file_block_meta_manager.delete_by_id(file_block_meta.id.unwrap()).await
 }
 
 async fn do_clean_cloud_file(cloud_file_block: &mut CloudFileBlock) -> ResponseResult<u64> {

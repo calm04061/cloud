@@ -1,8 +1,8 @@
-use std::future::Future;
-use chrono::{DateTime, Utc};
 use api::ResponseResult;
+use chrono::{DateTime, Utc};
 use persistence::meta::{CloudMeta, FileBlockMeta, FileMeta};
 use persistence::FileMetaType;
+use std::future::Future;
 
 pub mod cloud;
 pub mod file;
@@ -33,7 +33,7 @@ pub trait FileManager {
 
     fn update_meta(&self, meta: FileMeta) -> impl Future<Output=ResponseResult<FileMeta>> + Send;
     fn update_file_content(&self, meta: FileMeta, block_index: usize) -> impl Future<Output=ResponseResult<FileMeta>> + Send;
-    fn delete_file_blocks(&self, id: i64, block_index: i64) -> impl Future<Output=()>;
+    fn delete_file_blocks(&self, id: i64, block_index: i64) -> impl Future<Output=ResponseResult<u64>>;
 
     fn info_by_id(&self, id: i64) -> impl Future<Output=ResponseResult<FileMeta>> + Send;
 

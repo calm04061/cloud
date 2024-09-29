@@ -15,5 +15,6 @@ pub(crate) mod onedrive;
 pub(crate) mod sftp;
 pub mod web;
 pub mod model;
+mod google;
 
 pub static STORAGE_FACADE: Lazy<Arc<RwLock<StorageFacade>>> = Lazy::new(|| Arc::new(RwLock::new(StorageFacade::new())));

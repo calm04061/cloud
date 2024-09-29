@@ -20,12 +20,12 @@ pub(crate) async fn authorize(
     let vec = cloud.get_auth_methods(id).await;
     if vec.contains(&AuthMethod::OAuth2) {
         let url = cloud.authorize(&server, id).await.unwrap();
-        HttpResponse::MovedPermanently()
+        HttpResponse::Found()
             .append_header(("Location", url.as_str()))
             .append_header(("Cache-Control", "no-store"))
             .finish()
     } else {
-        HttpResponse::MovedPermanently()
+        HttpResponse::Found()
             .append_header(("Location", "/cloud"))
             .append_header(("Cache-Control", "no-store"))
             .finish()
@@ -42,14 +42,14 @@ pub(crate) async fn callback(state: Query<Callback>, request: HttpRequest) -> im
     let result = STORAGE_FACADE.write().await.callback(&server, &state.into_inner()).await;
     match result {
         Ok(_) => {
-            HttpResponse::MovedPermanently()
+            HttpResponse::Found()
                 .append_header(("Location", url.as_str()))
                 .append_header(("Cache-Control", "no-store"))
                 .finish()
         }
         Err(e) => {
             error!("{}", e);
-            HttpResponse::MovedPermanently()
+            HttpResponse::Found()
                 .append_header(("Location", url.as_str()))
                 .append_header(("Cache-Control", "no-store"))
                 .finish()

@@ -1,6 +1,6 @@
 use crate::DbPool;
 use api::ResponseResult;
-use chrono::Utc;
+use chrono::Local;
 use persistence::{CloudFileBlock, FileStatus};
 use sqlx::query;
 use std::ops::Add;
@@ -114,7 +114,7 @@ impl CloudFileBlockManager {
             .await?)
     }
 
-    pub async fn select_by_status(&self, status: FileStatus, update_time: chrono::DateTime<Utc>) -> ResponseResult<Vec<CloudFileBlock>> {
+    pub async fn select_by_status(&self, status: FileStatus, update_time: chrono::DateTime<Local>) -> ResponseResult<Vec<CloudFileBlock>> {
         Ok(sqlx::query_as("select * from cloud_file_block where status =? and update_time <?")
             .bind::<i8>(status.into())
             .bind(update_time)
@@ -133,13 +133,13 @@ impl CloudFileBlockManager {
 
         // let rbatis = &self.batis.clone();
         let sql = r#"
-        select id as file_block_id from (
+        select id as file_block_id,size from (
             select fbm.id, count(cfb.id) size from file_block_meta fbm
             left join cloud_file_block cfb on fbm.id = cfb.file_block_id
             left join file_meta fm on fbm.file_meta_id = fm.id
             where fm.deleted = 0
             group by fbm.id
-        ) where size <> ? limit 50
+        ) where size <> ? limit 500
         "#;
         Ok(sqlx::query_as(sql)
             .bind(size)
@@ -151,4 +151,5 @@ impl CloudFileBlockManager {
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct TempRow {
     pub file_block_id: Option<i32>,
+    pub size: u32,
 }

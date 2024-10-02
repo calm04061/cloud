@@ -9,7 +9,7 @@ use persistence::FileStatus;
 use storage::STORAGE_FACADE;
 
 use crate::task::clean_cloud_file::clean_cloud_file;
-use crate::task::clean_temp_cloud_file::clean_temp_cloud_file;
+use crate::task::clean_temp_cloud_file::{clean_temp_cloud_file, reset_status};
 use crate::task::re_balance::re_balance;
 use crate::task::refresh_token::refresh_token;
 use crate::task::reset::reset;
@@ -42,7 +42,7 @@ pub async fn task(sched: &JobScheduler) {
     sched.add(locked).await.unwrap();
     let locked = Job::new_async("0/5 * * * * *", move |_uuid, _l| re_balance_task()).unwrap();
     sched.add(locked).await.unwrap();
-    let locked = Job::new_async("0 * * * * *", move |_uuid, _l| refresh_token_task()).unwrap();
+    let locked = Job::new_async("0/10 * * * * *", move |_uuid, _l| refresh_token_task()).unwrap();
     sched.add(locked).await.unwrap();
     let locked = Job::new_async("*/20 * * * * *", move |_uuid, _l| clean_temp_cloud_file_task(temp_file_worker_id.clone())).unwrap();
     sched.add(locked).await.unwrap();
@@ -87,6 +87,14 @@ fn reset_task() -> Pin<Box<impl Future<Output=()> + Sized>> {
             if let Err(e) = result {
                 log::error!("reset error: {}", e);
             }
+            let result = reset_status(FileStatus::CleanFail, FileStatus::WaitClean, 60 * 10).await;
+            if let Err(e) = result {
+                log::error!("reset error: {}", e);
+            }
+            let result = reset_status(FileStatus::Cleaning, FileStatus::WaitClean, 60 * 10).await;
+            if let Err(e) = result {
+                log::error!("reset error: {}", e);
+            }
         }
     })
 }
@@ -126,8 +134,7 @@ fn refresh_token_task() -> Pin<Box<impl Future<Output=()> + Sized>> {
 fn clean_temp_cloud_file_task(worker_id: Arc<Mutex<Option<i64>>>) -> Pin<Box<impl Future<Output=()> + Sized>> {
     Box::pin({
         async move {
-             clean_temp_cloud_file(worker_id).await;
-
+            clean_temp_cloud_file(worker_id).await;
         }
     })
 }

@@ -1,7 +1,7 @@
 // use rbs::Value;
 
 use crate::meta::FileMeta;
-use chrono::Utc;
+use chrono::Local;
 
 impl Default for FileMeta {
     fn default() -> Self {
@@ -16,8 +16,8 @@ impl Default for FileMeta {
             file_length: 0,
             status: 0,
             deleted: 0,
-            create_time: Utc::now(),
-            update_time: Utc::now(),
+            create_time: Local::now(),
+            update_time: Local::now(),
         }
     }
 }

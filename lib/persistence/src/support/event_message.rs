@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::Local;
 
 use crate::{EventMessage, EventResult, EventType};
 
@@ -10,7 +10,7 @@ impl EventMessage {
             event_type: event_type.into(),
             event_result: result.into(),
             message,
-            create_time: Utc::now(),
+            create_time: Local::now(),
 
         };
         event_message

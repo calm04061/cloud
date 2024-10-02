@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::Local;
 // use rbs::Value;
 
 use crate::{CloudFileBlock, FileStatus};
@@ -13,8 +13,8 @@ impl CloudFileBlock {
             cloud_file_hash: None,
             status: FileStatus::Init.into(),
             deleted: 0,
-            create_time: Utc::now(),
-            update_time: Utc::now(),
+            create_time: Local::now(),
+            update_time: Local::now(),
         }
     }
 }
@@ -29,8 +29,8 @@ impl Default for CloudFileBlock {
             cloud_file_hash: None,
             status: 0,
             deleted: 0,
-            create_time: Utc::now(),
-            update_time: Utc::now(),
+            create_time: Local::now(),
+            update_time: Local::now(),
         }
     }
 }

@@ -1,7 +1,7 @@
 // use rbs::Value;
 
 use crate::meta::FileBlockMeta;
-use chrono::Utc;
+use chrono::Local;
 //
 // impl FileBlockMeta {
 //     pub fn sync_default()  -> Value {
@@ -25,7 +25,7 @@ impl Default for FileBlockMeta {
             id: Some(0),
             block_index: 0,
             file_part_id: "".to_string(),
-            update_time: Utc::now(),
+            update_time: Local::now(),
             file_modify_time: 0,
             deleted: 0,
             file_meta_id: 0,

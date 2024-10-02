@@ -4,7 +4,7 @@ use dotenvy_macro::dotenv;
 use http::Extensions;
 use log::info;
 use reqwest::multipart::Part;
-use reqwest::{multipart, Client, Proxy};
+use reqwest::{multipart, Client};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use urlencoding::encode;
@@ -38,7 +38,7 @@ impl GoogleDriveStorage {
     pub fn new(root: &str) -> Self {
         let auth_middleware = GoogleDriveAuthMiddleware::new();
         let client = Client::builder()
-            .proxy(Proxy::https("http://127.0.0.1:9988").unwrap())
+            // .proxy(Proxy::https("http://127.0.0.1:9988").unwrap())
             .timeout(Duration::from_secs(300))
             .connect_timeout(Duration::from_secs(300))
             .build()
@@ -116,7 +116,7 @@ impl GoogleDriveStorage {
 #[async_trait]
 impl Storage for GoogleDriveStorage {
     ///
-    /// POST https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable
+    /// POST https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart
     /// PUT Location
     async fn upload_content(&mut self, file_block: &FileBlockMeta, cloud_file_block: &mut CloudFileBlock, content: &Vec<u8>, cloud_meta: &CloudMeta) -> ResponseResult<CloudFileBlock> {
         let extra_string = cloud_meta.extra.as_ref().unwrap();
@@ -253,7 +253,7 @@ impl Storage for GoogleDriveStorage {
 
         let scope = encode("https://www.googleapis.com/auth/drive");
         // https://cloud.calm0406.tk/callback.html
-        let callback = format!("{AUTH_DOMAIN_PREFIX}/o/oauth2/v2/auth?response_type=code&client_id={}&scope={scope}&state={id}&access_type=offline&prompt=consent", self.client_id());
+        let callback = format!("{AUTH_DOMAIN_PREFIX}/o/oauth2/v2/auth?response_type=code&client_id={}&scope={scope}&state={id}&access_type=offline", self.client_id());
         let callback = encode(callback.as_str());
         let result_url = format!("https://cloud.calm0406.tk/callback.html?target={target}&redirect_uri={callback}");
         Ok(result_url)
@@ -295,7 +295,6 @@ impl Storage for GoogleDriveStorage {
 impl ExtraStorage for GoogleDriveStorage {
     async fn build_extra(&mut self, _cloud_meta: &mut CloudMeta) -> ResponseResult<String> {
         let extra = GoogleDriveExtra {
-            drive_id: None,
             root_file_id: None,
         };
         let extra = serde_json::to_string(&extra)?;

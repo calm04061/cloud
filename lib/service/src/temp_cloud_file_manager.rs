@@ -1,9 +1,20 @@
+use chrono::{DateTime, Local};
 use crate::DbPool;
 use api::ResponseResult;
 use persistence::{FileStatus, TempCloudFile};
 
 pub struct TempCloudFileManager {
     db_pool: DbPool,
+}
+
+impl TempCloudFileManager {
+    pub async fn select_by_status(&self, status: FileStatus, update_time: DateTime<Local>) -> ResponseResult<Vec<TempCloudFile>> {
+        Ok(sqlx::query_as("select * from temp_cloud_file where status =? and update_time <?")
+            .bind::<i8>(status.into())
+            .bind(update_time)
+            .fetch_all(&self.db_pool)
+            .await?)
+    }
 }
 
 impl TempCloudFileManager {
@@ -33,10 +44,11 @@ impl TempCloudFileManager {
         Ok(result.last_insert_rowid())
     }
 
-    pub async fn update_status(&self, file: &TempCloudFile, status: FileStatus) -> ResponseResult<u64> {
-        let result = sqlx::query("update temp_cloud_file set status = ? where id=? and status = ?")
-            .bind::<i8>(status.into())
-            .bind(file.id)
+    pub async fn update_status(&self, file: &TempCloudFile, target_status: FileStatus) -> ResponseResult<u64> {
+        let result = sqlx::query("update temp_cloud_file set status = ?,update_time =? where id=? and status = ?")
+            .bind::<i8>(target_status.into())
+            .bind(file.update_time)
+            .bind(file.id.unwrap())
             .bind(file.status)
             .execute(&self.db_pool)
             .await?;

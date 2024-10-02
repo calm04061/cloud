@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::{Local};
 use crypto::digest::Digest;
 use crypto::md5::Md5;
 use log::{debug, error, info};
@@ -517,8 +517,8 @@ impl Inner {
                     id: None,
                     file_part_id: file_name_hash,
                     block_index,
-                    update_time: Utc::now(),
-                    file_modify_time: chrono::Local::now().timestamp_millis(),
+                    update_time: Local::now(),
+                    file_modify_time: Local::now().timestamp_millis(),
                     file_meta_id,
                     deleted: 0,
                     part_hash: md5_value,

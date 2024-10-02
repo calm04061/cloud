@@ -1,7 +1,7 @@
 use crate::{DbPool, CONTEXT};
 use api::util::IntoOne;
 use api::ResponseResult;
-use chrono::Utc;
+use chrono::Local;
 use log::debug;
 use persistence::meta::{CloudMeta, FileBlockMeta};
 use persistence::{CloudFileBlock, FileStatus, MetaStatus};
@@ -42,7 +42,7 @@ impl SimpleFileBlockMetaManager {
         &self,
         meta: &mut FileBlockMeta,
     ) -> ResponseResult<Option<FileBlockMeta>> {
-        meta.update_time = Utc::now();
+        meta.update_time = Local::now();
         // FileBlockMeta::update_by_column(&self.batis.clone(), &meta, "id")
         //     .await
         //     ?;
@@ -108,7 +108,7 @@ impl SimpleFileBlockMetaManager {
             }
             Ok(Some(meta))
         } else {
-            meta.update_time = Utc::now();
+            meta.update_time = Local::now();
             self.update(&meta).await?;
             self.file_block_meta_info_by_id(meta.id.unwrap()).await
         }

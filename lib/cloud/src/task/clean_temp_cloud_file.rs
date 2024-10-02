@@ -2,10 +2,13 @@
 
 use api::error::ErrorInfo;
 use api::ResponseResult;
+use chrono::{Local};
 use log::{debug, error, info};
 use persistence::{FileStatus, TempCloudFile};
 use service::CONTEXT;
+use std::ops::Sub;
 use std::sync::Arc;
+use std::time::Duration;
 use storage::STORAGE_FACADE;
 use tokio::sync::Mutex;
 
@@ -88,4 +91,27 @@ async fn do_clean_file_block(file_block_meta: &mut TempCloudFile) -> ResponseRes
             Err(ErrorInfo::OTHER(1003, format!("临时文件块{}删除失败:{}", file_block_meta.id.unwrap(), e)))
         }
     }
+}
+
+
+pub(crate) async fn reset_status(origin_status: FileStatus, target_status: FileStatus, sub: u64) -> ResponseResult<()> {
+    // info!("reset status:{:?} before {}s", origin_status, sub);
+    let update_time = Local::now();
+    let update_time = update_time.sub(Duration::from_secs(sub));
+    info!("reset status:{:?} update_time:{}", origin_status, update_time);
+    let cloud_file_block = CONTEXT.temp_cloud_file_manager.select_by_status(origin_status, update_time).await?;
+    // let cloud_file_block = CloudFileBlock::select_by_status(pool!(), status.into(), update_time).await.unwrap();
+    info!("select from {:?} to reset,size:{}",  origin_status, cloud_file_block.len());
+    for mut file_block in cloud_file_block {
+        file_block.update_time = Local::now();
+        let result = CONTEXT.temp_cloud_file_manager.update_status(&file_block,
+                                                                       target_status).await;
+        match result {
+            Ok(_) => {}
+            Err(e) => {
+                error!("reset error:{}", e);
+            }
+        }
+    }
+    Ok(())
 }

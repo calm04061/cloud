@@ -1,5 +1,3 @@
-// 从clean.rs文件中提取的Rust代码，用于清理文件和云文件块
-
 use api::error::ErrorInfo;
 use api::ResponseResult;
 use chrono::{TimeDelta, Utc};

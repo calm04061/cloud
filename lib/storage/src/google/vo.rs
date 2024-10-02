@@ -37,19 +37,6 @@ pub(crate) struct GoogleDriveQuota {
     pub(crate) limit: String,
 }
 
-// #[derive(Serialize, Deserialize, Debug)]
-// pub(crate) struct GoogleDriveOwner {
-//     pub(crate) user: GoogleDriveUser,
-// }
-
-// #[derive(Serialize, Deserialize, Debug)]
-// pub(crate) struct GoogleDriveUser {
-//     pub(crate) id: String,
-//     #[serde(rename = "displayName")]
-//     pub(crate) display_name: String,
-// }
-
-
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub(crate) struct GoogleDriveFile {
     pub(crate) kind: Option<String>,
@@ -66,7 +53,7 @@ pub(crate) struct GoogleDriveFile {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct GoogleDriveExtra {
-    pub(crate) drive_id: Option<String>,
+    // pub(crate) drive_id: Option<String>,
     pub(crate) root_file_id: Option<String>,
 }
 #[derive(Serialize, Deserialize, Debug)]

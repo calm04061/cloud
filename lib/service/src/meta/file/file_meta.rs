@@ -5,7 +5,7 @@ use api::error::ErrorInfo;
 use api::util::IntoOne;
 use api::ResponseResult;
 use async_recursion::async_recursion;
-use chrono::Utc;
+use chrono::{Local};
 use persistence::meta::FileMeta;
 use persistence::FileStatus;
 use std::ops::Add;
@@ -98,7 +98,7 @@ impl SimpleFileMetaManager {
         }
         let mut file_meta = file_meta.clone();
         file_meta.deleted = 1;
-        file_meta.update_time = Utc::now();
+        file_meta.update_time = Local::now();
         self.update(&file_meta).await?;
         // FileMeta::update_by_column(&self.batis.clone(), &file_meta, "id")
         //     .await?;
@@ -111,7 +111,7 @@ impl SimpleFileMetaManager {
         let file_meta = self.info_by_id(id).await?;
         let mut file_meta = file_meta.clone();
         file_meta.deleted = 1;
-        file_meta.update_time = Utc::now();
+        file_meta.update_time = Local::now();
         self.update(&file_meta).await?;
         // FileMeta::update_by_column(&self.batis.clone(), &file_meta, "id")
         //     .await?;
@@ -135,8 +135,8 @@ impl SimpleFileMetaManager {
             file_length: 0,
             status: FileStatus::Init.into(),
             deleted: 0,
-            create_time: Utc::now(),
-            update_time: Utc::now(),
+            create_time: Local::now(),
+            update_time: Local::now(),
         };
         Ok(self.insert(&value).await?)
         // Ok(FileMeta::insert(&self.batis.clone(), &value)

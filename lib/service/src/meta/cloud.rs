@@ -20,22 +20,12 @@ impl SimpleCloudMetaManager {
             .bind(i8::from(false))
             .fetch_all(&self.db_pool).await?;
         Ok(row)
-
-        // let result = CloudMeta::select_by_column(&self.batis.clone(), "deleted", i8::from(false)).await;
-        // let result = match result {
-        //     Ok(vec) => Ok(vec),
-        //     Err(e) => Err(e)
-        // };
-        // Ok(result?)
     }
     pub async fn select_by_status(&self, status: i8) -> ResponseResult<Vec<CloudMeta>> {
         let row: Vec<CloudMeta> = sqlx::query_as("select * from cloud_meta where status = ? and deleted = 0 ")
             .bind(status)
             .fetch_all(&self.db_pool).await?;
         Ok(row)
-
-        // Ok(CloudMeta::select_by_column(&self.batis.clone(), "status", status)
-        //     .await?)
     }
     pub async fn quota_random(&self, status: i8, size: i32) -> ResponseResult<Vec<CloudMeta>> {
         let row: Vec<CloudMeta> = sqlx::query_as("select * from cloud_meta where status = ? and deleted = 0 order by remaining_quota * random() desc limit ? ")
@@ -50,7 +40,6 @@ impl SimpleCloudMetaManager {
             .bind::<i64>(now as i64)
             .fetch_all(&self.db_pool).await?;
         Ok(row)
-        // Ok(CloudMeta::query_token_timeout(&self.batis.clone(), MetaStatus::Enable.into(), now).await?)
     }
     pub async fn update(&self, meta: &CloudMeta) -> ResponseResult<u64> {
         let id= &meta.id;

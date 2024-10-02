@@ -1,8 +1,8 @@
-use chrono::Utc;
 use log::{error, info};
 use std::fs::File;
 use std::io::{ErrorKind, Read};
 use std::sync::Arc;
+use chrono::Local;
 use tokio::sync::Semaphore;
 
 use api::error::ErrorInfo;
@@ -38,7 +38,7 @@ async fn process_block(mut file_block: CloudFileBlock, semaphore: Arc<Semaphore>
     }
     info!("available_permits:{}",semaphore.available_permits());
     let origin_status = file_block.status.try_into()?;
-    file_block.update_time = Utc::now();
+    file_block.update_time = Local::now();
     file_block.status = FileStatus::Uploading.into();
     let count = CONTEXT.cloud_file_block_manager.update_by_status(&file_block, origin_status)
         .await?;
@@ -134,18 +134,20 @@ async fn do_execute_one_block(cloud_file_block: &mut CloudFileBlock) -> Response
             Err(ErrorInfo::OTHER(0, format!("上传文件{cache_file}:{}", e.to_string())))
         }
     };
-    cloud_file_block.update_time = Utc::now();
+    cloud_file_block.update_time = Local::now();
     let result = CONTEXT.cloud_file_block_manager.update_by_status(&cloud_file_block, FileStatus::Uploading).await;
     match result {
         Ok(count) => {
             match count {
                 0 => {
-                    let temp = TempCloudFile::new(cloud_file_block.cloud_meta_id.clone(),cloud_file_block.cloud_file_id.clone().unwrap());
-                    let result = CONTEXT.temp_cloud_file_manager.add(&temp).await;
-                    match result {
-                        Ok(_) => {}
-                        Err(e) => {
-                            error!("临时文件数据库更新失败:{}",e);
+                    if cloud_file_block.cloud_file_id.is_some() {
+                        let temp = TempCloudFile::new(cloud_file_block.cloud_meta_id.clone(), cloud_file_block.cloud_file_id.clone().unwrap());
+                        let result = CONTEXT.temp_cloud_file_manager.add(&temp).await;
+                        match result {
+                            Ok(_) => {}
+                            Err(e) => {
+                                error!("临时文件数据库更新失败:{}",e);
+                            }
                         }
                     }
                 }

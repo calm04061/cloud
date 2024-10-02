@@ -1,9 +1,9 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local};
 use strum_macros::EnumIter;
 
 pub mod support;
 pub mod meta {
-    use chrono::{DateTime, Utc};
+    use chrono::{DateTime, Local};
 
     #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
     pub struct FileMeta {
@@ -17,8 +17,8 @@ pub mod meta {
         pub file_length: i64,
         pub status: i8,
         pub deleted: i8,
-        pub create_time: DateTime<Utc>,
-        pub update_time: DateTime<Utc>,
+        pub create_time: DateTime<Local>,
+        pub update_time: DateTime<Local>,
     }
 
     #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
@@ -26,7 +26,7 @@ pub mod meta {
         pub id: Option<i32>,
         pub block_index: i64,
         pub file_part_id: String,
-        pub update_time: DateTime<Utc>,
+        pub update_time: DateTime<Local>,
         pub file_modify_time: i64,
         pub deleted: i8,
         pub file_meta_id: i64,
@@ -38,7 +38,7 @@ pub mod meta {
         pub id: Option<i32>,
         pub name: String,
         pub auth: Option<String>,
-        pub last_work_time: Option<DateTime<Utc>,>,
+        pub last_work_time: Option<DateTime<Local>,>,
         pub data_root: Option<String>,
         pub status: i8,
         pub deleted: i8,
@@ -60,8 +60,8 @@ pub struct CloudFileBlock {
     pub cloud_file_hash: Option<String>,
     pub status: i8,
     pub deleted: i8,
-    pub create_time: DateTime<Utc>,
-    pub update_time: DateTime<Utc>,
+    pub create_time: DateTime<Local>,
+    pub update_time: DateTime<Local>,
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct TempCloudFile {
@@ -69,8 +69,8 @@ pub struct TempCloudFile {
     pub cloud_meta_id: i32,
     pub cloud_file_id: Option<String>,
     pub status: i8,
-    pub create_time: DateTime<Utc>,
-    pub update_time: DateTime<Utc>,
+    pub create_time: DateTime<Local>,
+    pub update_time: DateTime<Local>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -99,7 +99,7 @@ pub struct EventMessage {
     pub event_type: i8,
     pub event_result: i8,
     pub message: String,
-    pub create_time: DateTime<Utc>,
+    pub create_time: DateTime<Local>,
 }
 
 pub enum EventType {

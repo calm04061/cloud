@@ -1,7 +1,7 @@
 use crate::fs::nfs::cloud_nfs::CloudNFS;
 use api::ROOT_FILE_ID;
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local};
 use log::{error, info};
 use nfsserve::nfs::set_atime::SET_TO_CLIENT_TIME;
 use nfsserve::nfs::set_gid3::gid;
@@ -73,11 +73,11 @@ impl NFSFileSystem for CloudNFS {
         match setattr.atime {
             set_atime::DONT_CHANGE => {}
             set_atime::SET_TO_SERVER_TIME => {
-                meta.update_time = Utc::now();
+                meta.update_time = Local::now();
             }
             SET_TO_CLIENT_TIME(time) => {
                 let option = DateTime::from_timestamp(time.seconds as i64, time.nseconds).unwrap();
-                meta.update_time = option;
+                meta.update_time = option.into();
             }
         }
         let meta = guard.update_file_meta(meta).await.unwrap();

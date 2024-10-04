@@ -7,10 +7,12 @@ appenders:
   stdout:
     kind: console
     encoder:
-      pattern: "{d(%Y-%m-%d %H:%M:%S.%3f)(local)}[{T}-{I}]{M} {m}{n}"
+      pattern: "{d(%Y-%m-%d %H:%M:%S%.3f)}[{T}-{I}]{l} {M} {m}{n}"
   file:
     kind: file
     path: "log/log.log"
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S%.3f)}[{T}-{I}]{l} {M} {m}{n}"
     filters:
       - kind: threshold
         level: info
@@ -26,6 +28,6 @@ loggers:
   fuser::request:
     level: info
   rbatis:
-    level: debug
+    level: warn
   actix_web::middleware::logger:
     level: warn

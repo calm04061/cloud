@@ -1,5 +1,5 @@
 [workspace]
-members = ["lib/api", "lib/cloud-ui", "lib/persistence", "cloud"]
+members = ["lib/api", "lib/cloud-ui", "lib/persistence", "lib/cloud", "lib/service", "lib/storage", "lib/plugin-manager"]
 resolver = "2"
 [profile.release]
 strip = true
@@ -7,3 +7,62 @@ opt-level = "z"
 lto = true
 panic = "abort"
 codegen-units = 1
+[workspace.dependencies]
+actix-cors = "0.7.0"
+actix-files = "0.6.6"
+actix-identity = "0.8.0"
+actix-web = "4.9.0"
+actix-web-httpauth = "0.8.2"
+actix-web-static-files = "4.0.1"
+anyhow = "1.0.89"
+async-recursion = "1.1.1"
+async-ssh2-lite = { version = "0.5.0", features = ["tokio", "async-io"] }
+async-trait = { version = "0.1" }
+bytes = "1.6.0"
+chrono = { version = "0.4.38", features = ["serde"] }
+ctrlc = "3.4.5"
+dav-server = { version = "0.6.0", features = ["actix-compat"] }
+dotenvy_macro = "0.15.7"
+dotenvy = "0.15.7"
+#fastdate = "0.3.33"
+fuser = { version = "0.14.0" }
+futures = "0.3.30"
+futures-util = { version = "0.3.30" }
+libc = "0.2.158"
+libloading = "0.8.5"
+log = "0.4.22"
+log4rs = "1.3.0"
+mime = "0.3.17"
+nfsserve = "0.10"
+once_cell = "1.20"
+#openssh = { version = "0.10.4", features = ["native-mux"] }
+#openssh-sftp-client = { version = "0.14.3", features = ["openssh"] }
+#openssl = { version = "0.10.64" }
+sqlx = { version = "0.8.2", default-features = false, features = ["sqlite", "runtime-tokio", "derive", "chrono","macros"] }
+sqlx-sqlite = { version = "0.8.2", features = ["chrono"] }
+rand = "0.8.5"
+reqwest = { version = "0.12", features = ["stream", "multipart", "json"] }
+reqwest-middleware = "0.3"
+http = "1.1.0"
+rust-crypto = "0.2.36"
+serde = { version = "1.0", features = ["derive"] }
+serde_derive = "1.0"
+serde_json = "1.0"
+serde_yaml = "0.9"
+signal-hook = "0.3"
+static-files = "0.2"
+strum = "0.26.3"
+strum_macros = "0.26.4"
+tokio = { version = "1.40.0", features = ["rt-multi-thread", "signal", "rt", "macros"] }
+tokio-cron-scheduler = "0.13.0"
+urlencoding = "2.1.3"
+uuid = { version = "1.10.0", features = ["v4"] }
+vcpkg = "0.2.15"
+
+[gitflow]
+production_branch = "main"
+development_branch = "develop"
+feature_branch_prefix = "feature/"
+hotfix_branch_prefix = "hotfix/"
+version_tag_prefix = "v"
+origin = "origin"

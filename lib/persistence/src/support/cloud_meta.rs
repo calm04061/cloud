@@ -1,13 +1,13 @@
-use rbs::Value;
+// use rbs::Value;
 
-use crate::CloudMeta;
+use crate::meta::CloudMeta;
 
 impl Default for CloudMeta {
     fn default() -> Self {
         CloudMeta {
             id: None,
             name: "".to_string(),
-            auth: None,
+            auth: Some("{}".to_string()),
             last_work_time: None,
             data_root: None,
             status: 0,
@@ -22,23 +22,23 @@ impl Default for CloudMeta {
     }
 }
 
-impl CloudMeta {
-    pub fn sync_default()  -> Value {
-        let map = rbs::to_value! {
-            "id":"INTEGER PRIMARY KEY AUTOINCREMENT",
-            "name":"TEXT not null",
-            "auth":"TEXT",
-            "last_work_time":"int8",
-            "data_root":"TEXT",
-            "status":"int  not null",
-            "deleted":"int not null",
-            "cloud_type":"int not null",
-            "total_quota":"int8",
-            "used_quota":"int8",
-            "remaining_quota":"int8",
-            "extra":"TEXT",
-            "expires_in":"int",
-        };
-        return map;
-    }
-}
+// impl CloudMeta {
+//     pub fn sync_default()  -> Value {
+//         let map = rbs::to_value! {
+//             "id":"INTEGER PRIMARY KEY AUTOINCREMENT",
+//             "name":"TEXT not null",
+//             "auth":"TEXT",
+//             "last_work_time":"int8",
+//             "data_root":"TEXT",
+//             "status":"int  not null",
+//             "deleted":"int not null",
+//             "cloud_type":"int not null",
+//             "total_quota":"int8",
+//             "used_quota":"int8",
+//             "remaining_quota":"int8",
+//             "extra":"TEXT",
+//             "expires_in":"int",
+//         };
+//         map
+//     }
+// }

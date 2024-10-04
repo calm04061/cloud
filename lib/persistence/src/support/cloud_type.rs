@@ -1,6 +1,8 @@
 use std::fmt;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 use serde::de::{Error, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 use crate::CloudType;
 
 impl Serialize for CloudType {
@@ -58,6 +60,7 @@ impl From<i8> for CloudType {
             4 => CloudType::OneDrive,
             #[cfg(not(windows))]
             5 => CloudType::Sftp,
+            6 => CloudType::GoogleDrive,
             _ => CloudType::AliYun,
         }
     }
@@ -72,6 +75,7 @@ impl From<&CloudType> for i8 {
             CloudType::OneDrive => 4,
             #[cfg(not(windows))]
             CloudType::Sftp => 5,
+            CloudType::GoogleDrive => 6,
         }
     }
 }
@@ -82,6 +86,7 @@ impl From<&CloudType> for String {
             CloudType::Baidu => "百度云盘".to_string(),
             CloudType::Local => "本地磁盘".to_string(),
             CloudType::OneDrive => "OneDrive".to_string(),
+            CloudType::GoogleDrive => "GoogleDrive".to_string(),
             #[cfg(not(windows))]
             CloudType::Sftp => "Sftp".to_string(),
         }
@@ -90,6 +95,6 @@ impl From<&CloudType> for String {
 
 impl From<CloudType> for i8 {
     fn from(value: CloudType) -> Self {
-        return i8::from(&value);
+        i8::from(&value)
     }
 }

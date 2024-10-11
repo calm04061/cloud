@@ -5,7 +5,7 @@ use api::error::ErrorInfo;
 use api::util::IntoOne;
 use api::ResponseResult;
 use async_recursion::async_recursion;
-use chrono::{Local};
+use chrono::Local;
 use persistence::meta::FileMeta;
 use persistence::FileStatus;
 use std::ops::Add;
@@ -23,7 +23,7 @@ impl SimpleFileMetaManager {
     }
 
     pub async fn delete_meta(&self, meta: &FileMeta) -> ResponseResult<u64> {
-        let result = sqlx::query!("delete from file_meta where id = ?",meta.id)
+        let result = sqlx::query("delete from file_meta where id = ?").bind(meta.id)
             .execute(&self.db_pool)
             .await?;
         Ok(result.rows_affected())

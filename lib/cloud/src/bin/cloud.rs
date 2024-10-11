@@ -13,6 +13,8 @@ use tokio_cron_scheduler::JobScheduler;
 use cloud::task::task;
 use cloud::web::run_web;
 use plugin_manager::PLUGIN_MANAGER;
+use service::CONTEXT;
+
 const HOST_PORT: u32 = 11111;
 #[main(flavor = "multi_thread", worker_threads = 50)]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -26,6 +28,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     info!("spawning thread for server");
     let plugin_arc = PLUGIN_MANAGER.get_plugins();
+    CONTEXT.upgrade().await;
+
     let mut sched = JobScheduler::new().await.unwrap();
     task(&sched).await;
     sched.start().await.unwrap();

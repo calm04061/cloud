@@ -55,27 +55,26 @@ impl SimpleCloudMetaManager {
         let remaining_quota= &meta.remaining_quota;
         let extra= &meta.extra;
         let expires_in= &meta.expires_in;
-        let result = sqlx::query!(r#"
+        let result = sqlx::query(r#"
         update cloud_meta set
         name =?, auth =?, last_work_time =?,
         data_root =?, status =?, deleted =?,
         cloud_type =?, total_quota =?,
         used_quota =?, remaining_quota =?, extra =?, expires_in =?
         where id  =?
-        "#,
-            name,
-            auth,
-            last_work_time,
-            data_root,
-            status,
-            deleted,
-            cloud_type,
-            total_quota,
-            used_quota,
-            remaining_quota,
-            extra,
-            expires_in,
-            id)
+        "#,).bind(name).
+            bind(auth).
+            bind(last_work_time).
+            bind(data_root).
+            bind(status).
+            bind(deleted).
+            bind(cloud_type).
+            bind(total_quota).
+            bind(used_quota).
+            bind(remaining_quota).
+            bind(extra).
+            bind(expires_in).
+            bind(id)
             .execute(&self.db_pool).await?;
 
         Ok(result.rows_affected())
@@ -93,20 +92,21 @@ impl SimpleCloudMetaManager {
         let remaining_quota= &meta.remaining_quota;
         let extra= &meta.extra;
         let expires_in= &meta.expires_in;
-        let result = sqlx::query!(r#"
+        let result = sqlx::query(r#"
         insert into cloud_meta (name, auth, last_work_time, data_root, status, deleted, cloud_type, total_quota, used_quota, remaining_quota, extra, expires_in) values (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)
-        "#,name,
-            auth,
-            last_work_time,
-            data_root,
-            status,
-            deleted,
-            cloud_type,
-            total_quota,
-            used_quota,
-            remaining_quota,
-            extra,
-            expires_in)
+        "#).
+            bind(name).
+            bind(auth).
+            bind(last_work_time).
+            bind(data_root).
+            bind(status).
+            bind(deleted).
+            bind(cloud_type).
+            bind(total_quota).
+            bind(used_quota).
+            bind(remaining_quota).
+            bind(extra).
+            bind(expires_in)
             .execute(&self.db_pool).await?;
         Ok(result.last_insert_rowid())
     }

@@ -1,11 +1,10 @@
+use crate::config::ConfigManager;
 use once_cell::sync::Lazy;
+use persistence::ApplicationConfig;
 use sqlx::Pool;
 use sqlx_sqlite::{Sqlite, SqliteConnectOptions, SqlitePoolOptions};
-use std::str::FromStr;
 use std::fs;
-
-use crate::config::ConfigManager;
-use persistence::ApplicationConfig;
+use std::str::FromStr;
 
 use crate::cloud_file_block_manager::CloudFileBlockManager;
 use crate::meta::cloud::SimpleCloudMetaManager;

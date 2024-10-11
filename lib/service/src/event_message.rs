@@ -13,8 +13,11 @@ impl EventMessageManager {
         }
     }
     pub async fn insert(&self, msg: &EventMessage) -> ResponseResult<i64> {
-        let result = sqlx::query!("insert into event_message (event_type, event_result, message,create_time) values (?,?,?,?)",
-            msg.event_type, msg.event_result ,msg.message,msg.create_time )
+        let result = sqlx::query("insert into event_message (event_type, event_result, message,create_time) values (?,?,?,?)")
+            .bind(&msg.event_type)
+            .bind(&msg.event_result )
+            .bind(&msg.message)
+            .bind(&msg.create_time )
             .execute(&self.db_pool)
             .await?;
         Ok(result.last_insert_rowid())

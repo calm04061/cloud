@@ -10,6 +10,7 @@ use bytes::BytesMut;
 #[derive(Debug, PartialEq, Clone, serde_derive::Serialize)]
 pub enum ErrorInfo {
     Retry,
+    NoSuchTable(String),
     FileNotFound(String),
     FileAlreadyExist(String),
     Http302(String),
@@ -48,6 +49,7 @@ impl Display for ErrorInfo {
             ErrorInfo::NoneCloudFileId(cloud_meta_id) => (7000, format!("未找到云文件ID:{}", cloud_meta_id)),
             ErrorInfo::NoneCloudMeta(cloud_meta_id) => (7000, format!("云配置：{},没有找到", cloud_meta_id)),
             // _ => (8000, "系统错误".to_string()),
+            ErrorInfo::NoSuchTable(table) => (8000, format!("表：{},没有找到", table)),
         };
         let string = format!("{}:{}", code, message);
         f.write_str(string.as_str())

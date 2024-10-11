@@ -60,8 +60,16 @@ impl SimpleFileBlockMetaManager {
         //         pub part_hash: String,
         //         pub status: i8,
 
-        let result = sqlx::query!("insert into file_block_meta (id, block_index, file_part_id, update_time,file_modify_time,deleted,file_meta_id,part_hash,status) values(?,?,?,?,?,?,?,?,?) "
-            ,meta.id,meta.block_index,meta.file_part_id,meta.update_time,meta.file_modify_time,meta.deleted,meta.file_meta_id,meta.part_hash,meta.status)
+        let result = sqlx::query("insert into file_block_meta (id, block_index, file_part_id, update_time,file_modify_time,deleted,file_meta_id,part_hash,status) values(?,?,?,?,?,?,?,?,?) ").
+             bind(&meta.id)
+            .bind(&meta.block_index).
+             bind(&meta.file_part_id).
+             bind(&meta.update_time)
+            .bind(&meta.file_modify_time)
+            .bind(&meta.deleted)
+            .bind(&meta.file_meta_id)
+            .bind(&meta.part_hash)
+            .bind(&meta.status)
             .execute(&self.db_pool)
             .await?;
         Ok(result.last_insert_rowid())
@@ -182,11 +190,11 @@ impl SimpleFileBlockMetaManager {
             .fetch_all(&self.db_pool)
             .await?;
         for meta in vec {
-            sqlx::query!("delete from cloud_file_block where cloud_meta_id=?", meta.id)
+            sqlx::query("delete from cloud_file_block where cloud_meta_id=?").bind(meta.id)
                 .execute(&self.db_pool).await?;
         }
         debug!("delete block meta by file id:{}", file_meta_id);
-        let result = sqlx::query!("delete from file_block_meta where deleted =0 and file_meta_id=?",file_meta_id).execute(&self.db_pool).await?;
+        let result = sqlx::query("delete from file_block_meta where deleted =0 and file_meta_id=?").bind(file_meta_id).execute(&self.db_pool).await?;
         Ok(
             result.rows_affected()
         )

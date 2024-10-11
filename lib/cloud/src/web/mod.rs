@@ -53,8 +53,6 @@ async fn validate(credentials: BasicAuth) -> bool {
 }
 
 pub async fn run_web(plugin_arc: Arc<Vec<PluginMetaInfo>>) -> Server {
-    CONTEXT.init_pool().await;
-    CONTEXT.upgrade().await;
     let port = dotenvy::var("HTTP_PORT")
         .unwrap_or("8088".to_string())
         .parse::<u16>()

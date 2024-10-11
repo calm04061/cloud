@@ -20,3 +20,4 @@ serde = { workspace = true, features = ["derive"] }
 sqlx = {workspace = true, features = ["derive"] }
 sqlx-sqlite = {workspace = true}
 tokio = {workspace = true}
+futures-util = "0.3.31"

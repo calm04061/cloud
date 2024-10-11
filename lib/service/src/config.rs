@@ -7,7 +7,7 @@ pub struct ConfigManager {
 }
 
 impl ConfigManager {
-    pub fn new( db_pool: DbPool) -> Self {
+    pub fn new(db_pool: DbPool) -> Self {
         ConfigManager { db_pool }
     }
     pub async fn info(&self, property: &str) -> Option<Config> {

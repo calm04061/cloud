@@ -1,6 +1,6 @@
 [package]
 name = "cloud"
-version = "0.1.0-SNAPSHOT"
+version = "0.1.0-migrate"
 edition = "2021"
 license = "MFT"
 description = "cloud"

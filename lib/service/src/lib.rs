@@ -1,19 +1,22 @@
 use crate::config::ConfigManager;
+use api::ResponseResult;
 use once_cell::sync::Lazy;
 use persistence::ApplicationConfig;
 use sqlx::Pool;
 use sqlx_sqlite::{Sqlite, SqliteConnectOptions, SqlitePoolOptions};
 use std::fs;
 use std::str::FromStr;
-
 use crate::cloud_file_block_manager::CloudFileBlockManager;
 use crate::meta::cloud::SimpleCloudMetaManager;
 use crate::meta::file::file_block_meta::SimpleFileBlockMetaManager;
 use crate::meta::file::file_meta::SimpleFileMetaManager;
 use crate::meta::file::SimpleFileManager;
+use crate::migrate::{query_version, Version};
 use crate::temp_cloud_file_manager::TempCloudFileManager;
 use crate::user_manager::UserManager;
 use event_message::EventMessageManager;
+use crate::migrate::version::default_version_migrate::DefaultVersionMigrate;
+use crate::migrate::versions_migrate::VersionsMigrate;
 
 pub mod meta;
 pub mod config;
@@ -21,6 +24,7 @@ pub mod user_manager;
 pub mod event_message;
 pub mod cloud_file_block_manager;
 mod temp_cloud_file_manager;
+mod migrate;
 
 pub type DbPool = Pool<Sqlite>;
 pub static CONTEXT: Lazy<ServiceContext> = Lazy::new(|| ServiceContext::default());
@@ -40,85 +44,46 @@ pub struct ServiceContext {
 }
 
 impl ServiceContext {
-    /// init database pool
-    pub async fn init_pool(&self) {
+    pub fn init_pool() {
         fs::create_dir_all("./data").unwrap();
-        // log::info!("rbatis pool init ({})...", self.config.database_url);
-        // let driver = rbdc_sqlite::driver::SqliteDriver {};
-        // let driver_name = format!("{:?}", driver);
-        // self.rb
-        //     .init(driver, &self.config.database_url)
-        //     .expect("rbatis pool init fail!");
-        // self.rb.acquire().await.expect(&format!(
-        //     "rbatis connect database(driver={},url={}) fail",
-        //     driver_name, self.config.database_url
-        // ));
-        // log::info!(
-        //     "rbatis pool init success! pool state = {:?}",
-        //     self.rb.get_pool().expect("pool not init!").state().await
-        // );
     }
     pub async fn upgrade(&self) {
-        //     // s.sql_id = " PRIMARY KEY AUTOINCREMENT NOT NULL ".to_string();
-        //     let sqlite_table_mapper = SqliteTableMapper {};
-        //     let conn = self.rb.acquire().await.unwrap();
-        //     sync(&conn, &sqlite_table_mapper, Config::sync_default(), "config").await.unwrap();
-        //     sync(&conn, &sqlite_table_mapper, CloudMeta::sync_default(), "cloud_meta").await.unwrap();
-        //     sync(&conn, &sqlite_table_mapper, FileMeta::sync_default(), "file_meta").await.unwrap();
-        //     sync(&conn, &sqlite_table_mapper, CloudFileBlock::sync_default(), "cloud_file_block").await.unwrap();
-        //     sync(&conn, &sqlite_table_mapper, FileBlockMeta::sync_default(), "file_block_meta").await.unwrap();
-        //     sync(&conn, &sqlite_table_mapper, EventMessage::sync_default(), "event_message").await.unwrap();
-        //     sync(&conn, &sqlite_table_mapper, User::sync_default(), "user").await.unwrap();
-        //
-        //     let vec = FileMeta::select_by_column(&conn, "id", 1).await.unwrap();
-        //     if vec.is_empty() {
-        //         let file_meta = FileMeta {
-        //             id: Some(ROOT_FILE_ID),
-        //             name: "/".to_string(),
-        //             parent_id: 0,
-        //             file_type: FileMetaType::DIR.get_code(),
-        //             mode: 0o755,
-        //             gid: 1000,
-        //             uid: 1000,
-        //             file_length: 0,
-        //             status: FileStatus::UploadSuccess.into(),
-        //             deleted: 0,
-        //             create_time: 0,
-        //             update_time: 0,
-        //         };
-        //         FileMeta::insert(&conn, &file_meta).await.unwrap();
-        //     }
-        //     let vec = User::select_by_column(&conn, "username", "admin").await.unwrap();
-        //     if vec.is_empty() {
-        //         let user = User {
-        //             id: None,
-        //             username: "admin".to_string(),
-        //             password: "admin".to_string(),
-        //         };
-        //         User::insert(&conn, &user).await.unwrap();
-        //     }
-        //     let vec1 = Config::select_by_column(&conn, "property", CLOUD_FILE_ROOT).await.unwrap();
-        //     if vec1.is_empty() {
-        //         let uuid = Uuid::new_v4();
-        //         let config = Config {
-        //             id: None,
-        //             property: CLOUD_FILE_ROOT.to_string(),
-        //             value: uuid.to_string(),
-        //         };
-        //         Config::insert(&conn, &config).await.unwrap();
-        //     }
+        let result: ResponseResult<String> = query_version(self.pool.clone()).await;
+        let pool = self.pool.clone();
+        let mut transaction = pool.begin().await.unwrap();
+
+        let pre_version =match result {
+            Ok(v) => {
+                v
+            }
+            Err(_e) => {
+                "0.0.0".to_string()
+            }
+        };
+        let pre_version = pre_version.parse::<Version>().unwrap();
+        // let migrate_result;
+        let mut versions_migrate = VersionsMigrate::new(pre_version);
+        versions_migrate.add(Box::new(DefaultVersionMigrate::new("0.0.1", include_str!("migrate/version/0.0.1.sql")))).await;
+        let migrate_result = versions_migrate.do_migrate(&mut transaction).await;
+
+        match migrate_result {
+            Ok(_) => {
+                transaction.commit().await.unwrap()
+            }
+            Err(_) => {
+                transaction.rollback().await.unwrap()
+            }
+        }
     }
 }
 
 impl Default for ServiceContext {
     fn default() -> Self {
+        Self::init_pool();
         let config = ApplicationConfig::default();
-        let options = SqliteConnectOptions::from_str(config.database_url.as_str()).unwrap()
-            // .log_statements(log::LevelFilter::Info)
-            ;
+        let options = SqliteConnectOptions::from_str(config.database_url.as_str()).unwrap();
         let db_pool = SqlitePoolOptions::new().connect_lazy_with(options);
 
-        // let batis = persistence::support::application_config::init_rbatis(&config);
         let file_meta_manager = SimpleFileMetaManager::new(db_pool.clone());
         let cloud_file_block_manager = CloudFileBlockManager::new(db_pool.clone());
         let file_block_meta_manager = SimpleFileBlockMetaManager::new(db_pool.clone());

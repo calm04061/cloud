@@ -54,12 +54,12 @@ async fn validate(credentials: BasicAuth) -> bool {
 
 pub async fn run_web(plugin_arc: Arc<Vec<PluginMetaInfo>>) -> Server {
     let port = dotenvy::var("HTTP_PORT")
-        .unwrap_or("8088".to_string())
+        .unwrap_or("8088".into())
         .parse::<u16>()
         .unwrap_or(8088);
     let server = HttpServer::new({
         move || {
-            let auth = HttpAuthentication::basic(validator);
+            let basic_auth = HttpAuthentication::basic(validator);
             let cors = Cors::default()
                 // .allowed_origin("*")
                 .allowed_origin_fn(|_origin, _req_head| true)
@@ -80,7 +80,7 @@ pub async fn run_web(plugin_arc: Arc<Vec<PluginMetaInfo>>) -> Server {
                 )
                 .service(
                     scope(DAV_PREFIX)
-                        .wrap(auth)
+                        .wrap(basic_auth)
                         .configure(dav::config)
                 );
 

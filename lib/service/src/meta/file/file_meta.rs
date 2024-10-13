@@ -9,6 +9,7 @@ use chrono::Local;
 use persistence::meta::FileMeta;
 use persistence::FileStatus;
 use std::ops::Add;
+use log::error;
 
 #[derive(Clone)]
 pub struct SimpleFileMetaManager {
@@ -49,7 +50,14 @@ impl SimpleFileMetaManager {
         let vec = sqlx::query_as("select * from file_meta where id=?")
             .bind(id)
             .fetch_all(&self.db_pool)
-            .await?;
+            .await;
+        let vec = match vec {
+            Ok(v) => v,
+            Err(e) => {
+                error!("{}",e);
+                return Err(e.into());
+            }
+        };
         // let vec = FileMeta::select_by_column(&self.batis.clone(), "id", id).await?;
         if vec.is_empty() {
             Err(ErrorInfo::new(7000, &format!("文件{id}")))

@@ -47,7 +47,7 @@ impl BoxCloneFs for CloudDavFs {
 }
 
 impl DavFileSystem for CloudDavFs {
-    fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<Box<dyn DavFile>> {
+    fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<'a, Box<dyn DavFile>> {
         async move {
             let full_path = self.fs_path(path);
             info!("FS: open {:?},options:{:?}", full_path,options);
@@ -66,21 +66,22 @@ impl DavFileSystem for CloudDavFs {
                 }
                 meta = result.unwrap();
             }
+            let id = meta.id;
             let data = CloudDavFile::new(meta, self.inner.fs.clone());
-            info!("FS: opened {:?},options:{:?}", full_path,options);
+            info!("FS: {:?} opened {:?},options:{:?}", id, full_path, options);
             Ok(Box::new(data) as Box<dyn DavFile>)
         }.boxed()
     }
 
-    fn read_dir<'a>(&'a self, path: &'a DavPath, _meta: ReadDirMeta) -> FsFuture<FsStream<Box<dyn DavDirEntry>>> {
+    fn read_dir<'a>(&'a self, path: &'a DavPath, _meta: ReadDirMeta) -> FsFuture<'a, FsStream<Box<dyn DavDirEntry>>> {
         async move {
             let full_path = self.fs_path(path);
             let result = self.inner.fs.file_info_by_path(full_path.as_str()).await;
             let result = self.inner.fs.list_by_parent(result.unwrap().id.unwrap() as u64).await.unwrap();
 
-            let mut v: Vec<Box<dyn DavDirEntry>> = Vec::new();
+            let mut v: Vec<Result<Box<dyn DavDirEntry>, FsError>> = Vec::new();
             for file in result {
-                v.push(Box::new(CloudDavDirEntry::new(file)));
+                v.push(Ok(Box::new(CloudDavDirEntry::new(file))));
             }
             let stream = futures_util::stream::iter(v.into_iter());
             Ok(Box::pin(stream) as FsStream<Box<dyn DavDirEntry>>)
@@ -88,7 +89,7 @@ impl DavFileSystem for CloudDavFs {
             .boxed()
     }
 
-    fn metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<Box<dyn DavMetaData>> {
+    fn metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<'a, Box<dyn DavMetaData>> {
         async move {
             let full_path = self.fs_path(path);
             let result = self.inner.fs.file_info_by_path(full_path.as_str()).await;
@@ -101,7 +102,7 @@ impl DavFileSystem for CloudDavFs {
         }.boxed()
     }
 
-    fn create_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
+    fn create_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<'a, ()> {
         async move {
             let full_path = self.fs_path(path);
             self.inner.fs.create_dir(full_path.as_str()).await.ok();
@@ -109,11 +110,11 @@ impl DavFileSystem for CloudDavFs {
         }.boxed()
     }
 
-    fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
+    fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<'a, ()> {
         self.remove_file(path)
     }
 
-    fn remove_file<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
+    fn remove_file<'a>(&'a self, path: &'a DavPath) -> FsFuture<'a, ()> {
         async move {
             let full_path = self.fs_path(path);
             info!("FS: remove file {:?}", full_path);
@@ -122,7 +123,7 @@ impl DavFileSystem for CloudDavFs {
         }.boxed()
     }
 
-    fn rename<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
+    fn rename<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<'a, ()> {
         async move {
             let from_full_path = self.fs_path(from);
             let to_full_path = self.fs_path(to);

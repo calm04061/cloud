@@ -13,14 +13,14 @@ use service::CONTEXT;
 use storage::STORAGE_FACADE;
 
 pub(crate) async fn scan(semaphore: Arc<Semaphore>) -> ResponseResult<()> {
-    info!("scan");
+    // info!("scan");
     let cloud_file_block_result = CONTEXT.cloud_file_block_manager.select_to_upload().await;
     if let Err(e) = cloud_file_block_result {
         error!("select_to_upload error {:?}", e);
         return Ok(());
     }
     let cloud_file_blocks = cloud_file_block_result?;
-    info!("{} block to upload", cloud_file_blocks.len());
+    // info!("{} block to upload", cloud_file_blocks.len());
     for file_block in cloud_file_blocks {
         let semaphore = semaphore.clone();
         tokio::spawn(async move {

@@ -1,7 +1,7 @@
 use api::error::ErrorInfo;
 use api::ResponseResult;
 use chrono::{TimeDelta, Utc};
-use log::{debug, error, info};
+use log::{debug, error};
 use persistence::meta::{FileBlockMeta, FileMeta};
 use persistence::{CloudFileBlock, FileMetaType, FileStatus};
 use service::meta::FileManager;
@@ -13,7 +13,7 @@ use storage::STORAGE_FACADE;
 use tokio::sync::Mutex;
 
 pub async fn clean_cloud_file(worker_id: Arc<Mutex<Option<i64>>>) {
-    info!("start clean");
+    debug!("start clean");
     let result = query_file(worker_id).await;
     if let Err(e) = result {
         error!("Failed to retrieve deleted files: {}", e);
@@ -29,7 +29,7 @@ pub async fn clean_cloud_file(worker_id: Arc<Mutex<Option<i64>>>) {
             continue;
         }
     }
-    info!("clean finish");
+    debug!("clean finish");
 }
 async fn query_file(worker_id: Arc<Mutex<Option<i64>>>) -> ResponseResult<Vec<FileMeta>> {
     let delta = TimeDelta::seconds(60);

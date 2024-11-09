@@ -1,6 +1,6 @@
 use api::ResponseResult;
 use chrono::{Local};
-use log::{error, info};
+use log::{error};
 use std::ops::Sub;
 use std::time::Duration;
 
@@ -11,7 +11,7 @@ pub(crate) async fn reset(origin_status: FileStatus, target_status: FileStatus, 
     let update_time = Local::now();
     let update_time = update_time.sub(Duration::from_secs(sub));
     let cloud_file_block = CONTEXT.cloud_file_block_manager.select_by_status(origin_status, update_time).await?;
-    info!("select from {:?} to reset,size:{}",  origin_status, cloud_file_block.len());
+    // info!("select from {:?} to reset,size:{}",  origin_status, cloud_file_block.len());
     for mut file_block in cloud_file_block {
         file_block.status = target_status.into();
         file_block.update_time = Local::now();

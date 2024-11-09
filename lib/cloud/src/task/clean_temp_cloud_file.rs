@@ -3,7 +3,7 @@
 use api::error::ErrorInfo;
 use api::ResponseResult;
 use chrono::{Local};
-use log::{debug, error, info};
+use log::{debug, error};
 use persistence::{FileStatus, TempCloudFile};
 use service::CONTEXT;
 use std::ops::Sub;
@@ -13,7 +13,7 @@ use storage::STORAGE_FACADE;
 use tokio::sync::Mutex;
 
 pub async fn clean_temp_cloud_file(worker_id: Arc<Mutex<Option<i64>>>) {
-    info!("start clean");
+    debug!("start clean");
     let result = query_file(worker_id).await;
     if let Err(e) = result {
         error!("Failed to retrieve deleted files: {}", e);
@@ -25,7 +25,7 @@ pub async fn clean_temp_cloud_file(worker_id: Arc<Mutex<Option<i64>>>) {
         let _result = do_clean_file_block(&mut temp_cloud_file).await;
 
     }
-    info!("clean finish");
+    debug!("clean finish");
 }
 async fn query_file(worker_id: Arc<Mutex<Option<i64>>>) -> ResponseResult<Vec<TempCloudFile>> {
     let mut guard = worker_id.lock().await;
@@ -98,10 +98,10 @@ pub(crate) async fn reset_status(origin_status: FileStatus, target_status: FileS
     // info!("reset status:{:?} before {}s", origin_status, sub);
     let update_time = Local::now();
     let update_time = update_time.sub(Duration::from_secs(sub));
-    info!("reset status:{:?} update_time:{}", origin_status, update_time);
+    // info!("reset status:{:?} update_time:{}", origin_status, update_time);
     let cloud_file_block = CONTEXT.temp_cloud_file_manager.select_by_status(origin_status, update_time).await?;
     // let cloud_file_block = CloudFileBlock::select_by_status(pool!(), status.into(), update_time).await.unwrap();
-    info!("select from {:?} to reset,size:{}",  origin_status, cloud_file_block.len());
+    // info!("select from {:?} to reset,size:{}",  origin_status, cloud_file_block.len());
     for mut file_block in cloud_file_block {
         file_block.update_time = Local::now();
         let result = CONTEXT.temp_cloud_file_manager.update_status(&file_block,

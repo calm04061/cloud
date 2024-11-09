@@ -13,25 +13,15 @@ test = false
 bench = false
 [dependencies]
 actix-web = { workspace = true }
-actix-files = { workspace = true }
 actix-cors = { workspace = true }
-actix-identity = { workspace = true }
 actix-web-httpauth = { workspace = true }
-mime = { workspace = true }
 rand = { workspace = true }
 async-trait = { workspace = true }
-reqwest-middleware = { workspace = true }
-reqwest = { workspace = true, features = ["stream", "multipart", "json"] }
-serde_json = { workspace = true }
-serde_yaml = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_derive = { workspace = true }
-http = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "signal", "rt", "macros"] }
 chrono = { workspace = true, features = ["serde"] }
 futures = { workspace = true }
-anyhow = { workspace = true }
-uuid = { workspace = true }
 log = { workspace = true }
 log4rs = { workspace = true }
 rust-crypto = { workspace = true }
@@ -43,15 +33,10 @@ dotenvy_macro = { workspace = true }
 #openssl = { workspace = true }
 #rbs = { workspace = true }
 #rbatis = { workspace = true }
-sqlx = {workspace = true}
 #fastdate = { workspace = true }
 libloading = { workspace = true }
 
-signal-hook = { workspace = true }
 tokio-cron-scheduler = { workspace = true }
-urlencoding = { workspace = true }
-once_cell = { workspace = true }
-async-recursion = { workspace = true }
 dav-server = { workspace = true, features = ["actix-compat"] }
 futures-util = { workspace = true }
 api = { path = "../api" }
@@ -59,10 +44,7 @@ persistence = { path = "../persistence" }
 service = { path = "../service" }
 storage = { path = "../storage" }
 plugin-manager = { path = "../plugin-manager" }
-async-ssh2-lite = { workspace = true, features = ["tokio", "async-io"] }
 strum = { workspace = true }
-#tracing-subscriber = "0.3.18"
-#tracing = "0.1.40"
 
 [target.'cfg(not(windows))'.dependencies]
 fuser = { workspace = true }

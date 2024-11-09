@@ -33,8 +33,7 @@ impl DavMetaData for CloudFsMetaData {
     }
 
     fn modified(&self) -> FsResult<SystemTime> {
-        let time_number = self.file_meta.create_time.timestamp_millis();// 微秒
-        let time_number = time_number / 1000; //转化为毫秒
+        let time_number = self.file_meta.create_time.timestamp_millis();
         let date = Local.timestamp_millis_opt(time_number);
         let time = date.unwrap();
         let time = SystemTime::from(time);
@@ -129,7 +128,7 @@ impl DavFile for CloudDavFile {
     fn read_bytes(&mut self, count: usize) -> FsFuture<Bytes> {
         async move {
             let id = self.file_meta.id.unwrap();
-            info!("read_bytes,{}:{},pos:{},count:{}", id ,self.file_meta.name ,self.pos,count);
+            debug!("read_bytes,{}:{},pos:{},count:{}", id ,self.file_meta.name ,self.pos,count);
             let result = self.fs.read(id as u64, self.pos as u64, count as u32).await.unwrap();
             let bytes = Bytes::copy_from_slice(result.as_slice());
             self.pos += count;
@@ -165,7 +164,7 @@ impl DavFile for CloudDavFile {
 
     fn flush(&mut self) -> FsFuture<()> {
         async move {
-            debug!("{}:flush",self.file_meta.id.unwrap());
+            info!("{}:flush",self.file_meta.id.unwrap());
             let id = self.file_meta.id.unwrap();
             let temp_size = self.temp_buf.len();
             if temp_size > 0 {

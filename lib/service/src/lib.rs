@@ -64,6 +64,7 @@ impl ServiceContext {
         // let migrate_result;
         let mut versions_migrate = VersionsMigrate::new(pre_version);
         versions_migrate.add(Box::new(DefaultVersionMigrate::new("0.0.1", include_str!("migrate/version/0.0.1.sql")))).await;
+        versions_migrate.add(Box::new(DefaultVersionMigrate::new("0.0.2", include_str!("migrate/version/0.0.2.sql")))).await;
         let migrate_result = versions_migrate.do_migrate(&mut transaction).await;
 
         match migrate_result {

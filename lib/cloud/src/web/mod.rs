@@ -24,6 +24,7 @@ mod cloud;
 mod common;
 pub(crate) mod vo;
 mod dav;
+use actix_web::dev::Service;
 
 async fn validator(
     req: ServiceRequest,
@@ -80,6 +81,15 @@ pub async fn run_web(plugin_arc: Arc<Vec<PluginMetaInfo>>) -> Server {
                 )
                 .service(
                     scope(DAV_PREFIX)
+                        .wrap_fn(|mut req, srv|{
+                            let headers = req.headers_mut();
+                            headers.remove("if-modified-since");
+                            let fut = srv. call(req);
+                            async {
+                                let res = fut.await?;
+                                Ok(res)
+                            }
+                        })
                         .wrap(basic_auth)
                         .configure(dav::config)
                 );

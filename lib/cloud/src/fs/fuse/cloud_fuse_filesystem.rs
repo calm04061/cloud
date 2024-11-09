@@ -32,7 +32,7 @@ impl Filesystem for CloudFuseFS {
             }
         }
     }
-    fn getattr(&mut self, _req: &Request, ino: u64, reply: ReplyAttr) {
+    fn getattr(&mut self, _req: &Request, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
         // debug!("getattr");
         let result = self.vfs.file_info(ino);
         match result {

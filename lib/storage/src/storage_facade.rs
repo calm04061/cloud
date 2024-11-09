@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use libloading::{Error, Symbol};
-use log::{error, info};
+use log::{debug, error, info};
 use tokio::sync::Mutex;
 
 use api::error::ErrorInfo;
@@ -355,13 +355,13 @@ impl Inner {
     ) -> ResponseResult<CloudFileBlock> {
         // let cloud_meta = self.get_token(1).await.unwrap();
         let cloud_type = cloud_meta.cloud_type.into();
-        info!("upload start {} to {:?}({})", block_meta.file_part_id,cloud_type, cloud_meta.name);
+        debug!("upload start {} to {:?}({})", block_meta.file_part_id,cloud_type, cloud_meta.name);
         let cloud = self.get_cloud(cloud_type).await?;
         // let mut cloud = cloud.lock().unwrap();
         let result = cloud.lock().await
             .upload_content(&block_meta, cloud_file_block, &content, &cloud_meta)
             .await;
-        info!("upload finish {} to {:?}({})", block_meta.file_part_id,cloud_type, cloud_meta.name);
+        debug!("upload finish {} to {:?}({})", block_meta.file_part_id,cloud_type, cloud_meta.name);
         result
     }
     ///
@@ -374,7 +374,7 @@ impl Inner {
     ) -> ResponseResult<()> {
         let cloud_type = cloud_meta.cloud_type.into();
 
-        info!("delete {} from {:?}({})", cloud_file_id,cloud_type, cloud_meta.name);
+        debug!("delete {} from {:?}({})", cloud_file_id,cloud_type, cloud_meta.name);
 
         let cloud = self.get_cloud(cloud_type).await?;
         let mut cloud = cloud.lock().await;

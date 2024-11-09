@@ -129,7 +129,7 @@ impl DavFile for CloudDavFile {
     fn read_bytes(&mut self, count: usize) -> FsFuture<Bytes> {
         async move {
             let id = self.file_meta.id.unwrap();
-            debug!("read_bytes,{}:{},pos:{},count:{}", id ,self.file_meta.name ,self.pos,count);
+            info!("read_bytes,{}:{},pos:{},count:{}", id ,self.file_meta.name ,self.pos,count);
             let result = self.fs.read(id as u64, self.pos as u64, count as u32).await.unwrap();
             let bytes = Bytes::copy_from_slice(result.as_slice());
             self.pos += count;

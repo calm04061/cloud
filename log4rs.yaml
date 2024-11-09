@@ -8,20 +8,29 @@ appenders:
     kind: console
     encoder:
       pattern: "{d(%Y-%m-%d %H:%M:%S%.3f)}[{T}-{I}]{l} {M} {m}{n}"
-  file:
+  info:
     kind: file
-    path: "log/log.log"
+    path: "log/info.log"
     encoder:
       pattern: "{d(%Y-%m-%d %H:%M:%S%.3f)}[{T}-{I}]{l} {M} {m}{n}"
     filters:
       - kind: threshold
         level: info
+  debug:
+    kind: file
+    path: "log/debug.log"
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S%.3f)}[{T}-{I}]{l} {M} {m}{n}"
+    filters:
+      - kind: threshold
+        level: debug
 # 对全局 log 进行配置
 root:
   level: info
   appenders:
     - stdout
-    - file
+    - info
+    - debug
 loggers:
   hyper::proto:
     level: info

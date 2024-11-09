@@ -3,7 +3,7 @@ use std::sync::Arc;
 use dav_server::davpath::DavPath;
 use dav_server::fs::{BoxCloneFs, DavDirEntry, DavFile, DavFileSystem, DavMetaData, FsError, FsFuture, FsStream, OpenOptions, ReadDirMeta};
 use futures_util::FutureExt;
-use log::{debug, info};
+use log::{info};
 
 use crate::fs::dav::meta::{CloudDavDirEntry, CloudDavFile, CloudFsMetaData};
 use crate::fs::vfs::VirtualFileSystem;
@@ -50,7 +50,7 @@ impl DavFileSystem for CloudDavFs {
     fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<Box<dyn DavFile>> {
         async move {
             let full_path = self.fs_path(path);
-            debug!("FS: open {:?},options:{:?}", full_path,options);
+            info!("FS: open {:?},options:{:?}", full_path,options);
             let meta;
             if options.create {
                 let result = self.inner.fs.file_info_by_path(full_path.as_str()).await;
@@ -67,7 +67,7 @@ impl DavFileSystem for CloudDavFs {
                 meta = result.unwrap();
             }
             let data = CloudDavFile::new(meta, self.inner.fs.clone());
-            debug!("FS: openned {:?},options:{:?}", full_path,options);
+            info!("FS: opened {:?},options:{:?}", full_path,options);
             Ok(Box::new(data) as Box<dyn DavFile>)
         }.boxed()
     }

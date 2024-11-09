@@ -6,7 +6,7 @@ use crypto::digest::Digest;
 use crypto::md5::Md5;
 use dotenvy_macro::dotenv;
 use http::Extensions;
-use log::{debug, info};
+use log::{debug};
 use reqwest::multipart::{Form, Part};
 use reqwest::Client;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
@@ -166,7 +166,7 @@ impl Storage for BaiduStorage {
         par.push(("rtype", "3"));
         par.push(("block_list", block_list));
 
-        info!("block_list:{block_list}");
+        debug!("block_list:{block_list}");
         let mut extensions = Extensions::new();
         extensions.insert(cloud_meta.clone());
         let json = self
@@ -353,7 +353,7 @@ impl Storage for BaiduStorage {
         let token_url = format!("{AUTH_DOMAIN_PREFIX}/{}", format!("oauth/2.0/token?grant_type=authorization_code&code={code}&client_id={}&client_secret={}&redirect_uri={encoded}", self.client_id(), self.client_secret()));
         let resp_result = self.inner.api_client.get(token_url).send();
         let json_text = self.inner.get_response_text(resp_result).await?;
-        info!("{}", json_text);
+        debug!("{}", json_text);
         let token: Token = serde_json::from_str(json_text.as_str())?;
         let current_time = SystemTime::now();
         let seconds_since_epoch = current_time.duration_since(UNIX_EPOCH).unwrap().as_secs();

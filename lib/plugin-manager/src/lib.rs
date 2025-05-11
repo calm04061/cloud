@@ -92,7 +92,7 @@ impl PluginManager {
                 return None;
             }
             let library = lib.unwrap();
-            let meta_info: Result<Symbol<unsafe extern fn() -> Box<dyn Plugin>>, Error> = library.get(b"plugin_meta");
+            let meta_info: Result<Symbol<unsafe extern "C" fn() -> Box<dyn Plugin>>, Error> = library.get(b"plugin_meta");
             if meta_info.is_err() {
                 error!("{},not a plugin", plugin_file);
                 return None;

@@ -8,7 +8,7 @@ impl Default for ApplicationConfig {
         let yml_data = include_str!("../../application.yml");
         //load config
         let result: ApplicationConfig =
-            serde_yaml::from_str(yml_data).expect("load config file fail");
+            serde_yml::from_str(yml_data).expect("load config file fail");
         if result.debug {
             info!(" load config:{:?}", result);
             info!(" ///////////////////// Start On Debug Mode ////////////////////////////");

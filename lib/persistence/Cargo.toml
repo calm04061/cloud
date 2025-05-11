@@ -12,6 +12,6 @@ sqlx = { workspace = true }
 strum = { workspace = true }
 strum_macros = { workspace = true }
 log = { workspace = true }
-serde_yaml = { workspace = true }
+serde_yml = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
 

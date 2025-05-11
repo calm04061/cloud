@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use dav_server::davpath::DavPath;
-use dav_server::fs::{BoxCloneFs, DavDirEntry, DavFile, DavFileSystem, DavMetaData, FsError, FsFuture, FsStream, OpenOptions, ReadDirMeta};
+use dav_server::fs::{DavDirEntry, DavFile, DavFileSystem, DavMetaData, FsError, FsFuture, FsStream, OpenOptions, ReadDirMeta};
 use futures_util::FutureExt;
 use log::{info};
 
@@ -15,7 +15,7 @@ pub(crate) struct CloudDavFsInner {
     // pub(crate) fs_access_guard: Option<Box<dyn Fn() -> Box<dyn Any> + Send + Sync + 'static>>,
     pub(crate) prefix: String,
 }
-
+#[derive(Clone)]
 pub(crate) struct CloudDavFs {
     pub(crate) inner: Arc<CloudDavFsInner>,
 }
@@ -38,13 +38,13 @@ impl CloudDavFs {
     }
 }
 
-impl BoxCloneFs for CloudDavFs {
-    fn box_clone(&self) -> Box<dyn DavFileSystem> {
-        Box::new(CloudDavFs {
-            inner: self.inner.clone(),
-        })
-    }
-}
+// impl BoxCloneFs for CloudDavFs {
+//     fn box_clone(&self) -> Box<dyn DavFileSystem> {
+//         Box::new(CloudDavFs {
+//             inner: self.inner.clone(),
+//         })
+//     }
+// }
 
 impl DavFileSystem for CloudDavFs {
     fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<'a, Box<dyn DavFile>> {

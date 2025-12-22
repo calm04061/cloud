@@ -25,11 +25,11 @@ pub(crate) struct About {
     #[serde(rename = "storageQuota")]
     pub(crate) storage_quota: GoogleDriveQuota,
 }
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct Drive {
-    // pub(crate) owner: GoogleDriveOwner,
-    pub(crate) quota: GoogleDriveQuota,
-}
+// #[derive(Serialize, Deserialize, Debug)]
+// pub(crate) struct Drive {
+//     // pub(crate) owner: GoogleDriveOwner,
+//     pub(crate) quota: GoogleDriveQuota,
+// }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct GoogleDriveQuota {

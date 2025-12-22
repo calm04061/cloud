@@ -64,7 +64,7 @@ impl DavDirEntry for CloudDavDirEntry {
         self.file_meta.name.clone().into_bytes()
     }
 
-    fn metadata(&self) -> FsFuture<Box<dyn DavMetaData>> {
+    fn metadata(&self) -> FsFuture<'_,Box<dyn DavMetaData>> {
         Box::pin(future::ok(Box::new(CloudFsMetaData { file_meta: self.file_meta.clone() }) as Box<dyn DavMetaData>))
     }
 }
@@ -92,19 +92,19 @@ impl CloudDavFile {
 }
 
 impl DavFile for CloudDavFile {
-    fn metadata(&mut self) -> FsFuture<Box<dyn DavMetaData>> {
+    fn metadata(&mut self) -> FsFuture<'_,Box<dyn DavMetaData>> {
         async move {
             let data = CloudFsMetaData::new(self.file_meta.clone());
             Ok(Box::new(data) as Box<dyn DavMetaData>)
         }.boxed()
     }
 
-    fn write_buf(&mut self, _buf: Box<dyn Buf + Send>) -> FsFuture<()> {
+    fn write_buf(&mut self, _buf: Box<dyn Buf + Send>) -> FsFuture<'_,()> {
         info!("write_buf,{},pos:{}", self.file_meta.name,self.pos);
         todo!()
     }
 
-    fn write_bytes(&mut self, buf: Bytes) -> FsFuture<()> {
+    fn write_bytes(&mut self, buf: Bytes) -> FsFuture<'_,()> {
         async move {
             let id = self.file_meta.id.unwrap();
 
@@ -125,7 +125,7 @@ impl DavFile for CloudDavFile {
         }.boxed()
     }
 
-    fn read_bytes(&mut self, count: usize) -> FsFuture<Bytes> {
+    fn read_bytes(&mut self, count: usize) -> FsFuture<'_,Bytes> {
         async move {
             let id = self.file_meta.id.unwrap();
             debug!("read_bytes,{}:{},pos:{},count:{}", id ,self.file_meta.name ,self.pos,count);
@@ -136,7 +136,7 @@ impl DavFile for CloudDavFile {
         }.boxed()
     }
 
-    fn seek(&mut self, pos: SeekFrom) -> FsFuture<u64> {
+    fn seek(&mut self, pos: SeekFrom) -> FsFuture<'_,u64> {
         async move {
             let (start, offset): (u64, i64) = match pos {
                 Start(npos) => {
@@ -162,7 +162,7 @@ impl DavFile for CloudDavFile {
             .boxed()
     }
 
-    fn flush(&mut self) -> FsFuture<()> {
+    fn flush(&mut self) -> FsFuture<'_,()> {
         async move {
             info!("{}:flush",self.file_meta.id.unwrap());
             let id = self.file_meta.id.unwrap();

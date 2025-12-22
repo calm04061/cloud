@@ -27,13 +27,13 @@ pub(crate) struct DevicePersonalInfo {
     pub(crate) personal_space_info: DriveCapacity,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct ErrorResult {
-    pub(crate) code: String,
-    message: String,
-    #[serde(rename(serialize = "requestId", deserialize = "requestId"))]
-    request_id: Option<String>,
-}
+// #[derive(Serialize, Deserialize, Debug)]
+// pub(crate) struct ErrorResult {
+//     pub(crate) code: String,
+//     message: String,
+//     #[serde(rename(serialize = "requestId", deserialize = "requestId"))]
+//     request_id: Option<String>,
+// }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct DriveInfo {
@@ -76,13 +76,13 @@ pub(crate) struct PartInfo {
 }
 
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct UserData {
-    ding_ding_robot_url: String,
-    encourage_desc: String,
-    feed_back_switch: bool,
-    following_desc: String,
-}
+// #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+// pub struct UserData {
+//     ding_ding_robot_url: String,
+//     encourage_desc: String,
+//     feed_back_switch: bool,
+//     following_desc: String,
+// }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct CreateFile {

@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ErrorResult {
-    // personal_rights_info:HashMap<>
-    pub(crate) code: String,
-    message: String,
-    #[serde(rename(serialize = "requestId", deserialize = "requestId"))]
-    request_id: Option<String>,
-}
+// #[derive(Serialize, Deserialize, Debug)]
+// pub struct ErrorResult {
+//     // personal_rights_info:HashMap<>
+//     pub(crate) code: String,
+//     message: String,
+//     #[serde(rename(serialize = "requestId", deserialize = "requestId"))]
+//     request_id: Option<String>,
+// }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BaiduUser {
@@ -20,55 +20,55 @@ pub struct BaiduUser {
     uk: i64,
     vip_type: i32,
 }
+//
+// #[derive(Serialize, Deserialize, Debug)]
+// pub struct DriveFile {
+//     pub(crate) drive_id: String,
+//     pub(crate) file_id: String,
+// }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct DriveFile {
-    pub(crate) drive_id: String,
-    pub(crate) file_id: String,
-}
+// #[derive(Serialize, Deserialize, Debug)]
+// pub(crate) struct Query {
+//     pub(crate) drive_id: String,
+//     pub(crate) parent_file_id: String,
+//     pub(crate) limit: i32,
+//     pub(crate) all: bool,
+//     pub(crate) url_expire_sec: i32,
+//     pub(crate) image_thumbnail_process: String,
+//     pub(crate) image_url_process: String,
+//     pub(crate) video_thumbnail_process: String,
+//     pub(crate) fields: String,
+//     pub(crate) order_by: String,
+//     pub(crate) order_direction: String,
+// }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct Query {
-    pub(crate) drive_id: String,
-    pub(crate) parent_file_id: String,
-    pub(crate) limit: i32,
-    pub(crate) all: bool,
-    pub(crate) url_expire_sec: i32,
-    pub(crate) image_thumbnail_process: String,
-    pub(crate) image_url_process: String,
-    pub(crate) video_thumbnail_process: String,
-    pub(crate) fields: String,
-    pub(crate) order_by: String,
-    pub(crate) order_direction: String,
-}
+// #[derive(Serialize, Deserialize, Debug)]
+// pub(crate) struct Search {
+//     pub(crate) drive_id: String,
+//     pub(crate) limit: i32,
+//     pub(crate) order_by: String,
+//     pub(crate) query: String,
+// }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct Search {
-    pub(crate) drive_id: String,
-    pub(crate) limit: i32,
-    pub(crate) order_by: String,
-    pub(crate) query: String,
-}
+// #[derive(Serialize, Deserialize, Debug)]
+// pub(crate) struct CompleteRequest {
+//     // {"drive_id":"2050438","upload_id":"617283DD041046B0A97AA79857DDDBBE","file_id":"621cf518a5ddef2ebc7647519486ec82de248fe0"}
+//     pub(crate) drive_id: String,
+//     pub(crate) file_id: String,
+//     pub(crate) upload_id: String,
+// }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct CompleteRequest {
-    // {"drive_id":"2050438","upload_id":"617283DD041046B0A97AA79857DDDBBE","file_id":"621cf518a5ddef2ebc7647519486ec82de248fe0"}
-    pub(crate) drive_id: String,
-    pub(crate) file_id: String,
-    pub(crate) upload_id: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct DownloadUrl {
-    content_hash: String,
-    content_hash_name: String,
-    crc64_hash: String,
-    expiration: String,
-    internal_url: String,
-    method: String,
-    size: u64,
-    pub(crate) url: String,
-}
+// #[derive(Serialize, Deserialize, Debug)]
+// pub(crate) struct DownloadUrl {
+//     content_hash: String,
+//     content_hash_name: String,
+//     crc64_hash: String,
+//     expiration: String,
+//     internal_url: String,
+//     method: String,
+//     size: u64,
+//     pub(crate) url: String,
+// }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct BaiduPreCreate {

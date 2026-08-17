@@ -93,7 +93,7 @@ impl StorageFacade {
     pub async fn callback(&mut self, server: &str, callback: &Callback) -> ResponseResult<()> {
         let id = match callback.state.parse::<i32>() {
             Ok(i) => i,
-            Err(e) => return Err(ErrorInfo::OTHER(format!("Invalid callback state: {}", e))),
+            Err(e) => return Err(ErrorInfo::new(0, &format!("Invalid callback state: {}", e))),
         };
         let mut cloud_meta = self.inner.get_meta_info(id).await?;
 
@@ -289,7 +289,7 @@ impl Inner {
             None => {
                 let config = match CONTEXT.config_manager.info(CLOUD_FILE_ROOT).await {
                     Some(c) => c,
-                    None => return Err(ErrorInfo::OTHER("CLOUD_FILE_ROOT config not found".to_string())),
+                    None => return Err(ErrorInfo::new(0, "CLOUD_FILE_ROOT config not found")),
                 };
                 self.root_holder = Some(config.value.clone());
                 config.value.clone()

@@ -13,38 +13,34 @@ use crate::web::common::WebResult;
 use crate::web::vo::cloud::CloudMetaVo;
 
 #[get("/storage/meta")]
-pub(crate) async fn list() -> impl Responder {
+pub(crate) async fn list() -> Json<WebResult<Vec<CloudMeta>>> {
     match CONTEXT.cloud_meta_manager.list().await {
-        Ok(meta) => {
-            let x = &Some(meta);
-            WebResult::actix_web_json_result(x)
-        }
-        Err(_) => WebResult::actix_web_json_result(&None::<()>),
+        Ok(meta) => Json(WebResult::success(meta)),
+        Err(_) => Json(WebResult::empty()),
     }
 }
 
 #[post("/storage/meta")]
 pub(crate) async fn new(
     meta: Json<CloudMetaVo>,
-) -> impl Responder {
+) -> Json<WebResult<Option<i32>>> {
     let vo = meta.0.clone();
     let mut meta = CloudMeta::from(vo);
-    let cloud_type :CloudType = meta.cloud_type.into();
+    let cloud_type: CloudType = meta.cloud_type.into();
     match cloud_type {
         Local => {
             meta.status = MetaStatus::Enable.into();
         }
-		#[cfg(not(windows))]
+        #[cfg(not(windows))]
         Sftp => {
             meta.status = MetaStatus::Enable.into();
         }
         _ => {}
     }
-    let meta = match CONTEXT.cloud_meta_manager.add(&meta).await {
-        Ok(m) => m,
-        Err(_) => return WebResult::actix_web_json_result(&None::<()>),
-    };
-    WebResult::actix_web_json_result(&meta.id)
+    match CONTEXT.cloud_meta_manager.add(&meta).await {
+        Ok(m) => Json(WebResult::success(m.id)),
+        Err(_) => Json(WebResult::empty()),
+    }
 }
 
 #[get("/storage/meta/{id}")]

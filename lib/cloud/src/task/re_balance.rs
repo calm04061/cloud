@@ -19,7 +19,7 @@ pub(crate) async fn re_balance() -> ResponseResult<()> {
         Ok(v) => v,
         Err(e) => {
             log::error!("Failed to parse MAX_NUMBER_OF_SHARD: {}", e);
-            return Err(api::error::ErrorInfo::OTHER(format!("Invalid MAX_NUMBER_OF_SHARD: {}", e)));
+            return Err(api::error::ErrorInfo::new(0, &format!("Invalid MAX_NUMBER_OF_SHARD: {}", e)));
         }
     };
     let cloud_metas = CONTEXT.cloud_meta_manager.quota_random(MetaStatus::Enable.into(), default_max_shard as i32).await?;

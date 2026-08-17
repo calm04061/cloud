@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use crypto::digest::Digest;
 use crypto::md5::Md5;
-use dotenvy_macro::dotenv;
+use dotenvy;
 use http::Extensions;
 use log::{debug};
 use reqwest::multipart::{Form, Part};
@@ -24,8 +24,12 @@ use api::ResponseResult;
 use persistence::meta::{CloudMeta, FileBlockMeta};
 use persistence::CloudFileBlock;
 
-const BAIDU_YUN_APP_SECRET: &str = dotenv!("BAIDU_YUN_APP_SECRET");
-const BAIDU_YUN_APP_ID: &str = dotenv!("BAIDU_YUN_APP_ID");
+fn get_baidu_yun_app_secret() -> String {
+    dotenvy::var("BAIDU_YUN_APP_SECRET").expect("BAIDU_YUN_APP_SECRET not set in environment")
+}
+fn get_baidu_yun_app_id() -> String {
+    dotenvy::var("BAIDU_YUN_APP_ID").expect("BAIDU_YUN_APP_ID not set in environment")
+}
 
 // const CHUNK_SIZE: usize = 10485760;
 const BLOCK_SIZE: usize = 1024 * 1024 * 4;
@@ -361,11 +365,11 @@ impl Storage for BaiduStorage {
         Ok(String::from(json_text))
     }
     fn client_id(&self) -> String {
-        BAIDU_YUN_APP_ID.to_string()
+        get_baidu_yun_app_id()
     }
 
     fn client_secret(&self) -> String {
-        BAIDU_YUN_APP_SECRET.to_string()
+        get_baidu_yun_app_secret()
     }
 }
 

@@ -2,7 +2,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use dotenvy_macro::dotenv;
+use dotenvy;
 use http::Extensions;
 use log::info;
 use reqwest::Client;
@@ -19,8 +19,12 @@ use crate::onedrive::one_drive_authorization_middleware::OneDriveAuthMiddleware;
 use crate::onedrive::vo::{AuthorizationToken, Drive, DriveItem};
 use crate::storage::{Network, Storage};
 
-const ONE_DRIVE_APP_SECRET: &str = dotenv!("ONE_DRIVE_APP_SECRET");
-const ONE_DRIVE_APP_ID: &str = dotenv!("ONE_DRIVE_APP_ID");
+fn get_one_drive_app_secret() -> String {
+    dotenvy::var("ONE_DRIVE_APP_SECRET").expect("ONE_DRIVE_APP_SECRET not set in environment")
+}
+fn get_one_drive_app_id() -> String {
+    dotenvy::var("ONE_DRIVE_APP_ID").expect("ONE_DRIVE_APP_ID not set in environment")
+}
 pub const API_DOMAIN_PREFIX: &str = "https://graph.microsoft.com/v1.0";
 const AUTH_DOMAIN_PREFIX: &str = "https://login.microsoftonline.com";
 
@@ -209,11 +213,11 @@ impl Storage for OneDriveStorage {
         Ok(String::from(json_text))
     }
     fn client_id(&self) -> String {
-        ONE_DRIVE_APP_ID.to_string()
+        get_one_drive_app_id()
     }
 
     fn client_secret(&self) -> String {
-        ONE_DRIVE_APP_SECRET.to_string()
+        get_one_drive_app_secret()
     }
 }
 

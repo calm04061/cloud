@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use dotenvy_macro::dotenv;
+use dotenvy;
 use log::{debug, info};
 use reqwest::{Body, Client};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
@@ -22,8 +22,12 @@ use crate::storage::{ExtraStorage, Network, Storage, TokenProvider};
 
 //128mb
 const CHUNK_SIZE: usize = 134217728;
-const ALI_YUN_APP_SECRET: &str = dotenv!("ALI_YUN_APP_SECRET");
-const ALI_YUN_APP_ID: &str = dotenv!("ALI_YUN_APP_ID");
+fn get_ali_yun_app_secret() -> String {
+    dotenvy::var("ALI_YUN_APP_SECRET").expect("ALI_YUN_APP_SECRET not set in environment")
+}
+fn get_ali_yun_app_id() -> String {
+    dotenvy::var("ALI_YUN_APP_ID").expect("ALI_YUN_APP_ID not set in environment")
+}
 
 pub const API_DOMAIN_PREFIX: &str = "https://openapi.alipan.com";
 
@@ -340,11 +344,11 @@ impl Storage for AliStorage {
     }
 
     fn client_id(&self) -> String {
-        ALI_YUN_APP_ID.to_string()
+        get_ali_yun_app_id()
     }
 
     fn client_secret(&self) -> String {
-        ALI_YUN_APP_SECRET.to_string()
+        get_ali_yun_app_secret()
     }
 }
 #[async_trait::async_trait]

@@ -2,6 +2,7 @@ use chrono::{DateTime, Local};
 use strum_macros::EnumIter;
 
 pub mod support;
+pub mod utils;
 
 pub mod meta {
     use chrono::{DateTime, Local};

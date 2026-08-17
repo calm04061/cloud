@@ -1,4 +1,4 @@
-use dotenvy_macro::dotenv;
+use dotenvy;
 use std::cmp::min;
 use std::collections::HashMap;
 use api::ResponseResult;
@@ -7,13 +7,21 @@ use rand::random;
 use persistence::{CloudFileBlock, MetaStatus, TempCloudFile};
 use service::CONTEXT;
 
-const MAX_SHARD: &str = dotenv!("MAX_NUMBER_OF_SHARD");
+fn get_max_shard() -> String {
+    dotenvy::var("MAX_NUMBER_OF_SHARD").unwrap_or_else(|_| "3".to_string())
+}
 
 pub(crate) async fn re_balance() -> ResponseResult<()> {
     // info!("start re balance");
     let option = CONTEXT.config_manager.info("MAX_NUMBER_OF_SHARD").await;
-    let default_max_shard = option.map(|e| e.value).unwrap_or(MAX_SHARD.to_string());
-    let default_max_shard: usize = default_max_shard.parse().unwrap();
+    let default_max_shard = option.map(|e| e.value).unwrap_or_else(|| get_max_shard());
+    let default_max_shard: usize = match default_max_shard.parse() {
+        Ok(v) => v,
+        Err(e) => {
+            log::error!("Failed to parse MAX_NUMBER_OF_SHARD: {}", e);
+            return Err(api::error::ErrorInfo::OTHER(format!("Invalid MAX_NUMBER_OF_SHARD: {}", e)));
+        }
+    };
     let cloud_metas = CONTEXT.cloud_meta_manager.quota_random(MetaStatus::Enable.into(), default_max_shard as i32).await?;
 
     let cloud_meta_size = cloud_metas.len();

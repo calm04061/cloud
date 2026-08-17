@@ -14,9 +14,13 @@ use crate::web::vo::cloud::CloudMetaVo;
 
 #[get("/storage/meta")]
 pub(crate) async fn list() -> impl Responder {
-    let meta = CONTEXT.cloud_meta_manager.list().await.unwrap();
-    let x = &Some(meta);
-    WebResult::actix_web_json_result(x)
+    match CONTEXT.cloud_meta_manager.list().await {
+        Ok(meta) => {
+            let x = &Some(meta);
+            WebResult::actix_web_json_result(x)
+        }
+        Err(_) => WebResult::actix_web_json_result(&None::<()>),
+    }
 }
 
 #[post("/storage/meta")]
@@ -36,7 +40,10 @@ pub(crate) async fn new(
         }
         _ => {}
     }
-    let meta = CONTEXT.cloud_meta_manager.add(&meta).await.unwrap();
+    let meta = match CONTEXT.cloud_meta_manager.add(&meta).await {
+        Ok(m) => m,
+        Err(_) => return WebResult::actix_web_json_result(&None::<()>),
+    };
     WebResult::actix_web_json_result(&meta.id)
 }
 

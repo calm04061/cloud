@@ -14,7 +14,7 @@ use actix_web_httpauth::middleware::HttpAuthentication;
 use libloading::{Error, Symbol};
 use log::info;
 
-use api::{Capacity, PluginMetaInfo};
+use api::{Capacity, PluginInstance, PluginMetaInfo};
 use service::CONTEXT;
 
 use crate::fs::dav::cloud_dav_filesystem::DAV_PREFIX;
@@ -44,13 +44,19 @@ async fn validate(credentials: BasicAuth) -> bool {
         return false;
     }
     let username = credentials.user_id();
-    let result = CONTEXT.user_manager.select_by_username(username).await.unwrap();
+    let result = match CONTEXT.user_manager.select_by_username(username).await {
+        Ok(r) => r,
+        Err(_) => return false,
+    };
     if result.is_none() {
         return false;
     }
     let password = credentials.password().unwrap();
     let user = result.unwrap();
-    password.eq(&user.password)
+    match persistence::utils::verify_password(password, &user.password) {
+        Ok(valid) => valid,
+        Err(_) => false,
+    }
 }
 
 pub async fn run_web(plugin_arc: Arc<Vec<PluginMetaInfo>>) -> Server {
@@ -61,9 +67,19 @@ pub async fn run_web(plugin_arc: Arc<Vec<PluginMetaInfo>>) -> Server {
     let server = HttpServer::new({
         move || {
             let basic_auth = HttpAuthentication::basic(validator);
+            let allowed_origins: Vec<String> = dotenvy::var("ALLOWED_ORIGINS")
+                .unwrap_or_else(|_| "http://localhost:5173".to_string())
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .collect();
             let cors = Cors::default()
-                // .allowed_origin("*")
-                .allowed_origin_fn(|_origin, _req_head| true)
+                .allowed_origin_fn(move |origin, _req_head| {
+                    let origin_str = match origin.to_str() {
+                        Ok(s) => s,
+                        Err(_) => return false,
+                    };
+                    allowed_origins.iter().any(|o| o == origin_str)
+                })
                 .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"])
                 .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
                 .allowed_header(header::CONTENT_TYPE)
@@ -73,6 +89,7 @@ pub async fn run_web(plugin_arc: Arc<Vec<PluginMetaInfo>>) -> Server {
                 .wrap(cors)
                 .service(
                     scope("api")
+                        .wrap(basic_auth.clone())
                         .wrap(
                             ErrorHandlers::new()
                                 .handler(StatusCode::INTERNAL_SERVER_ERROR, add_error_header),
@@ -99,13 +116,20 @@ pub async fn run_web(plugin_arc: Arc<Vec<PluginMetaInfo>>) -> Server {
                 let cas = meta_info.capacities.iter().clone();
                 for c in cas {
                     match c {
-                        Capacity::WEB(name) => unsafe {
-                            let web: Result<Symbol<fn(cfg: &mut actix_web::web::ServiceConfig)>, Error> = p.library.get(name.as_bytes());
-                            if web.is_ok() {
-                                let web = web.unwrap();
-                                app = app.configure(|cfg| {
-                                    web(cfg);
-                                });
+                        Capacity::WEB(name) => {
+                            match &p.instance {
+                                PluginInstance::Native(library) => unsafe {
+                                    let web: Result<Symbol<fn(cfg: &mut actix_web::web::ServiceConfig)>, Error> = library.get(name.as_bytes());
+                                    if web.is_ok() {
+                                        let web = web.unwrap();
+                                        app = app.configure(|cfg| {
+                                            web(cfg);
+                                        });
+                                    }
+                                },
+                                PluginInstance::Wasi(_) => {
+                                    info!("WASI plugin {} does not support WEB capacity yet", meta_info.name);
+                                }
                             }
                         }
                         _ => {}

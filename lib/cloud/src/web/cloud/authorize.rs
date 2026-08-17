@@ -20,7 +20,13 @@ pub(crate) async fn authorize(
     let vec = cloud.get_auth_methods(id).await;
     let mut target = String::from("/cloud");
     if vec.contains(&AuthMethod::OAuth2) {
-        target = cloud.authorize(&server, id).await.unwrap();
+        target = match cloud.authorize(&server, id).await {
+            Ok(t) => t,
+            Err(e) => {
+                error!("Failed to authorize: {:?}", e);
+                return HttpResponse::InternalServerError().finish();
+            }
+        };
     }
     HttpResponse::Found()
         .append_header(("Location", target))
@@ -47,12 +53,11 @@ pub(crate) async fn callback(state: Query<Callback>, request: HttpRequest) -> im
 fn header_value(headers: &HeaderMap, header: &str, default_value: &str) -> String {
     let option = headers.get(header);
     let server = match option {
-        None => {
-            default_value
-        }
-        Some(value) => {
-            value.to_str().unwrap()
-        }
+        None => default_value,
+        Some(value) => match value.to_str() {
+            Ok(s) => s,
+            Err(_) => default_value,
+        },
     };
     server.to_string()
 }

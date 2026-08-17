@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use bytes::Bytes;
-use dotenvy_macro::dotenv;
+use dotenvy;
 use http::Extensions;
 use log::info;
 use reqwest::multipart::Part;
@@ -20,8 +20,12 @@ use persistence::CloudFileBlock;
 use service::meta::CloudMetaManager;
 use service::CONTEXT;
 
-const GOOGLE_DRIVE_APP_SECRET: &str = dotenv!("GOOGLE_DRIVE_APP_SECRET");
-const GOOGLE_DRIVE_APP_ID: &str = dotenv!("GOOGLE_DRIVE_APP_ID");
+fn get_google_drive_app_secret() -> String {
+    dotenvy::var("GOOGLE_DRIVE_APP_SECRET").expect("GOOGLE_DRIVE_APP_SECRET not set in environment")
+}
+fn get_google_drive_app_id() -> String {
+    dotenvy::var("GOOGLE_DRIVE_APP_ID").expect("GOOGLE_DRIVE_APP_ID not set in environment")
+}
 pub const API_DOMAIN_PREFIX: &str = "https://www.googleapis.com";
 const AUTH_DOMAIN_PREFIX: &str = "https://accounts.google.com";
 
@@ -283,11 +287,11 @@ impl Storage for GoogleDriveStorage {
     }
 
     fn client_id(&self) -> String {
-        GOOGLE_DRIVE_APP_ID.to_string()
+        get_google_drive_app_id()
     }
 
     fn client_secret(&self) -> String {
-        GOOGLE_DRIVE_APP_SECRET.to_string()
+        get_google_drive_app_secret()
     }
 }
 

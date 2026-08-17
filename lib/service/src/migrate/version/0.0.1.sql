@@ -104,5 +104,5 @@ create table temp_cloud_file
 create index temp_cloud_file_status_index on temp_cloud_file (status);
 
 insert into config(property, value) values ('CLOUD_FILE_ROOT',lower( hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-' || '4' || substr(hex( randomblob(2)), 2) || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' ||hex(randomblob(6))));
-insert into user(username, password) values ('admin','admin');
+insert into user(username, password) values ('admin','$2b$12$v/VUPTls0Hib7Q0IZ0LkV.w2Nwlwb5DiO60iUgdLtrfxe7QJrLRF.');
 insert into file_meta (name, parent_id, file_type, file_length, status, deleted, create_time, update_time) values ('/',0,2,0,0,0, datetime() ,datetime());

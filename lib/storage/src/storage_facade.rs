@@ -2,14 +2,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use libloading::{Error, Symbol};
+use libloading::{Error, Library, Symbol};
 use log::{debug, error, info};
 use tokio::sync::Mutex;
 
 use api::error::ErrorInfo;
 use api::error::ErrorInfo::Http401;
 use api::util::IntoOne;
-use api::{Capacity, ResponseResult, CLOUD_FILE_ROOT};
+use api::{Capacity, PluginInstance, ResponseResult, CLOUD_FILE_ROOT};
 use persistence::meta::{CloudMeta, FileBlockMeta};
 use persistence::{CloudFileBlock, CloudType, MetaStatus, TempCloudFile};
 use plugin_manager::PLUGIN_MANAGER;
@@ -45,12 +45,19 @@ impl StorageFacade {
             let cas = meta_info.capacities.iter().clone();
             for c in cas {
                 match c {
-                    Capacity::STORAGE(name) => unsafe {
-                        info!("loading storage from {}@{}",meta_info.name,meta_info.version);
-                        let storage: Result<Symbol<fn() -> (CloudType, Box<Arc<Mutex<dyn Storage + Send>>>)>, Error> = plugin.library.get(name.as_bytes());
-                        if let Ok(function) = storage {
-                            let fun_def = function();
-                            holder.insert(fun_def.0, fun_def.1);
+                    Capacity::STORAGE(name) => {
+                        match &plugin.instance {
+                            PluginInstance::Native(library) => unsafe {
+                                info!("loading storage from {}@{}",meta_info.name,meta_info.version);
+                                let storage: Result<Symbol<fn() -> (CloudType, Box<Arc<Mutex<dyn Storage + Send>>>)>, Error> = library.get(name.as_bytes());
+                                if let Ok(function) = storage {
+                                    let fun_def = function();
+                                    holder.insert(fun_def.0, fun_def.1);
+                                }
+                            },
+                            PluginInstance::Wasi(_) => {
+                                info!("WASI plugin {} does not support STORAGE capacity yet", meta_info.name);
+                            }
                         }
                     }
                     _ => {}
@@ -84,7 +91,10 @@ impl StorageFacade {
     /// 授权登陆回调
     ///
     pub async fn callback(&mut self, server: &str, callback: &Callback) -> ResponseResult<()> {
-        let id = callback.state.parse().unwrap();
+        let id = match callback.state.parse::<i32>() {
+            Ok(i) => i,
+            Err(e) => return Err(ErrorInfo::OTHER(format!("Invalid callback state: {}", e))),
+        };
         let mut cloud_meta = self.inner.get_meta_info(id).await?;
 
         let result = self
@@ -277,7 +287,10 @@ impl Inner {
         let root = match self.root_holder.clone() {
             Some(v) => v,
             None => {
-                let config = CONTEXT.config_manager.info(CLOUD_FILE_ROOT).await.unwrap();
+                let config = match CONTEXT.config_manager.info(CLOUD_FILE_ROOT).await {
+                    Some(c) => c,
+                    None => return Err(ErrorInfo::OTHER("CLOUD_FILE_ROOT config not found".to_string())),
+                };
                 self.root_holder = Some(config.value.clone());
                 config.value.clone()
             }
@@ -292,7 +305,13 @@ impl Inner {
                 #[cfg(not(windows))]
                 CloudType::Sftp => Ok(Box::new(Arc::new(Mutex::new(SftpStorage::new(&root))))),
             };
-            cloud.unwrap()
+            match cloud {
+                Ok(c) => c,
+                Err(e) => {
+                    log::error!("Failed to create cloud storage: {}", e);
+                    panic!("Failed to create cloud storage: {}", e);
+                }
+            }
         });
         Ok(cloud_storage.clone())
     }
@@ -400,8 +419,20 @@ impl Inner {
     /// 获得支持的授权方式
     ///
     async fn get_auth_methods(&mut self, id: i32) -> Vec<AuthMethod> {
-        let cloud_meta = CONTEXT.cloud_meta_manager.info(id).await.unwrap();
-        let cloud = self.get_cloud(cloud_meta.cloud_type.into()).await.unwrap();
+        let cloud_meta = match CONTEXT.cloud_meta_manager.info(id).await {
+            Ok(m) => m,
+            Err(e) => {
+                log::error!("Failed to get cloud meta: {}", e);
+                return Vec::new();
+            }
+        };
+        let cloud = match self.get_cloud(cloud_meta.cloud_type.into()).await {
+            Ok(c) => c,
+            Err(e) => {
+                log::error!("Failed to get cloud: {}", e);
+                return Vec::new();
+            }
+        };
         let cloud = cloud.lock().await;
         cloud.get_auth_methods()
     }
@@ -435,20 +466,31 @@ impl Inner {
     /// 回调后处理
     ///
     pub(crate) async fn after_callback(&mut self, cloud_meta: &mut CloudMeta) {
-        let cloud = self.get_cloud(cloud_meta.cloud_type.into()).await.unwrap();
+        let cloud = match self.get_cloud(cloud_meta.cloud_type.into()).await {
+            Ok(c) => c,
+            Err(e) => {
+                log::error!("Failed to get cloud for after_callback: {}", e);
+                return;
+            }
+        };
         let mut cloud = cloud.lock().await;
         cloud.after_callback(cloud_meta).await.ok();
-        let quota = cloud.drive_quota(cloud_meta).await.unwrap();
-        cloud_meta.total_quota = Some(quota.total);
-        cloud_meta.used_quota = Some(quota.used);
-        cloud_meta.remaining_quota = Some(quota.total - quota.used);
+        match cloud.drive_quota(cloud_meta).await {
+            Ok(quota) => {
+                cloud_meta.total_quota = Some(quota.total);
+                cloud_meta.used_quota = Some(quota.used);
+                cloud_meta.remaining_quota = Some(quota.total - quota.used);
+            }
+            Err(e) => {
+                log::error!("Failed to get drive quota: {}", e);
+            }
+        }
     }
     ///
     /// 刷新容量
     ///
     pub async fn refresh_quota(&mut self, mut meta: CloudMeta) -> ResponseResult<()> {
         let cloud = self.get_cloud(meta.cloud_type.into()).await?;
-        // let mut guard = cloud.lock().unwrap();
         let result = cloud.lock().await.drive_quota(&meta).await?;
         meta.used_quota = Some(result.used);
         meta.total_quota = Some(result.total);

@@ -45,23 +45,33 @@ pub struct ServiceContext {
 
 impl ServiceContext {
     pub fn init_pool() {
-        fs::create_dir_all("./data").unwrap();
+        if let Err(e) = fs::create_dir_all("./data") {
+            log::error!("Failed to create data directory: {}", e);
+        }
     }
     pub async fn upgrade(&self) {
         let result: ResponseResult<String> = query_version(self.pool.clone()).await;
         let pool = self.pool.clone();
-        let mut transaction = pool.begin().await.unwrap();
-
-        let pre_version =match result {
-            Ok(v) => {
-                v
-            }
-            Err(_e) => {
-                "0.0.0".to_string()
+        let mut transaction = match pool.begin().await {
+            Ok(t) => t,
+            Err(e) => {
+                log::error!("Failed to begin transaction: {}", e);
+                return;
             }
         };
-        let pre_version = pre_version.parse::<Version>().unwrap();
-        // let migrate_result;
+
+        let pre_version = match result {
+            Ok(v) => v,
+            Err(_e) => "0.0.0".to_string(),
+        };
+        let pre_version = match pre_version.parse::<Version>() {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("Failed to parse version: {:?}", e);
+                let _ = transaction.rollback().await;
+                return;
+            }
+        };
         let mut versions_migrate = VersionsMigrate::new(pre_version);
         versions_migrate.add(Box::new(DefaultVersionMigrate::new("0.0.1", include_str!("migrate/version/0.0.1.sql")))).await;
         versions_migrate.add(Box::new(DefaultVersionMigrate::new("0.0.2", include_str!("migrate/version/0.0.2.sql")))).await;
@@ -69,10 +79,15 @@ impl ServiceContext {
 
         match migrate_result {
             Ok(_) => {
-                transaction.commit().await.unwrap()
+                if let Err(e) = transaction.commit().await {
+                    log::error!("Failed to commit transaction: {}", e);
+                }
             }
-            Err(_) => {
-                transaction.rollback().await.unwrap()
+            Err(e) => {
+                log::error!("Migration failed: {}", e);
+                if let Err(e) = transaction.rollback().await {
+                    log::error!("Failed to rollback transaction: {}", e);
+                }
             }
         }
     }
@@ -82,7 +97,13 @@ impl Default for ServiceContext {
     fn default() -> Self {
         Self::init_pool();
         let config = ApplicationConfig::default();
-        let options = SqliteConnectOptions::from_str(config.database_url.as_str()).unwrap();
+        let options = match SqliteConnectOptions::from_str(config.database_url.as_str()) {
+            Ok(o) => o,
+            Err(e) => {
+                log::error!("Failed to parse database URL: {}", e);
+                panic!("Failed to parse database URL: {}", e);
+            }
+        };
         let db_pool = SqlitePoolOptions::new().connect_lazy_with(options);
 
         let file_meta_manager = SimpleFileMetaManager::new(db_pool.clone());

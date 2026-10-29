@@ -32,3 +32,7 @@ impl Plugin for CloudUi {
 pub fn plugin_meta() -> Box<dyn Plugin> {
     Box::new(CloudUi)
 }
+#[no_mangle]
+pub fn plugin_abi_version() -> u32 {
+    api::PLUGIN_ABI_VERSION
+}

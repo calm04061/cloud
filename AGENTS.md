@@ -42,11 +42,13 @@ At agent startup, check `.codegraph/codegraph.db`:
 - Values read from the DB `config` table via `ConfigManager`, not `.env`: FUSE `MOUNT_PATH` (required; no env fallback), mount `TEMP_PATH`, and `MAX_NUMBER_OF_SHARD` (env fallback exists). Cron tasks read `TEMP_PATH`/`MAX_NUMBER_OF_SHARD` from `.env`.
 - Migrations are not auto-discovered: add `lib/service/src/migrate/version/*.sql` **and** register the `include_str!` + `versions_migrate.add(...)` in `ServiceContext::upgrade` (`lib/service/src/lib.rs`). `all.sql` is not executed; the runner splits each migration on `;`.
 - `0.0.1.sql` seeds the `admin` user, the `/` file row, and `CLOUD_FILE_ROOT`. There is no user CRUD API; `/api` and `/dav` use Basic Auth against the `user` table.
+- `cloud_meta.auth` is encrypted at rest with AES-GCM. `DATA_ENCRYPTION_KEY` is optional; if unset, a key file is created at `./data/encryption.key`. Existing plaintext rows are encrypted during startup migration.
 - The root `.env` is tracked and already contains live provider credentials. Do not add more secrets there; update `.env.example` instead.
 
 ## Plugins
 
 - Native plugins load from `$PLUGIN_DIR` (default `./plugin`); WASI plugins from `$WASI_PLUGIN_DIR` (default `./wasi-plugins`).
+- Native plugin allowlist is `PLUGIN_ALLOWLIST` (comma-separated names); unset means all native plugins are trusted. Native plugins should export `plugin_abi_version` and match `api::PLUGIN_ABI_VERSION`.
 - Native plugin ABI: export `plugin_meta`, plus one `fn(&mut actix_web::web::ServiceConfig)` per `Capacity::WEB(name)`.
 - WASI ABI: `name`/`version`/`capacities` return pointers into wasm memory; methods are `call_<method>(i32,i32)->i32`. `STORAGE` and `WEB` capacities for WASI are currently logged and skipped.
 - The UI is only served when a native plugin exposing the `config` WEB capacity is present.

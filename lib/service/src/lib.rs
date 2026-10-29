@@ -20,6 +20,7 @@ use crate::migrate::versions_migrate::VersionsMigrate;
 
 pub mod meta;
 pub mod config;
+pub mod crypto;
 pub mod user_manager;
 pub mod event_message;
 pub mod cloud_file_block_manager;
@@ -82,6 +83,8 @@ impl ServiceContext {
             Ok(_) => {
                 if let Err(e) = transaction.commit().await {
                     log::error!("Failed to commit transaction: {}", e);
+                } else if let Err(e) = self.cloud_meta_manager.encrypt_plain_auth().await {
+                    log::error!("Failed to encrypt cloud meta auth: {}", e);
                 }
             }
             Err(e) => {

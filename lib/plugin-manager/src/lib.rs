@@ -1,4 +1,4 @@
-use api::{MetaInfo, Plugin, PluginInstance, PluginMetaInfo};
+use api::{MetaInfo, Plugin, PluginInstance, PluginMetaInfo, PLUGIN_ABI_VERSION};
 use libloading::{Error, Library, Symbol};
 use log::{error, info, warn};
 use once_cell::sync::Lazy;
@@ -87,6 +87,45 @@ impl PluginManager {
         Some("./plugin".into())
     }
 
+    fn plugin_allowed(name: &str) -> bool {
+        let allowlist = env::var("PLUGIN_ALLOWLIST").unwrap_or_default();
+        if allowlist.trim().is_empty() {
+            warn!("PLUGIN_ALLOWLIST is empty; all plugins are treated as trusted");
+            return true;
+        }
+        allowlist
+            .split(',')
+            .map(str::trim)
+            .any(|item| item == name)
+    }
+
+    fn plugin_abi_supported(library: &Library, plugin_file: &str) -> bool {
+        unsafe {
+            let abi_version: Result<Symbol<unsafe extern "C" fn() -> u32>, Error> =
+                library.get(b"plugin_abi_version");
+            match abi_version {
+                Ok(symbol) => {
+                    let version = symbol();
+                    if version != PLUGIN_ABI_VERSION {
+                        error!(
+                            "plugin {} abi version {} is not supported",
+                            plugin_file, version
+                        );
+                        return false;
+                    }
+                    true
+                }
+                Err(_) => {
+                    warn!(
+                        "plugin {} does not export plugin_abi_version; treating as legacy",
+                        plugin_file
+                    );
+                    true
+                }
+            }
+        }
+    }
+
     fn load_dynamic_plugin(plugin_file: &str) -> Option<PluginMetaInfo> {
         unsafe {
             info!("loading plugin: {}", plugin_file);
@@ -107,6 +146,15 @@ impl PluginManager {
             let name = meta_info.name();
             let version = meta_info.version();
             let capacities = meta_info.capacities();
+
+            if !Self::plugin_allowed(&name) {
+                warn!("plugin {} is not in PLUGIN_ALLOWLIST", name);
+                return None;
+            }
+            if !Self::plugin_abi_supported(&library, plugin_file) {
+                return None;
+            }
+
             let meta_info = MetaInfo {
                 name: name.to_string(),
                 version: version.to_string(),

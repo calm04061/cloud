@@ -6,13 +6,17 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+aes-gcm = { workspace = true }
 persistence = { path = "../persistence" }
 api = { path = "../api" }
+base64 = { workspace = true }
 log = { workspace = true }
 once_cell = { workspace = true }
 async-recursion = { workspace = true }
 chrono = { workspace = true }
+rand = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+sha2 = { workspace = true }
 sqlx = {workspace = true, features = ["derive"] }
 sqlx-sqlite = {workspace = true}
 tokio = {workspace = true}

@@ -1,3 +1,4 @@
+use crate::crypto::{decrypt, encrypt, is_encrypted};
 use crate::meta::CloudMetaManager;
 use crate::DbPool;
 use api::error::ErrorInfo;
@@ -19,32 +20,53 @@ impl SimpleCloudMetaManager {
         let row: Vec<CloudMeta> = sqlx::query_as("select * from cloud_meta where deleted = ? ")
             .bind(i8::from(false))
             .fetch_all(&self.db_pool).await?;
-        Ok(row)
+        decrypt_rows(row)
     }
     pub async fn select_by_status(&self, status: i8) -> ResponseResult<Vec<CloudMeta>> {
         let row: Vec<CloudMeta> = sqlx::query_as("select * from cloud_meta where status = ? and deleted = 0 ")
             .bind(status)
             .fetch_all(&self.db_pool).await?;
-        Ok(row)
+        decrypt_rows(row)
     }
     pub async fn quota_random(&self, status: i8, size: i32) -> ResponseResult<Vec<CloudMeta>> {
         let row: Vec<CloudMeta> = sqlx::query_as("select * from cloud_meta where status = ? and deleted = 0 order by remaining_quota * random() desc limit ? ")
             .bind(status)
             .bind(size)
             .fetch_all(&self.db_pool).await?;
-        Ok(row)
+        decrypt_rows(row)
     }
     pub async fn query_token_timeout_cloud_meta(&self, now: u64) -> ResponseResult<Vec<CloudMeta>> {
         let row: Vec<CloudMeta> = sqlx::query_as("select * from cloud_meta where status = ? and deleted = 0 and expires_in < ?")
             .bind::<i8>(MetaStatus::Enable.into())
             .bind::<i64>(now as i64)
             .fetch_all(&self.db_pool).await?;
-        Ok(row)
+        decrypt_rows(row)
     }
+    pub async fn encrypt_plain_auth(&self) -> ResponseResult<u64> {
+        let rows: Vec<CloudMeta> = sqlx::query_as("select * from cloud_meta where auth is not null and auth <> ''")
+            .fetch_all(&self.db_pool)
+            .await?;
+        let mut count = 0;
+        for row in rows {
+            let auth = match row.auth.as_deref() {
+                Some(auth) if !is_encrypted(auth) => auth,
+                _ => continue,
+            };
+            let encrypted = encrypt(Some(auth))?;
+            sqlx::query("update cloud_meta set auth = ? where id = ?")
+                .bind(encrypted)
+                .bind(row.id)
+                .execute(&self.db_pool)
+                .await?;
+            count += 1;
+        }
+        Ok(count)
+    }
+
     pub async fn update(&self, meta: &CloudMeta) -> ResponseResult<u64> {
         let id= &meta.id;
         let name= &meta.name;
-        let auth= &meta.auth;
+        let auth= encrypt(meta.auth.as_deref())?;
         let last_work_time= &meta.last_work_time;
         let data_root= &meta.data_root;
         let status= &meta.status;
@@ -81,7 +103,7 @@ impl SimpleCloudMetaManager {
     }
     pub async fn insert(&self, meta: &CloudMeta) -> ResponseResult<i64> {
         let name= &meta.name;
-        let auth= &meta.auth;
+        let auth= encrypt(meta.auth.as_deref())?;
         let last_work_time= &meta.last_work_time;
         let data_root= &meta.data_root;
         let status= &meta.status;
@@ -112,6 +134,15 @@ impl SimpleCloudMetaManager {
     }
 }
 
+fn decrypt_rows(rows: Vec<CloudMeta>) -> ResponseResult<Vec<CloudMeta>> {
+    rows.into_iter()
+        .map(|mut row| {
+            row.auth = decrypt(row.auth.as_deref())?;
+            Ok(row)
+        })
+        .collect()
+}
+
 impl CloudMetaManager for SimpleCloudMetaManager {
     async fn add(&self, meta: &CloudMeta) -> ResponseResult<CloudMeta> {
         let mut meta = meta.clone();
@@ -121,15 +152,15 @@ impl CloudMetaManager for SimpleCloudMetaManager {
     }
 
     async fn info(&self, id: i32) -> ResponseResult<CloudMeta> {
-        let vec = sqlx::query_as("select * from cloud_meta where id =?")
+        let vec: Vec<CloudMeta> = sqlx::query_as("select * from cloud_meta where id =?")
             .bind(id)
             .fetch_all(&self.db_pool).await?;
-        if vec.is_empty() {
-            return Err(ErrorInfo::NoneCloudMeta(id));
-        }
         let option = vec.into_one();
         match option {
-            Some(meta) => Ok(meta),
+            Some(mut meta) => {
+                meta.auth = decrypt(meta.auth.as_deref())?;
+                Ok(meta)
+            }
             None => Err(ErrorInfo::NoneCloudMeta(id))
         }
     }

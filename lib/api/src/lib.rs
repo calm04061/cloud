@@ -10,6 +10,7 @@ pub type ResponseResult<T> = Result<T, ErrorInfo>;
 
 pub const ROOT_FILE_ID: u64 = 1;
 pub const CLOUD_FILE_ROOT: &str = "CLOUD_FILE_ROOT";
+pub const PLUGIN_ABI_VERSION: u32 = 1;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum Capacity {

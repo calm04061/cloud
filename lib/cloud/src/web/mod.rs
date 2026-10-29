@@ -24,19 +24,36 @@ mod cloud;
 mod common;
 pub(crate) mod vo;
 mod dav;
+mod rate_limit;
 use actix_web::dev::Service;
 
 async fn validator(
     req: ServiceRequest,
     credentials: BasicAuth,
 ) -> Result<ServiceRequest, (actix_web::Error, ServiceRequest)> {
-    let auth = validate(credentials).await;
-    if !auth {
+    let rate_limit_key = auth_rate_limit_key(&req, &credentials);
+    if !rate_limit::allowed(&rate_limit_key) {
         let my_realm = "Dav Realm".to_string();
         let challenge = Basic::with_realm(my_realm);
         return Err((AuthenticationError::new(challenge).into(), req));
     }
+    let auth = validate(credentials).await;
+    if !auth {
+        rate_limit::failure(&rate_limit_key);
+        let my_realm = "Dav Realm".to_string();
+        let challenge = Basic::with_realm(my_realm);
+        return Err((AuthenticationError::new(challenge).into(), req));
+    }
+    rate_limit::success(&rate_limit_key);
     Ok(req)
+}
+
+fn auth_rate_limit_key(req: &ServiceRequest, credentials: &BasicAuth) -> String {
+    let ip = req
+        .peer_addr()
+        .map(|addr| addr.ip().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+    format!("{}@{}", credentials.user_id(), ip)
 }
 
 async fn validate(credentials: BasicAuth) -> bool {

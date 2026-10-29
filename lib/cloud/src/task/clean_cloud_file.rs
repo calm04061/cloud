@@ -133,7 +133,7 @@ async fn do_clean_cloud_file(cloud_file_block: &mut CloudFileBlock) -> ResponseR
     if count == 0 {
         return Err(ErrorInfo::OTHER(1003, format!("云文件块{}抢占失败", cloud_file_block.id.unwrap())));
     }
-    let result = STORAGE_FACADE.write().await.delete(&cloud_file_block).await;
+    let result = STORAGE_FACADE.delete(&cloud_file_block).await;
     if let Ok(()) = result {
         debug!("删除云文件成功");
         return CONTEXT.cloud_file_block_manager.delete_by_id(cloud_file_block.id.unwrap()).await;

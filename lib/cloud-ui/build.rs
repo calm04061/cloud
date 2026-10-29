@@ -23,12 +23,7 @@ fn main() -> std::io::Result<()> {
     let version = get_git_version();
     let mut f = File::create(Path::new(&env::var("OUT_DIR").unwrap()).join("VERSION")).unwrap();
     f.write_all(version.trim().as_bytes()).unwrap();
-    NpmBuild::new("web")
-        .install()?
-        .run("build")?
-        .target("web/dist")
-        .change_detection()
-        .to_resource_dir()
-        .build()
-    
+    let npm = NpmBuild::new("web").install()?.run("build")?;
+    let _npm = npm.change_detection();
+    static_files::resource_dir("web/dist").build()
 }

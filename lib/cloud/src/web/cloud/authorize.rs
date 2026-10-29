@@ -12,15 +12,12 @@ pub(crate) async fn authorize(
     id: Path<i32>,
     request: HttpRequest,
 ) -> impl Responder {
-    let headers = request.headers();
-    let server = header_value(headers, "Host", "pan.calm0406.com:8080");
-    let server = format!("http://{server}");
+    let server = server_base_url(request.headers());
     let id = id.into_inner();
-    let mut cloud = STORAGE_FACADE.write().await;
-    let vec = cloud.get_auth_methods(id).await;
+    let vec = STORAGE_FACADE.get_auth_methods(id).await;
     let mut target = String::from("/cloud");
     if vec.contains(&AuthMethod::OAuth2) {
-        target = match cloud.authorize(&server, id).await {
+        target = match STORAGE_FACADE.authorize(&server, id).await {
             Ok(t) => t,
             Err(e) => {
                 error!("Failed to authorize: {:?}", e);
@@ -36,11 +33,10 @@ pub(crate) async fn authorize(
 
 #[get("/cloud/callback")]
 pub(crate) async fn callback(state: Query<Callback>, request: HttpRequest) -> impl Responder {
-    let headers = request.headers();
-    let server = header_value(headers, "Host", "pan.calm0406.com:8080");
+    let server = server_base_url(request.headers());
 
     let url = "/cloud".to_string();
-    let result = STORAGE_FACADE.write().await.callback(&server, &state.into_inner()).await;
+    let result = STORAGE_FACADE.callback(&server, &state.into_inner()).await;
     if let Err(e) = result {
         error!("{:?}", e);
     }
@@ -60,4 +56,14 @@ fn header_value(headers: &HeaderMap, header: &str, default_value: &str) -> Strin
         },
     };
     server.to_string()
+}
+
+fn server_base_url(headers: &HeaderMap) -> String {
+    if let Ok(base_url) = dotenvy::var("PUBLIC_BASE_URL") {
+        let base_url = base_url.trim().trim_end_matches('/');
+        if !base_url.is_empty() {
+            return base_url.to_string();
+        }
+    }
+    format!("http://{}", header_value(headers, "Host", "127.0.0.1:8088"))
 }

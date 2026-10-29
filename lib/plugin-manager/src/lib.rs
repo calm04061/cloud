@@ -1,10 +1,11 @@
-use api::{MetaInfo, Plugin, PluginMetaInfo};
+use api::{MetaInfo, Plugin, PluginInstance, PluginMetaInfo};
 use libloading::{Error, Library, Symbol};
 use log::{error, info, warn};
 use once_cell::sync::Lazy;
 use std::env;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use wasi_plugin::WasiPluginManager;
 
 pub static PLUGIN_MANAGER: Lazy<Arc<PluginManager>> = Lazy::new(|| Arc::new(PluginManager::new()));
 
@@ -14,17 +15,25 @@ pub struct PluginManager {
 
 impl PluginManager {
     fn new() -> PluginManager {
-        let plugins = Self::load_plugin();
-        PluginManager { plugins: Arc::new(plugins) }
+        let native_plugins = Self::load_native_plugin();
+        let wasi_plugins = Self::load_wasi_plugin();
+        let mut all_plugins = native_plugins;
+        all_plugins.extend(wasi_plugins);
+        PluginManager {
+            plugins: Arc::new(all_plugins),
+        }
     }
+
     pub fn get_plugins(&self) -> Arc<Vec<PluginMetaInfo>> {
         Arc::clone(&self.plugins)
     }
-    /// 获得目录对象
-    /// 循环查找所有扩展
-    /// 加载动态链接库
-    /// 构建Plugin结构
-    pub fn load_plugin() -> Vec<PluginMetaInfo> {
+
+    fn load_wasi_plugin() -> Vec<PluginMetaInfo> {
+        let manager = WasiPluginManager::new();
+        manager.get_plugins()
+    }
+
+    pub fn load_native_plugin() -> Vec<PluginMetaInfo> {
         let plugin_dir = Self::find_plugin_dir();
         if plugin_dir.is_none() {
             panic!("not found plugin dir");
@@ -63,11 +72,6 @@ impl PluginManager {
         plugins
     }
 
-    /// 1. 参数
-    /// 2. 环境变量
-    /// 3. 配置文件
-    /// 4. 默认值
-
     fn find_plugin_dir() -> Option<PathBuf> {
         let plugin_dir = env::var("PLUGIN_DIR");
         if let Ok(v) = plugin_dir {
@@ -92,7 +96,8 @@ impl PluginManager {
                 return None;
             }
             let library = lib.unwrap();
-            let meta_info: Result<Symbol<unsafe extern "C" fn() -> Box<dyn Plugin>>, Error> = library.get(b"plugin_meta");
+            let meta_info: Result<Symbol<unsafe extern "C" fn() -> Box<dyn Plugin>>, Error> =
+                library.get(b"plugin_meta");
             if meta_info.is_err() {
                 error!("{},not a plugin", plugin_file);
                 return None;
@@ -108,11 +113,14 @@ impl PluginManager {
                 capacities,
             };
 
-            // let meta_info: MetaInfo = meta_info.into();
-            info!("load plugin: {}@{} success", meta_info.name.clone(),meta_info.version.clone());
+            info!(
+                "load plugin: {}@{} success",
+                meta_info.name.clone(),
+                meta_info.version.clone()
+            );
             Some(PluginMetaInfo {
                 meta_info,
-                library,
+                instance: PluginInstance::Native(Arc::new(library)),
             })
         }
     }

@@ -46,10 +46,12 @@ storage = { path = "../storage" }
 plugin-manager = { path = "../plugin-manager" }
 strum = { workspace = true }
 
-[target.'cfg(not(windows))'.dependencies]
+[target.'cfg(all(not(windows), not(target_os = "macos")))'.dependencies]
 fuser = { workspace = true }
 #openssh-sftp-client = { workspace = true, features = ["openssh"] }
 #openssh = { workspace = true, features = ["native-mux"] }
+[target.'cfg(target_os = "macos")'.dependencies]
+fuser = { workspace = true, features = ["macos-no-mount"] }
 [target.'cfg(windows)'.dependencies]
 ctrlc = { workspace = true }
 [build-dependencies]

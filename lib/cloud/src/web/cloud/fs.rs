@@ -3,8 +3,7 @@ use std::sync::Mutex;
 
 use actix_web::web::{Data, Json, Path};
 use actix_web::{delete, get, Responder, Result};
-use fuser::MountOption::{AllowOther, AutoUnmount};
-use fuser::{BackgroundSession, MountOption};
+use fuser::{BackgroundSession, Config as FuseConfig, MountOption, SessionACL};
 use log::info;
 
 use persistence::Config;
@@ -53,14 +52,15 @@ pub(crate) async fn mount(fs_manager: Data<FsManager>) -> Result<impl Responder>
         None => String::from(DEFAULT_TEMP_PATH),
         Some(config) => config.value.clone(),
     };
-    let options = vec![
+    let mut config = FuseConfig::default();
+    config.mount_options = vec![
         MountOption::FSName("CloudFs".to_string()),
-        AutoUnmount,
-        AllowOther,
+        MountOption::AutoUnmount,
     ];
+    config.acl = SessionACL::All;
     let cloud_fs = CloudFuseFS::from(cache_file.as_str());
     let mount_point = OsString::from(mount_path.value.as_str());
-    let result = fuser::spawn_mount2(cloud_fs, mount_point, &options);
+    let result = fuser::spawn_mount(cloud_fs, mount_point, &config);
     // let result = Session::new(cloud_fs, mount_point.as_ref(), &options);
     match result {
         Ok(se) => {

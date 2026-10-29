@@ -15,7 +15,7 @@ use cloud::web::run_web;
 use plugin_manager::PLUGIN_MANAGER;
 use service::CONTEXT;
 
-const HOST_PORT: u32 = 11111;
+const DEFAULT_NFS_BIND_ADDR: &str = "127.0.0.1:11111";
 #[main(flavor = "multi_thread", worker_threads = 50)]
 async fn main() -> Result<(), Box<dyn Error>> {
     dotenv().expect(".env不存在");
@@ -37,9 +37,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let server = run_web(plugin_arc.clone()).await;
     let cache_file = String::from(DEFAULT_TEMP_PATH);
 
+    let nfs_bind_addr = dotenvy::var("NFS_BIND_ADDR")
+        .unwrap_or_else(|_| DEFAULT_NFS_BIND_ADDR.to_string());
     let nfs = CloudNFS::new(&cache_file);
-    info!("starting nfs server");
-    let listener = NFSTcpListener::bind(&format!("0.0.0.0:{HOST_PORT}"), nfs)
+    info!("starting nfs server on {}", nfs_bind_addr);
+    let listener = NFSTcpListener::bind(&nfs_bind_addr, nfs)
         .await
         .unwrap();
     tokio::spawn(async move {

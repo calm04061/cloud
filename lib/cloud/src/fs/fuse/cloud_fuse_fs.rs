@@ -1,8 +1,7 @@
 use std::ffi::OsStr;
 use std::time::{Duration, UNIX_EPOCH};
 
-use fuser::{FileAttr, FileType, ReplyEmpty, ReplyEntry};
-use libc::{EEXIST, ENOENT, ENOSYS};
+use fuser::{Errno, FileAttr, FileType, Generation, INodeNo, ReplyEmpty, ReplyEntry};
 use log::error;
 
 use crate::fs::vfs::VirtualFileSystem;
@@ -41,7 +40,7 @@ impl CloudFuseFS {
 
         let update_time = UNIX_EPOCH + Duration::from_millis(f.update_time.timestamp_millis() as u64);
         FileAttr {
-            ino: f.id.unwrap() as u64,
+            ino: INodeNo(f.id.unwrap() as u64),
             size: f.file_length as u64,
             blocks: 1,
             atime: update_time,
@@ -59,27 +58,23 @@ impl CloudFuseFS {
         }
     }
     pub(crate) fn create_file(
-        &mut self,
+        &self,
         parent: u64,
         name: &OsStr,
         reply: ReplyEntry,
         file_type: FileMetaType,
     ) {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(async {
-                let name_str = name.to_str().unwrap();
+        crate::fs::runtime::block_on(async {
+            let name_str = name.to_str().unwrap();
                 let result = self.vfs.create_file(parent, name_str, file_type).await;
                 if let Err(e) = result {
                     if let ErrorInfo::FileAlreadyExist(name) = e {
                         error!("文件已经存在:{}", name);
-                        reply.error(EEXIST);
+                        reply.error(Errno::EEXIST);
                         return;
                     }
                     error!("create_file:文件创建失败:{}", e);
-                    reply.error(ENOSYS);
+                    reply.error(Errno::ENOSYS);
                     return;
                 }
                 let meta = result.unwrap();
@@ -87,21 +82,21 @@ impl CloudFuseFS {
                 let attr = self.convert_attr(meta);
                 let data = vec![];
                 let data = data.as_slice();
-                self.vfs.write(attr.ino, 0, data).await.ok();
-                reply.entry(&TTL, &attr, 0);
+                self.vfs.write(attr.ino.into(), 0, data).await.ok();
+                reply.entry(&TTL, &attr, Generation(0));
             });
     }
 
     pub(crate) fn del_file(&self, parent: u64, name: &OsStr, reply: ReplyEmpty) {
-        let result = self.vfs.del_file(parent, name.to_str().unwrap());
+        let result = crate::fs::runtime::block_on(self.vfs.del_file(parent, name.to_str().unwrap()));
         if let Err(e) = result {
             if let ErrorInfo::FileNotFound(name) = e {
                 error!("文件不存在:{}", name);
-                reply.error(ENOENT);
+                reply.error(Errno::ENOENT);
                 return;
             }
             error!("文件删除失败:{}", e);
-            reply.error(ENOSYS);
+            reply.error(Errno::ENOSYS);
             return;
         }
         reply.ok();

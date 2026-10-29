@@ -17,14 +17,14 @@ pub(crate) trait VersionMigrate: Migrate
                 if temp_sql.is_empty() {
                     continue;
                 }
-                let result = transaction.execute(temp_sql)
+                let result = transaction.execute(sqlx::AssertSqlSafe(temp_sql))
                     .await;
                 if let Err(e) = result {
                     return Err(e.into());
                 }
             }
             let string = format!("insert into migrate (version) values ('{}')", version_str);
-            transaction.execute(string.as_str())
+            transaction.execute(sqlx::AssertSqlSafe(string))
                 .await?;
             Ok(())
         }.boxed()

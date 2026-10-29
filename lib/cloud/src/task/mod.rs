@@ -102,7 +102,7 @@ fn reset_task() -> Pin<Box<impl Future<Output=()> + Sized>> {
 fn refresh_quota_task() -> Pin<Box<impl Future<Output=()> + Sized>> {
     Box::pin({
         async move {
-            let result = STORAGE_FACADE.write().await.refresh_quota().await;
+            let result = STORAGE_FACADE.refresh_quota().await;
             if let Err(e) = result {
                 log::error!("refresh_quota error: {}", e);
             }

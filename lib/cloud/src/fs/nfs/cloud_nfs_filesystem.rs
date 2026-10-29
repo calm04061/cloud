@@ -24,8 +24,8 @@ impl NFSFileSystem for CloudNFS {
         //     .build()
         //     .unwrap()
         //     .block_on(async {
-        //         let guard = self.vfs.read().await;
-        //         let option = guard.path_meta("/").await.unwrap();
+        //         let vfs = &self.vfs;
+        //         let option = vfs.path_meta("/").await.unwrap();
         //         option.unwrap().id.unwrap() as fileid3
         //     });
         // root_id
@@ -36,9 +36,9 @@ impl NFSFileSystem for CloudNFS {
         // info!("lookup: {} ", dirid);
         let name = Self::convert_name2string(filename);
         let name = name.as_str();
-        let guard = self.vfs.write().await;
+        let vfs = &self.vfs;
 
-        let result = guard.lookup_sync(dirid, name).await;
+        let result = vfs.lookup(dirid, name).await;
         if let Err(x) = result {
             error!("lookup: {}", x);
             return Err(nfsstat3::NFS3ERR_NOENT);
@@ -49,15 +49,15 @@ impl NFSFileSystem for CloudNFS {
 
     async fn getattr(&self, id: fileid3) -> Result<fattr3, nfsstat3> {
         // info!("getattr: {}", id);
-        let guard = self.vfs.read().await;
-        let meta = guard.file_info_sync(id as u64).await.unwrap();
+        let vfs = &self.vfs;
+        let meta = vfs.file_info(id as u64).await.unwrap();
         Ok(Self::convert_fattr3(&meta))
     }
 
     async fn setattr(&self, id: fileid3, setattr: sattr3) -> Result<fattr3, nfsstat3> {
         // info!("setattr: {}", id);
-        let guard = self.vfs.write().await;
-        let mut meta = guard.file_info_sync(id as u64).await.unwrap();
+        let vfs = &self.vfs;
+        let mut meta = vfs.file_info(id as u64).await.unwrap();
         if let mode(mode_value) = setattr.mode {
             meta.mode = mode_value as i32;
         }
@@ -80,20 +80,20 @@ impl NFSFileSystem for CloudNFS {
                 meta.update_time = option.into();
             }
         }
-        let meta = guard.update_file_meta(meta).await.unwrap();
+        let meta = vfs.update_file_meta(meta).await.unwrap();
         Ok(Self::convert_fattr3(&meta))
     }
 
     async fn read(&self, id: fileid3, offset: u64, count: u32) -> Result<(Vec<u8>, bool), nfsstat3> {
         // info!("read: {}", id);
-        let guard = self.vfs.read().await;
-        let meta = guard.file_info_sync(id).await;
+        let vfs = &self.vfs;
+        let meta = vfs.file_info(id).await;
         if let Err(x) = meta {
             error!("read: {}", x);
             return Err(nfsstat3::NFS3ERR_NOENT);
         }
         let meta = meta.unwrap();
-        let vec = guard.read(id, offset, count).await;
+        let vec = vfs.read(id, offset, count).await;
         if let Err(x) = vec {
             error!("read: {}", x);
             return Err(nfsstat3::NFS3ERR_NOENT);
@@ -105,18 +105,18 @@ impl NFSFileSystem for CloudNFS {
 
     async fn write(&self, id: fileid3, offset: u64, data: &[u8]) -> Result<fattr3, nfsstat3> {
         // info!("write: {}", id);
-        let mut guard = self.vfs.write().await;
-        guard.write(id, offset, data).await.unwrap();
-        let meta = guard.file_info_sync(id).await.unwrap();
+        let vfs = &self.vfs;
+        vfs.write(id, offset, data).await.unwrap();
+        let meta = vfs.file_info(id).await.unwrap();
         Ok(Self::convert_fattr3(&meta))
     }
 
     async fn create(&self, dirid: fileid3, filename: &filename3, _attr: sattr3) -> Result<(fileid3, fattr3), nfsstat3> {
         // info!("create: {}", dirid);
-        let guard = self.vfs.write().await;
-        let parent_file = guard.file_info_sync(dirid as u64).await.unwrap();
+        let vfs = &self.vfs;
+        let parent_file = vfs.file_info(dirid as u64).await.unwrap();
         let name = Self::convert_name2string(&filename);
-        let meta = guard.create_file(parent_file.id.unwrap() as u64, &name, FileMetaType::FILE).await.unwrap();
+        let meta = vfs.create_file(parent_file.id.unwrap() as u64, &name, FileMetaType::FILE).await.unwrap();
         Ok((meta.id.unwrap() as fileid3, Self::convert_fattr3(&meta)))
     }
 
@@ -127,38 +127,38 @@ impl NFSFileSystem for CloudNFS {
 
     async fn mkdir(&self, dirid: fileid3, dirname: &filename3) -> Result<(fileid3, fattr3), nfsstat3> {
         // info!("mkdir: {}", dirid);
-        let guard = self.vfs.write().await;
+        let vfs = &self.vfs;
         let name = Self::convert_name2string(dirname);
         let name = name.as_str();
-        let meta = guard.create_file(dirid, name, FileMetaType::DIR).await.unwrap();
+        let meta = vfs.create_file(dirid, name, FileMetaType::DIR).await.unwrap();
         let fattr = Self::convert_fattr3(&meta);
         Ok((meta.id.unwrap() as fileid3, fattr))
     }
 
     async fn remove(&self, dirid: fileid3, filename: &filename3) -> Result<(), nfsstat3> {
         // info!("remove: {}", dirid);
-        let guard = self.vfs.write().await;
+        let vfs = &self.vfs;
         let name = Self::convert_name2string(filename);
         let name = name.as_str();
-        guard.del_file_sync(dirid, name).await.unwrap();
+        vfs.del_file(dirid, name).await.unwrap();
         Ok(())
     }
 
     async fn rename(&self, from_dirid: fileid3, from_filename: &filename3, to_dirid: fileid3, to_filename: &filename3) -> Result<(), nfsstat3> {
         // info!("rename: {} {}", from_dirid,  to_dirid);
-        let guard = self.vfs.write().await;
+        let vfs = &self.vfs;
         let from_name = Self::convert_name2string(from_filename);
         let from_name = from_name.as_str();
         let to_filename = Self::convert_name2string(to_filename);
         let to_filename = to_filename.as_str();
-        guard.rename(from_dirid, from_name, to_dirid, to_filename).await.unwrap();
+        vfs.rename(from_dirid, from_name, to_dirid, to_filename).await.unwrap();
         Ok(())
     }
 
     async fn readdir(&self, dirid: fileid3, start_after: fileid3, max_entries: usize) -> Result<ReadDirResult, nfsstat3> {
         // info!("readdir: {}", dirid);
-        let guard = self.vfs.read().await;
-        let result = guard.list_by_parent_page(dirid, start_after, max_entries).await;
+        let vfs = &self.vfs;
+        let result = vfs.list_by_parent_page(dirid, start_after, max_entries).await;
         if let Err(x) = result {
             error!("readdir: {}", x);
             return Err(nfsstat3::NFS3ERR_NOENT);

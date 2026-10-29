@@ -46,8 +46,12 @@ impl Display for ErrorInfo {
             ErrorInfo::Http404(url) => (5404, String::from(url.as_str())),
             ErrorInfo::Http(code) => (5000 + code, String::from("")),
             ErrorInfo::OTHER(code, msg) => (6000 + code, msg.clone()),
-            ErrorInfo::NoneCloudFileId(cloud_meta_id) => (7000, format!("未找到云文件ID:{}", cloud_meta_id)),
-            ErrorInfo::NoneCloudMeta(cloud_meta_id) => (7000, format!("云配置：{},没有找到", cloud_meta_id)),
+            ErrorInfo::NoneCloudFileId(cloud_meta_id) => {
+                (7000, format!("未找到云文件ID:{}", cloud_meta_id))
+            }
+            ErrorInfo::NoneCloudMeta(cloud_meta_id) => {
+                (7000, format!("云配置：{},没有找到", cloud_meta_id))
+            }
             // _ => (8000, "系统错误".to_string()),
             ErrorInfo::NoSuchTable(table) => (8000, format!("表：{},没有找到", table)),
         };

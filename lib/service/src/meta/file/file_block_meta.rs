@@ -1,4 +1,5 @@
-use crate::{DbPool, CONTEXT};
+use crate::DbPool;
+use api::error::ErrorInfo;
 use api::util::IntoOne;
 use api::ResponseResult;
 use chrono::Local;
@@ -77,7 +78,7 @@ impl SimpleFileBlockMetaManager {
     pub async fn update(&self, meta: &FileBlockMeta) -> ResponseResult<u64> {
         let sql = self.update_field_sql();
         let sql = sql + "  where id=?";
-        let query = sqlx::query(sql.as_str());
+        let query = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()));
         Ok(query
             .bind(&meta.block_index)
             .bind(&meta.file_part_id)
@@ -95,31 +96,73 @@ impl SimpleFileBlockMetaManager {
         &self,
         mut meta: FileBlockMeta,
     ) -> ResponseResult<Option<FileBlockMeta>> {
-        if meta.id.is_none() {
-            self.insert(&meta).await?;
-            // FileBlockMeta::insert(&self.batis.clone(), &meta).await?;
-            let option = self.file_block_meta_index(meta.file_meta_id, meta.block_index).await?;
-            let meta = option.unwrap();
-
-            let file_block_meta_id = meta.id.unwrap();
-            let vec: Vec<CloudMeta> = sqlx::query_as("select * from cloud_meta where status = ? and deleted = 0 order by remaining_quota * random() desc limit ?")
-                .bind::<i8>(MetaStatus::Enable.into())
-                .bind(3)
-                .fetch_all(&self.db_pool)
-                .await?;
-            // let vec = CloudMeta::quota_random(&self.batis.clone(), MetaStatus::Enable.into(), 3)
-            //     .await?;
-            for cloud in vec {
-                let block = CloudFileBlock::init(file_block_meta_id, cloud.id.unwrap());
-                CONTEXT.cloud_file_block_manager.insert(&block).await?;
-                // CloudFileBlock::insert(&self.batis.clone(), &block).await?;
-            }
-            Ok(Some(meta))
-        } else {
+        if meta.id.is_some() {
             meta.update_time = Local::now();
             self.update(&meta).await?;
-            self.file_block_meta_info_by_id(meta.id.unwrap()).await
+            return self.file_block_meta_info_by_id(meta.id.unwrap()).await;
         }
+
+        let mut transaction = self.db_pool.begin().await?;
+        let requested_part_hash = meta.part_hash.clone();
+        let insert_result = sqlx::query("insert into file_block_meta (id, block_index, file_part_id, update_time,file_modify_time,deleted,file_meta_id,part_hash,status) values(?,?,?,?,?,?,?,?,?) on conflict do nothing")
+            .bind(&meta.id)
+            .bind(&meta.block_index)
+            .bind(&meta.file_part_id)
+            .bind(&meta.update_time)
+            .bind(&meta.file_modify_time)
+            .bind(&meta.deleted)
+            .bind(&meta.file_meta_id)
+            .bind(&meta.part_hash)
+            .bind(&meta.status)
+            .execute(&mut *transaction)
+            .await?;
+
+        let option: Vec<FileBlockMeta> = sqlx::query_as("select * from file_block_meta where deleted = 0 and file_meta_id = ? and block_index = ?")
+            .bind(&meta.file_meta_id)
+            .bind(&meta.block_index)
+            .fetch_all(&mut *transaction)
+            .await?;
+        let mut meta = match option.into_one() {
+            Some(meta) => meta,
+            None => {
+                if insert_result.rows_affected() == 0 {
+                    return Err(ErrorInfo::new(0, "file block meta conflict"));
+                }
+                return Err(ErrorInfo::new(0, "file block meta not found"));
+            }
+        };
+        if meta.part_hash != requested_part_hash {
+            sqlx::query("update file_block_meta set part_hash = ?, update_time = ? where id = ? and deleted = 0")
+                .bind(&requested_part_hash)
+                .bind(&meta.update_time)
+                .bind(&meta.id)
+                .execute(&mut *transaction)
+                .await?;
+            meta.part_hash = requested_part_hash;
+        }
+
+        let file_block_meta_id = meta.id.unwrap();
+        let vec: Vec<CloudMeta> = sqlx::query_as("select * from cloud_meta where status = ? and deleted = 0 order by remaining_quota * random() desc limit ?")
+            .bind::<i8>(MetaStatus::Enable.into())
+            .bind(3)
+            .fetch_all(&mut *transaction)
+            .await?;
+        for cloud in vec {
+            let block = CloudFileBlock::init(file_block_meta_id, cloud.id.unwrap());
+            sqlx::query("insert or ignore into cloud_file_block (file_block_id, cloud_meta_id,cloud_file_hash, cloud_file_id, status, deleted, create_time, update_time) values (?,?,?,?,?,?,?,?)")
+                .bind(&block.file_block_id)
+                .bind(&block.cloud_meta_id)
+                .bind(&block.cloud_file_hash)
+                .bind(&block.cloud_file_id)
+                .bind(&block.status)
+                .bind(&block.deleted)
+                .bind(&block.create_time)
+                .bind(&block.update_time)
+                .execute(&mut *transaction)
+                .await?;
+        }
+        transaction.commit().await?;
+        Ok(Some(meta))
     }
 
     pub(crate) async fn file_block_meta_index(
@@ -210,7 +253,7 @@ impl SimpleFileBlockMetaManager {
     pub async fn update_by_status(&self, block: &FileBlockMeta, status: FileStatus) -> ResponseResult<u64> {
         let sql = self.update_field_sql();
         let sql = sql + " where id=? and status = ?";
-        let result = sqlx::query(sql.as_str())
+        let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
             .bind(&block.block_index)
             .bind(&block.file_part_id)
             .bind(&block.update_time)

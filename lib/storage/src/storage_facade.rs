@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use libloading::{Error, Library, Symbol};
+use libloading::{Error, Symbol};
 use log::{debug, error, info};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OnceCell, RwLock};
 
 use api::error::ErrorInfo;
 use api::error::ErrorInfo::Http401;
@@ -27,406 +27,161 @@ use crate::sftp::sftp_storage::SftpStorage;
 use crate::storage::Storage;
 use crate::web::auth::Callback;
 
-pub struct StorageFacade {
-    inner: Inner,
-}
+type CloudStorage = Arc<Mutex<dyn Storage + Send>>;
 
-struct Inner {
-    holder: HashMap<CloudType, Box<Arc<Mutex<dyn Storage + Send>>>>,
-    root_holder: Option<String>,
+pub struct StorageFacade {
+    root: OnceCell<String>,
+    plugin_holder: HashMap<CloudType, CloudStorage>,
+    account_holder: RwLock<HashMap<i32, CloudStorage>>,
 }
 
 impl StorageFacade {
     pub fn new() -> StorageFacade {
-        let mut holder = HashMap::<CloudType, Box<Arc<Mutex<dyn Storage + Send>>>>::new();
+        let mut plugin_holder = HashMap::<CloudType, CloudStorage>::new();
         let plugins = PLUGIN_MANAGER.get_plugins();
         for plugin in plugins.iter() {
             let meta_info = &plugin.meta_info;
-            let cas = meta_info.capacities.iter().clone();
-            for c in cas {
-                match c {
-                    Capacity::STORAGE(name) => {
-                        match &plugin.instance {
-                            PluginInstance::Native(library) => unsafe {
-                                info!("loading storage from {}@{}",meta_info.name,meta_info.version);
-                                let storage: Result<Symbol<fn() -> (CloudType, Box<Arc<Mutex<dyn Storage + Send>>>)>, Error> = library.get(name.as_bytes());
-                                if let Ok(function) = storage {
-                                    let fun_def = function();
-                                    holder.insert(fun_def.0, fun_def.1);
-                                }
-                            },
-                            PluginInstance::Wasi(_) => {
-                                info!("WASI plugin {} does not support STORAGE capacity yet", meta_info.name);
+            for c in meta_info.capacities.iter() {
+                if let Capacity::STORAGE(name) = c {
+                    match &plugin.instance {
+                        PluginInstance::Native(library) => unsafe {
+                            info!("loading storage from {}@{}", meta_info.name, meta_info.version);
+                            let storage: Result<Symbol<fn() -> (CloudType, Box<CloudStorage>)>, Error> =
+                                library.get(name.as_bytes());
+                            if let Ok(function) = storage {
+                                let (cloud_type, storage) = function();
+                                plugin_holder.insert(cloud_type, *storage);
                             }
+                        },
+                        PluginInstance::Wasi(_) => {
+                            info!("WASI plugin {} does not support STORAGE capacity yet", meta_info.name);
                         }
                     }
-                    _ => {}
                 }
             }
         }
         StorageFacade {
-            inner: Inner {
-                holder,
-                root_holder: None,
-            },
+            root: OnceCell::new(),
+            plugin_holder,
+            account_holder: RwLock::new(HashMap::new()),
         }
     }
-}
 
-impl StorageFacade {
+    async fn root(&self) -> ResponseResult<&str> {
+        let root = self
+            .root
+            .get_or_try_init(|| async {
+                match CONTEXT.config_manager.info(CLOUD_FILE_ROOT).await {
+                    Some(config) => Ok(config.value.clone()),
+                    None => Err(ErrorInfo::new(0, "CLOUD_FILE_ROOT config not found")),
+                }
+            })
+            .await?;
+        Ok(root.as_str())
+    }
+
+    async fn get_cloud(&self, cloud_meta: &CloudMeta) -> ResponseResult<CloudStorage> {
+        let cloud_type = CloudType::from(cloud_meta.cloud_type);
+        if let Some(cloud) = self.plugin_holder.get(&cloud_type) {
+            return Ok(cloud.clone());
+        }
+
+        let cloud_meta_id = match cloud_meta.id {
+            Some(id) => id,
+            None => return Err(ErrorInfo::new(0, "cloud meta id is missing")),
+        };
+
+        if let Some(cloud) = self.account_holder.read().await.get(&cloud_meta_id) {
+            return Ok(cloud.clone());
+        }
+
+        let cloud = self.create_cloud(cloud_type).await?;
+        let mut holder = self.account_holder.write().await;
+        Ok(holder
+            .entry(cloud_meta_id)
+            .or_insert_with(|| cloud)
+            .clone())
+    }
+
+    async fn create_cloud(&self, cloud_type: CloudType) -> ResponseResult<CloudStorage> {
+        let root = self.root().await?;
+        let cloud: CloudStorage = match cloud_type {
+            CloudType::AliYun => Arc::new(Mutex::new(AliStorage::new(root))),
+            CloudType::Baidu => Arc::new(Mutex::new(BaiduStorage::new(&root.to_string()))),
+            CloudType::Local => Arc::new(Mutex::new(LocalStorage::new(root))),
+            CloudType::OneDrive => Arc::new(Mutex::new(OneDriveStorage::new(root))),
+            CloudType::GoogleDrive => Arc::new(Mutex::new(GoogleDriveStorage::new(root))),
+            #[cfg(not(windows))]
+            CloudType::Sftp => Arc::new(Mutex::new(SftpStorage::new(root))),
+        };
+        Ok(cloud)
+    }
+
+    async fn get_meta_info(&self, id: i32) -> ResponseResult<CloudMeta> {
+        CONTEXT.cloud_meta_manager.info(id).await
+    }
+
+    async fn update_meta_info(&self, cloud_meta: &CloudMeta) -> ResponseResult<CloudMeta> {
+        CONTEXT.cloud_meta_manager.update_meta(cloud_meta).await?;
+        Ok(cloud_meta.clone())
+    }
+
     ///
     /// 授权
     ///
-    pub async fn authorize(&mut self, server: &str, id: i32) -> ResponseResult<String> {
-        self.inner.authorize(server, id).await
+    pub async fn authorize(&self, server: &str, id: i32) -> ResponseResult<String> {
+        let cloud_meta = self.get_meta_info(id).await?;
+        let cloud = self.get_cloud(&cloud_meta).await?;
+        let cloud = cloud.lock().await;
+        cloud.authorize(server, id)
     }
+
     ///
     /// 刷新token
     ///
-    pub async fn refresh_token(&mut self, id: i32) -> ResponseResult<CloudMeta> {
-        let meta = self.inner.get_meta_info(id).await?;
-        self.inner.refresh_token(&meta).await
+    pub async fn refresh_token(&self, id: i32) -> ResponseResult<CloudMeta> {
+        let meta = self.get_meta_info(id).await?;
+        self.refresh_meta_token(&meta).await
     }
+
     ///
     /// 授权登陆回调
     ///
-    pub async fn callback(&mut self, server: &str, callback: &Callback) -> ResponseResult<()> {
+    pub async fn callback(&self, server: &str, callback: &Callback) -> ResponseResult<()> {
         let id = match callback.state.parse::<i32>() {
             Ok(i) => i,
             Err(e) => return Err(ErrorInfo::new(0, &format!("Invalid callback state: {}", e))),
         };
-        let mut cloud_meta = self.inner.get_meta_info(id).await?;
-
-        let result = self
-            .inner
-            .callback(server, callback, &mut cloud_meta)
-            .await?;
-        info!("result:{}",result);
+        let mut cloud_meta = self.get_meta_info(id).await?;
+        let cloud = self.get_cloud(&cloud_meta).await?;
+        let result = {
+            let cloud = cloud.lock().await;
+            cloud
+                .callback(server.to_string(), callback.code.clone(), &mut cloud_meta)
+                .await?
+        };
+        info!("result:{}", result);
         cloud_meta.auth = Some(result);
         cloud_meta.status = MetaStatus::WaitDataRoot.into();
-        self.inner.update_meta_info(&cloud_meta).await?;
-        self.inner.after_callback(&mut cloud_meta).await;
-        self.inner.update_meta_info(&cloud_meta).await?;
+        self.update_meta_info(&cloud_meta).await?;
+        self.after_callback(&mut cloud_meta).await;
+        self.update_meta_info(&cloud_meta).await?;
         info!("end");
         Ok(())
     }
+
     ///
     /// 获得支持的授权方式
     ///
-    pub async fn get_auth_methods(&mut self, id: i32) -> Vec<AuthMethod> {
-        self.inner.get_auth_methods(id).await
-    }
-    ///
-    /// 上传文件
-    ///
-    pub async fn upload_content(
-        &mut self,
-        block_meta: &FileBlockMeta,
-        cloud_file_block: &mut CloudFileBlock,
-        meta: &CloudMeta,
-        content: &Vec<u8>,
-    ) -> ResponseResult<CloudFileBlock> {
-        let result = self.inner.upload_content(meta, cloud_file_block, &block_meta, content).await;
-        if let Ok(o) = result {
-            return Ok(o);
-        }
-        let e = result.err().unwrap();
-        if let Http401(_url) = e {
-            let result = self.inner.refresh_token(&meta).await;
-            match result {
-                Ok(_) => self.inner.upload_content(&meta, cloud_file_block, &block_meta, content).await,
-                Err(e) => Err(e),
-            }
-        } else {
-            Err(e)
-        }
-    }
-    ///
-    /// 删除文件
-    ///
-    pub async fn delete(&mut self, cloud_file_block: &CloudFileBlock) -> ResponseResult<()> {
-        let cloud_meta = self
-            .inner
-            .get_meta_info(cloud_file_block.cloud_meta_id)
-            .await?;
-        let cloud_file_id = cloud_file_block.cloud_file_id.clone();
-        if let None = cloud_file_id {
-            return Err(ErrorInfo::NoneCloudFileId(cloud_file_block.cloud_meta_id));
-        }
-        let cloud_file_id = cloud_file_id.unwrap();
-        let cloud_file_id = cloud_file_id.as_str();
-        let result = self.inner.delete(cloud_file_id, &cloud_meta).await;
-        if let Ok(_e) = result {
-            return Ok(());
-        }
-        let e = result.err().unwrap();
-        if let Http401(_url) = e {
-            let result = self.refresh_token(cloud_meta.id.unwrap()).await;
-
-            match result {
-                Ok(_e) => {
-                    self.inner.delete(cloud_file_id, &cloud_meta).await
-                }
-                Err(e) => Err(e),
-            }
-        } else {
-            Err(e)
-        }
-    }
-
-    ///
-    /// 删除文件
-    ///
-    pub async fn delete_temp_file(&mut self, cloud_file_block: &TempCloudFile) -> ResponseResult<()> {
-        let cloud_meta = self
-            .inner
-            .get_meta_info(cloud_file_block.cloud_meta_id)
-            .await?;
-        let cloud_file_id = cloud_file_block.cloud_file_id.clone();
-        if let None = cloud_file_id {
-            return Err(ErrorInfo::NoneCloudFileId(cloud_file_block.cloud_meta_id));
-        }
-        let cloud_file_id = cloud_file_id.unwrap();
-        let cloud_file_id = cloud_file_id.as_str();
-        let result = self.inner.delete(cloud_file_id, &cloud_meta).await;
-        if let Ok(_e) = result {
-            return Ok(());
-        }
-        let e = result.err().unwrap();
-        if let Http401(_url) = e {
-            let result = self.refresh_token(cloud_meta.id.unwrap()).await;
-
-            match result {
-                Ok(_e) => {
-                    self.inner.delete(cloud_file_id, &cloud_meta).await
-                }
-                Err(e) => Err(e),
-            }
-        } else {
-            Err(e)
-        }
-    }
-    ///
-    /// 读取文件内容
-    ///
-    pub async fn content(&mut self, file_block_id: i32) -> ResponseResult<Bytes> {
-        let cloud_file_block =
-            CONTEXT.cloud_file_block_manager.select_by_file_block_id(file_block_id)
-                .await?
-                .into_one();
-        let cloud_file_block = match cloud_file_block {
-            Some(f) => { f }
-            None => {
-                return Err(ErrorInfo::FileNotFound(format!("文件块{file_block_id}不存在")));
-            }
-        };
-        let cloud_meta = self
-            .inner
-            .get_meta_info(cloud_file_block.cloud_meta_id)
-            .await?;
-        if let None = cloud_file_block.cloud_file_id {
-            return Err(ErrorInfo::NoneCloudFileId(cloud_file_block.cloud_meta_id));
-        }
-        let cloud_file_id = cloud_file_block.cloud_file_id.unwrap();
-        let cloud_file_id = cloud_file_id.as_str();
-        let result = self.inner.content(cloud_file_id, &cloud_meta).await;
-        if let Ok(d) = result {
-            return Ok(d);
-        }
-        let e = result.err().unwrap();
-
-        if let Http401(_url) = e {
-            let result = self.refresh_token(cloud_meta.id.unwrap()).await;
-
-            match result {
-                Ok(_e) => {
-                    self.inner.content(cloud_file_id, &cloud_meta).await
-                }
-                Err(e) => Err(e),
-            }
-        } else {
-            Err(e)
-        }
-    }
-    ///
-    /// 刷新容量
-    ///
-    pub async fn refresh_quota(&mut self) -> ResponseResult<()> {
-        let status: i8 = MetaStatus::Enable.into();
-        let all = CONTEXT.cloud_meta_manager.select_by_status(status).await?;
-        for meta in all {
-            let result = self.inner.refresh_quota(meta.clone()).await;
-            if result.is_ok() {
-                continue;
-            }
-            let e = result.err().unwrap();
-            if let Http401(_) = e {
-                let result = self.refresh_token(meta.id.unwrap()).await;
-                if let Err(e) = result {
-                    error!("{}",e);
-                    continue;
-                }
-                let result = self.inner.refresh_quota(meta.clone()).await;
-                if let Err(e) = result {
-                    error!("{}",e);
-                    continue;
-                }
-            } else {
-                error!("{}",e);
-            }
-        }
-        Ok(())
-    }
-}
-
-impl Inner {
-    ///
-    /// 获得云存储
-    ///
-    async fn get_cloud(&mut self, cloud_type: CloudType) -> ResponseResult<Box<Arc<Mutex<dyn Storage + Send>>>> {
-        let root = match self.root_holder.clone() {
-            Some(v) => v,
-            None => {
-                let config = match CONTEXT.config_manager.info(CLOUD_FILE_ROOT).await {
-                    Some(c) => c,
-                    None => return Err(ErrorInfo::new(0, "CLOUD_FILE_ROOT config not found")),
-                };
-                self.root_holder = Some(config.value.clone());
-                config.value.clone()
-            }
-        };
-        let cloud_storage = self.holder.entry(cloud_type).or_insert_with_key(|key| {
-            let cloud: ResponseResult<Box<Arc<Mutex<dyn Storage + Send>>>> = match key {
-                CloudType::AliYun => Ok(Box::new(Arc::new(Mutex::new(AliStorage::new(&root))))),
-                CloudType::Baidu => Ok(Box::new(Arc::new(Mutex::new(BaiduStorage::new(&root))))),
-                CloudType::Local => Ok(Box::new(Arc::new(Mutex::new(LocalStorage::new(&root))))),
-                CloudType::OneDrive => Ok(Box::new(Arc::new(Mutex::new(OneDriveStorage::new(&root))))),
-                CloudType::GoogleDrive => Ok(Box::new(Arc::new(Mutex::new(GoogleDriveStorage::new(&root))))),
-                #[cfg(not(windows))]
-                CloudType::Sftp => Ok(Box::new(Arc::new(Mutex::new(SftpStorage::new(&root))))),
-            };
-            match cloud {
-                Ok(c) => c,
-                Err(e) => {
-                    log::error!("Failed to create cloud storage: {}", e);
-                    panic!("Failed to create cloud storage: {}", e);
-                }
-            }
-        });
-        Ok(cloud_storage.clone())
-    }
-    ///
-    /// 获得元信息
-    ///
-    async fn get_meta_info(&self, id: i32) -> ResponseResult<CloudMeta> {
-        CONTEXT.cloud_meta_manager.info(id).await
-    }
-    ///
-    /// 更新元信息
-    ///
-    async fn update_meta_info(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<CloudMeta> {
-        CONTEXT
-            .cloud_meta_manager
-            .update_meta(cloud_meta)
-            .await
-            ?;
-        Ok(cloud_meta.clone())
-    }
-    ///
-    /// 刷新token
-    ///
-    async fn refresh_token(&mut self, cloud_meta: &CloudMeta) -> ResponseResult<CloudMeta> {
-        let mut cloud_meta = CONTEXT
-            .cloud_meta_manager
-            .info(cloud_meta.id.unwrap())
-            .await
-            ?;
-        let cloud = self.get_cloud(cloud_meta.cloud_type.into()).await?;
-        let mut cloud = cloud.lock().await;
-        let result = cloud.refresh_token(&mut cloud_meta).await;
-        if let Ok(r) = result {
-            cloud_meta.auth = Some(r);
-            self.update_meta_info(&cloud_meta).await?;
-            return Ok(cloud_meta);
-        }
-        let error = result.err().unwrap();
-
-        match error {
-            ErrorInfo::Http402(m) => {
-                cloud_meta.status = MetaStatus::InvalidRefresh.into();
-                self.update_meta_info(&cloud_meta).await?;
-                Err(ErrorInfo::Http402(m))
-            }
-            _ => {
-                Err(error)
-            }
-        }
-    }
-    ///
-    /// 上传文件
-    ///
-    pub(crate) async fn upload_content(
-        &mut self,
-        cloud_meta: &CloudMeta,
-        cloud_file_block: &mut CloudFileBlock,
-        block_meta: &FileBlockMeta,
-        content: &Vec<u8>,
-    ) -> ResponseResult<CloudFileBlock> {
-        // let cloud_meta = self.get_token(1).await.unwrap();
-        let cloud_type = cloud_meta.cloud_type.into();
-        debug!("upload start {} to {:?}({})", block_meta.file_part_id,cloud_type, cloud_meta.name);
-        let cloud = self.get_cloud(cloud_type).await?;
-        // let mut cloud = cloud.lock().unwrap();
-        let result = cloud.lock().await
-            .upload_content(&block_meta, cloud_file_block, &content, &cloud_meta)
-            .await;
-        debug!("upload finish {} to {:?}({})", block_meta.file_part_id,cloud_type, cloud_meta.name);
-        result
-    }
-    ///
-    /// 删除文件
-    ///
-    pub(crate) async fn delete(
-        &mut self,
-        cloud_file_id: &str,
-        cloud_meta: &CloudMeta,
-    ) -> ResponseResult<()> {
-        let cloud_type = cloud_meta.cloud_type.into();
-
-        debug!("delete {} from {:?}({})", cloud_file_id,cloud_type, cloud_meta.name);
-
-        let cloud = self.get_cloud(cloud_type).await?;
-        let mut cloud = cloud.lock().await;
-        let result = cloud.delete(cloud_file_id, &cloud_meta).await;
-        result
-    }
-    ///
-    /// 读取文件内容
-    ///
-    pub(crate) async fn content(
-        &mut self,
-        cloud_file_id: &str,
-        cloud_meta: &CloudMeta,
-    ) -> ResponseResult<Bytes> {
-        // let cloud_meta = self.get_token(1).await.unwrap();
-
-        let cloud = self.get_cloud(cloud_meta.cloud_type.into()).await?;
-        // let mut cloud = cloud.lock().unwrap();
-        let result = cloud.lock().await.content(cloud_file_id, &cloud_meta).await;
-        result
-    }
-    ///
-    /// 获得支持的授权方式
-    ///
-    async fn get_auth_methods(&mut self, id: i32) -> Vec<AuthMethod> {
-        let cloud_meta = match CONTEXT.cloud_meta_manager.info(id).await {
+    pub async fn get_auth_methods(&self, id: i32) -> Vec<AuthMethod> {
+        let cloud_meta = match self.get_meta_info(id).await {
             Ok(m) => m,
             Err(e) => {
                 log::error!("Failed to get cloud meta: {}", e);
                 return Vec::new();
             }
         };
-        let cloud = match self.get_cloud(cloud_meta.cloud_type.into()).await {
+        let cloud = match self.get_cloud(&cloud_meta).await {
             Ok(c) => c,
             Err(e) => {
                 log::error!("Failed to get cloud: {}", e);
@@ -436,46 +191,239 @@ impl Inner {
         let cloud = cloud.lock().await;
         cloud.get_auth_methods()
     }
-    ///
-    /// 获得授权地址
-    ///
-    pub(crate) async fn authorize(&mut self, server: &str, id: i32) -> ResponseResult<String> {
-        let cloud_meta = CONTEXT.cloud_meta_manager.info(id).await?;
-        let cloud = self.get_cloud(cloud_meta.cloud_type.into()).await?;
-        let cloud = cloud.lock().await;
-        cloud.authorize(server, id)
-    }
-    ///
-    /// oauth2回调
-    ///
-    pub(crate) async fn callback(
-        &mut self,
-        server: &str,
-        callback: &Callback,
-        cloud_meta: &mut CloudMeta,
-    ) -> ResponseResult<String> {
-        let cloud = self.get_cloud(cloud_meta.cloud_type.into()).await?;
-        let cloud = cloud.lock().await;
-        let result = cloud
-            .callback(server.to_string(), callback.code.clone(), cloud_meta)
-            .await;
 
+    ///
+    /// 上传文件
+    ///
+    pub async fn upload_content(
+        &self,
+        block_meta: &FileBlockMeta,
+        cloud_file_block: &mut CloudFileBlock,
+        meta: &CloudMeta,
+        content: &Vec<u8>,
+    ) -> ResponseResult<CloudFileBlock> {
+        let result = self
+            .upload_content_to_cloud(meta, cloud_file_block, block_meta, content)
+            .await;
+        if let Ok(result) = result {
+            return Ok(result);
+        }
+        let e = result.err().unwrap();
+        if let Http401(_url) = e {
+            self.refresh_meta_token(meta).await?;
+            return self
+                .upload_content_to_cloud(meta, cloud_file_block, block_meta, content)
+                .await;
+        }
+        Err(e)
+    }
+
+    async fn upload_content_to_cloud(
+        &self,
+        cloud_meta: &CloudMeta,
+        cloud_file_block: &mut CloudFileBlock,
+        block_meta: &FileBlockMeta,
+        content: &Vec<u8>,
+    ) -> ResponseResult<CloudFileBlock> {
+        let cloud_type = CloudType::from(cloud_meta.cloud_type);
+        debug!(
+            "upload start {} to {:?}({})",
+            block_meta.file_part_id, cloud_type, cloud_meta.name
+        );
+        let cloud = self.get_cloud(cloud_meta).await?;
+        let result = cloud
+            .lock()
+            .await
+            .upload_content(block_meta, cloud_file_block, content, cloud_meta)
+            .await;
+        debug!(
+            "upload finish {} to {:?}({})",
+            block_meta.file_part_id, cloud_type, cloud_meta.name
+        );
         result
     }
+
     ///
-    /// 回调后处理
+    /// 删除文件
     ///
-    pub(crate) async fn after_callback(&mut self, cloud_meta: &mut CloudMeta) {
-        let cloud = match self.get_cloud(cloud_meta.cloud_type.into()).await {
+    pub async fn delete(&self, cloud_file_block: &CloudFileBlock) -> ResponseResult<()> {
+        let cloud_meta = self
+            .get_meta_info(cloud_file_block.cloud_meta_id)
+            .await?;
+        let cloud_file_id = match &cloud_file_block.cloud_file_id {
+            Some(id) => id.as_str(),
+            None => return Err(ErrorInfo::NoneCloudFileId(cloud_file_block.cloud_meta_id)),
+        };
+        let result = self.delete_from_cloud(cloud_file_id, &cloud_meta).await;
+        if let Ok(result) = result {
+            return Ok(result);
+        }
+        let e = result.err().unwrap();
+        if let Http401(_url) = e {
+            self.refresh_meta_token(&cloud_meta).await?;
+            return self.delete_from_cloud(cloud_file_id, &cloud_meta).await;
+        }
+        Err(e)
+    }
+
+    ///
+    /// 删除临时文件
+    ///
+    pub async fn delete_temp_file(&self, cloud_file_block: &TempCloudFile) -> ResponseResult<()> {
+        let cloud_meta = self
+            .get_meta_info(cloud_file_block.cloud_meta_id)
+            .await?;
+        let cloud_file_id = match &cloud_file_block.cloud_file_id {
+            Some(id) => id.as_str(),
+            None => return Err(ErrorInfo::NoneCloudFileId(cloud_file_block.cloud_meta_id)),
+        };
+        let result = self.delete_from_cloud(cloud_file_id, &cloud_meta).await;
+        if let Ok(result) = result {
+            return Ok(result);
+        }
+        let e = result.err().unwrap();
+        if let Http401(_url) = e {
+            self.refresh_meta_token(&cloud_meta).await?;
+            return self.delete_from_cloud(cloud_file_id, &cloud_meta).await;
+        }
+        Err(e)
+    }
+
+    async fn delete_from_cloud(
+        &self,
+        cloud_file_id: &str,
+        cloud_meta: &CloudMeta,
+    ) -> ResponseResult<()> {
+        let cloud_type = CloudType::from(cloud_meta.cloud_type);
+        debug!(
+            "delete {} from {:?}({})",
+            cloud_file_id, cloud_type, cloud_meta.name
+        );
+        let cloud = self.get_cloud(cloud_meta).await?;
+        let result = cloud.lock().await.delete(cloud_file_id, cloud_meta).await;
+        result
+    }
+
+    ///
+    /// 读取文件内容
+    ///
+    pub async fn content(&self, file_block_id: i32) -> ResponseResult<Bytes> {
+        let cloud_file_block = CONTEXT
+            .cloud_file_block_manager
+            .select_by_file_block_id(file_block_id)
+            .await?
+            .into_one();
+        let cloud_file_block = match cloud_file_block {
+            Some(f) => f,
+            None => return Err(ErrorInfo::FileNotFound(format!("文件块{file_block_id}不存在"))),
+        };
+        let cloud_meta = self.get_meta_info(cloud_file_block.cloud_meta_id).await?;
+        let cloud_file_id = match &cloud_file_block.cloud_file_id {
+            Some(id) => id.as_str(),
+            None => return Err(ErrorInfo::NoneCloudFileId(cloud_file_block.cloud_meta_id)),
+        };
+        let result = self.content_from_cloud(cloud_file_id, &cloud_meta).await;
+        if let Ok(result) = result {
+            return Ok(result);
+        }
+        let e = result.err().unwrap();
+        if let Http401(_url) = e {
+            self.refresh_meta_token(&cloud_meta).await?;
+            return self.content_from_cloud(cloud_file_id, &cloud_meta).await;
+        }
+        Err(e)
+    }
+
+    async fn content_from_cloud(
+        &self,
+        cloud_file_id: &str,
+        cloud_meta: &CloudMeta,
+    ) -> ResponseResult<Bytes> {
+        let cloud = self.get_cloud(cloud_meta).await?;
+        let result = cloud.lock().await.content(cloud_file_id, cloud_meta).await;
+        result
+    }
+
+    ///
+    /// 刷新容量
+    ///
+    pub async fn refresh_quota(&self) -> ResponseResult<()> {
+        let status: i8 = MetaStatus::Enable.into();
+        let all = CONTEXT.cloud_meta_manager.select_by_status(status).await?;
+        for meta in all {
+            let result = self.refresh_one_quota(&meta).await;
+            if result.is_ok() {
+                continue;
+            }
+            let e = result.err().unwrap();
+            if let Http401(_) = e {
+                if let Err(e) = self.refresh_meta_token(&meta).await {
+                    error!("{}", e);
+                    continue;
+                }
+                if let Err(e) = self.refresh_one_quota(&meta).await {
+                    error!("{}", e);
+                }
+            } else {
+                error!("{}", e);
+            }
+        }
+        Ok(())
+    }
+
+    async fn refresh_one_quota(&self, meta: &CloudMeta) -> ResponseResult<()> {
+        let cloud = self.get_cloud(meta).await?;
+        let result = cloud.lock().await.drive_quota(meta).await?;
+        let mut meta = meta.clone();
+        meta.used_quota = Some(result.used);
+        meta.total_quota = Some(result.total);
+        meta.remaining_quota = Some(result.remaining);
+        CONTEXT.cloud_meta_manager.update_meta(&meta).await?;
+        Ok(())
+    }
+
+    async fn refresh_meta_token(&self, cloud_meta: &CloudMeta) -> ResponseResult<CloudMeta> {
+        let mut cloud_meta = CONTEXT
+            .cloud_meta_manager
+            .info(cloud_meta.id.unwrap())
+            .await?;
+        let cloud = self.get_cloud(&cloud_meta).await?;
+        let result = {
+            let mut cloud = cloud.lock().await;
+            cloud.refresh_token(&mut cloud_meta).await
+        };
+        if let Ok(auth) = result {
+            cloud_meta.auth = Some(auth);
+            return self.update_meta_info(&cloud_meta).await;
+        }
+        let error = result.err().unwrap();
+        match error {
+            ErrorInfo::Http402(m) => {
+                cloud_meta.status = MetaStatus::InvalidRefresh.into();
+                self.update_meta_info(&cloud_meta).await?;
+                Err(ErrorInfo::Http402(m))
+            }
+            _ => Err(error),
+        }
+    }
+
+    async fn after_callback(&self, cloud_meta: &mut CloudMeta) {
+        let cloud = match self.get_cloud(cloud_meta).await {
             Ok(c) => c,
             Err(e) => {
                 log::error!("Failed to get cloud for after_callback: {}", e);
                 return;
             }
         };
-        let mut cloud = cloud.lock().await;
-        cloud.after_callback(cloud_meta).await.ok();
-        match cloud.drive_quota(cloud_meta).await {
+        {
+            let mut cloud = cloud.lock().await;
+            cloud.after_callback(cloud_meta).await.ok();
+        }
+        let quota = {
+            let mut cloud = cloud.lock().await;
+            cloud.drive_quota(cloud_meta).await
+        };
+        match quota {
             Ok(quota) => {
                 cloud_meta.total_quota = Some(quota.total);
                 cloud_meta.used_quota = Some(quota.used);
@@ -485,17 +433,5 @@ impl Inner {
                 log::error!("Failed to get drive quota: {}", e);
             }
         }
-    }
-    ///
-    /// 刷新容量
-    ///
-    pub async fn refresh_quota(&mut self, mut meta: CloudMeta) -> ResponseResult<()> {
-        let cloud = self.get_cloud(meta.cloud_type.into()).await?;
-        let result = cloud.lock().await.drive_quota(&meta).await?;
-        meta.used_quota = Some(result.used);
-        meta.total_quota = Some(result.total);
-        meta.remaining_quota = Some(result.remaining);
-        CONTEXT.cloud_meta_manager.update_meta(&meta).await?;
-        Ok(())
     }
 }

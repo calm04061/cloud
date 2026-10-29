@@ -166,7 +166,7 @@ impl SimpleFileMetaManager {
         let sql = sql.add(",create_time = ?");
         let sql = sql.add(",update_time = ?");
         let sql = sql.add(" where id = ?");
-        let result = sqlx::query(sql.as_str())
+        let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
             .bind(&meta.name)
             .bind(&meta.parent_id)
             .bind(&meta.file_type)
@@ -185,7 +185,7 @@ impl SimpleFileMetaManager {
     }
     async fn insert(&self, meta: &FileMeta) -> ResponseResult<i64> {
         let sql = String::from("insert into file_meta (name,parent_id,file_type,mode,gid,uid,file_length,status,deleted,create_time,update_time) values(?,?,?,?,?,?,?,?,?,?,?)");
-        let result = sqlx::query(sql.as_str())
+        let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
             .bind(&meta.name)
             .bind(&meta.parent_id)
             .bind(&meta.file_type)

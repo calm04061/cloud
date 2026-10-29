@@ -71,7 +71,7 @@ async fn do_clean_file_block(file_block_meta: &mut TempCloudFile) -> ResponseRes
         return Err(ErrorInfo::OTHER(1003, format!("文件块{}抢占失败", file_block_meta.id.unwrap())));
     }
 
-    let result = STORAGE_FACADE.write().await.delete_temp_file(&file_block_meta).await;
+    let result = STORAGE_FACADE.delete_temp_file(&file_block_meta).await;
     if let Ok(()) = result {
         debug!("删除云文件成功");
         return CONTEXT.temp_cloud_file_manager.delete_by_id(file_block_meta.id.unwrap()).await;

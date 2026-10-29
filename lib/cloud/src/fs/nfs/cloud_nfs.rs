@@ -2,16 +2,15 @@ use crate::fs::vfs::VirtualFileSystem;
 use nfsserve::nfs::{fattr3, fileid3, filename3, ftype3, mode3, nfsstring, nfstime3, size3, specdata3};
 use persistence::meta::FileMeta;
 use persistence::FileMetaType;
-use tokio::sync::RwLock;
 
 pub struct CloudNFS {
-    pub(crate) vfs: RwLock<VirtualFileSystem>,
+    pub(crate) vfs: VirtualFileSystem,
 }
 
 impl CloudNFS {
     pub fn new(cache_file: &str) -> CloudNFS {
         CloudNFS {
-            vfs: RwLock::new(VirtualFileSystem::new(cache_file)),
+            vfs: VirtualFileSystem::new(cache_file),
         }
     }
     pub(crate) fn convert_name2string(filename: &filename3) -> String {

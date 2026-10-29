@@ -1,7 +1,4 @@
-use std::sync::Arc;
-
 use once_cell::sync::Lazy;
-use tokio::sync::RwLock;
 
 use crate::storage_facade::StorageFacade;
 
@@ -17,4 +14,4 @@ pub mod web;
 pub mod model;
 mod google;
 
-pub static STORAGE_FACADE: Lazy<Arc<RwLock<StorageFacade>>> = Lazy::new(|| Arc::new(RwLock::new(StorageFacade::new())));
+pub static STORAGE_FACADE: Lazy<StorageFacade> = Lazy::new(StorageFacade::new);

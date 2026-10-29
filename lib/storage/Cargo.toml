@@ -19,8 +19,8 @@ log = { workspace = true }
 once_cell = { workspace = true }
 persistence = { path = "../persistence" }
 plugin-manager = { path = "../plugin-manager" }
-reqwest = { workspace = true, features = ["stream", "multipart", "json"] }
-reqwest-middleware = { workspace = true, features = ["multipart", "json"] }
+reqwest = { workspace = true, features = ["stream", "multipart", "json", "form"] }
+reqwest-middleware = { workspace = true, features = ["multipart", "json", "form"] }
 rust-crypto = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_derive = { workspace = true }

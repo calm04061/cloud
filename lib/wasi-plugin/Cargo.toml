@@ -1,0 +1,15 @@
+[package]
+name = "wasi-plugin"
+version = "0.1.0-SNAPSHOT"
+edition = "2021"
+license = "MFT"
+description = "WASI plugin runtime for cloud"
+
+[dependencies]
+api = { path = "../api" }
+wasmtime = { version = "50.0.0", features = ["cranelift"] }
+wasmtime-wasi = { version = "50.0.0", features = ["p1"] }
+log = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+anyhow = { workspace = true }

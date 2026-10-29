@@ -119,7 +119,7 @@ async fn do_execute_one_block(cloud_file_block: &mut CloudFileBlock) -> Response
         };
     }
 
-    let result = STORAGE_FACADE.write().await
+    let result = STORAGE_FACADE
         .upload_content(&file_block_meta, &mut cloud_file_block.clone(), &cloud_meta, &body)
         .await;
     let res = match result {

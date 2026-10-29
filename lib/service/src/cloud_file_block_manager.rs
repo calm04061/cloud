@@ -39,7 +39,7 @@ impl CloudFileBlockManager {
             update_time =?");
         let sql = sql.add(" where id=? and status=?");
 
-        let result = sqlx::query(sql.as_str())
+        let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
             .bind(&block.id)
             .bind(&block.cloud_meta_id)
             .bind(&block.cloud_file_hash)
@@ -90,7 +90,7 @@ impl CloudFileBlockManager {
     }
     pub async fn insert(&self, block: &CloudFileBlock) -> ResponseResult<i64> {
         let sql = String::from("insert into cloud_file_block (file_block_id, cloud_meta_id,cloud_file_hash, cloud_file_id, status, deleted, create_time, update_time) values (?,?,?,?,?,?,?,?)");
-        Ok(sqlx::query(sql.as_str())
+        Ok(sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
             .bind(&block.file_block_id)
             .bind(&block.cloud_meta_id)
             .bind(&block.cloud_file_hash)

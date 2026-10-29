@@ -2,10 +2,10 @@ use std::ffi::OsStr;
 use std::time::SystemTime;
 
 use fuser::{
-    FileType, Filesystem, ReplyAttr, ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyWrite,
-    Request, TimeOrNow,
+    BsdFileFlags, Errno, FileHandle, FileType, Filesystem, Generation, INodeNo, LockOwner,
+    OpenFlags, RenameFlags, ReplyAttr, ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyWrite,
+    Request, TimeOrNow, WriteFlags,
 };
-use libc::{EEXIST, ENOENT, ENOSYS};
 use log::{debug, error, info, warn};
 
 use api::error::ErrorInfo;
@@ -18,23 +18,23 @@ impl Filesystem for CloudFuseFS {
         info!("正在 umount")
     }
 
-    fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
+    fn lookup(&self, _req: &Request, parent: INodeNo, name: &OsStr, reply: ReplyEntry) {
         // debug!("lookup");
-        let result = self.vfs.lookup(parent, name.to_str().unwrap());
+        let result = crate::fs::runtime::block_on(self.vfs.lookup(parent.into(), name.to_str().unwrap()));
         match result {
             Ok(f) => {
                 let attr = self.convert_attr(f);
-                reply.entry(&TTL, &attr, 0);
+                reply.entry(&TTL, &attr, Generation(0));
             }
             Err(e) => {
                 warn!("lookup:{}", e);
-                reply.error(ENOENT);
+                reply.error(Errno::ENOENT);
             }
         }
     }
-    fn getattr(&mut self, _req: &Request, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
+    fn getattr(&self, _req: &Request, ino: INodeNo, _fh: Option<FileHandle>, reply: ReplyAttr) {
         // debug!("getattr");
-        let result = self.vfs.file_info(ino);
+        let result = crate::fs::runtime::block_on(self.vfs.file_info(ino.into()));
         match result {
             Ok(f) => {
                 let attr = self.convert_attr(f);
@@ -42,17 +42,17 @@ impl Filesystem for CloudFuseFS {
             }
             Err(e) => {
                 error!("getattr:{}", e);
-                reply.error(ENOENT);
+                reply.error(Errno::ENOENT);
             }
         }
     }
-    fn setattr(&mut self, _req: &Request, ino: u64, _mode: Option<u32>,
+    fn setattr(&self, _req: &Request, ino: INodeNo, _mode: Option<u32>,
                _uid: Option<u32>, _gid: Option<u32>, size: Option<u64>, _atime: Option<TimeOrNow>,
-               _mtime: Option<TimeOrNow>, _ctime: Option<SystemTime>, _fh: Option<u64>, _crtime: Option<SystemTime>,
-               _chgtime: Option<SystemTime>, _bkuptime: Option<SystemTime>, _flags: Option<u32>,
+               _mtime: Option<TimeOrNow>, _ctime: Option<SystemTime>, _fh: Option<FileHandle>, _crtime: Option<SystemTime>,
+               _chgtime: Option<SystemTime>, _bkuptime: Option<SystemTime>, _flags: Option<BsdFileFlags>,
                reply: ReplyAttr,
     ) {
-        let result = self.vfs.setattr(ino, size);
+        let result = crate::fs::runtime::block_on(self.vfs.setattr(ino.into(), size));
         match result {
             Ok(f) => {
                 let attr = self.convert_attr(f);
@@ -60,15 +60,15 @@ impl Filesystem for CloudFuseFS {
             }
             Err(e) => {
                 error!("setattr:{}", e);
-                reply.error(ENOENT);
+                reply.error(Errno::ENOENT);
             }
         }
     }
     /// 创建文件
     fn mknod(
-        &mut self,
-        _req: &Request<'_>,
-        parent: u64,
+        &self,
+        _req: &Request,
+        parent: INodeNo,
         name: &OsStr,
         _mode: u32,
         _umask: u32,
@@ -76,57 +76,53 @@ impl Filesystem for CloudFuseFS {
         reply: ReplyEntry,
     ) {
         // debug!("mknod");
-        self.create_file(parent, name, reply, FILE);
+        self.create_file(parent.into(), name, reply, FILE);
     }
     fn mkdir(
-        &mut self,
-        _req: &Request<'_>,
-        parent: u64,
+        &self,
+        _req: &Request,
+        parent: INodeNo,
         name: &OsStr,
         _mode: u32,
         _umask: u32,
         reply: ReplyEntry,
     ) {
         // debug!("mkdir");
-        self.create_file(parent, name, reply, DIR);
+        self.create_file(parent.into(), name, reply, DIR);
     }
-    fn unlink(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEmpty) {
+    fn unlink(&self, _req: &Request, parent: INodeNo, name: &OsStr, reply: ReplyEmpty) {
         info!("unlink");
-        self.del_file(parent, name, reply);
+        self.del_file(parent.into(), name, reply);
     }
-    fn rmdir(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEmpty) {
+    fn rmdir(&self, _req: &Request, parent: INodeNo, name: &OsStr, reply: ReplyEmpty) {
         info!("rmdir");
-        self.del_file(parent, name, reply);
+        self.del_file(parent.into(), name, reply);
     }
 
     fn rename(
-        &mut self,
-        _req: &Request<'_>,
-        parent: u64,
+        &self,
+        _req: &Request,
+        parent: INodeNo,
         name: &OsStr,
-        new_parent: u64,
+        new_parent: INodeNo,
         new_name: &OsStr,
-        _flags: u32,
+        _flags: RenameFlags,
         reply: ReplyEmpty,
     ) {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(async {
+        crate::fs::runtime::block_on(async {
                 info!("rename");
                 let result = self.vfs.rename(
-                    parent,
+                    parent.into(),
                     name.to_str().unwrap(),
-                    new_parent,
+                    new_parent.into(),
                     new_name.to_str().unwrap(),
                 ).await;
                 if let Err(e) = result {
                     let out = match e {
-                        ErrorInfo::FileAlreadyExist(_) => EEXIST,
+                        ErrorInfo::FileAlreadyExist(_) => Errno::EEXIST,
                         _ => {
                             error!("rename:{}", e);
-                            ENOENT
+                            Errno::ENOENT
                         }
                     };
                     reply.error(out);
@@ -136,26 +132,22 @@ impl Filesystem for CloudFuseFS {
             });
     }
     fn read(
-        &mut self,
-        _req: &Request<'_>,
-        ino: u64,
-        _fh: u64,
-        offset: i64,
+        &self,
+        _req: &Request,
+        ino: INodeNo,
+        _fh: FileHandle,
+        offset: u64,
         size: u32,
-        _flags: i32,
-        _lock_owner: Option<u64>,
+        _flags: OpenFlags,
+        _lock_owner: Option<LockOwner>,
         reply: ReplyData,
     ) {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(async {
+        crate::fs::runtime::block_on(async {
                 debug!("read file id {},from {:?}:size={}", ino, offset, size);
-                let result = self.vfs.read(ino, offset as u64, size).await;
+                let result = self.vfs.read(ino.into(), offset, size).await;
                 if let Err(e) = result {
                     error!("read:{}", e);
-                    reply.error(ENOENT);
+                    reply.error(Errno::ENOENT);
                     return;
                 }
                 let body = result.unwrap();
@@ -171,28 +163,24 @@ impl Filesystem for CloudFuseFS {
     }
 
     fn write(
-        &mut self,
-        _req: &Request<'_>,
-        ino: u64,
-        _fh: u64,
-        offset: i64,
+        &self,
+        _req: &Request,
+        ino: INodeNo,
+        _fh: FileHandle,
+        offset: u64,
         data: &[u8],
-        _write_flags: u32,
-        _flags: i32,
-        _lock_owner: Option<u64>,
+        _write_flags: WriteFlags,
+        _flags: OpenFlags,
+        _lock_owner: Option<LockOwner>,
         reply: ReplyWrite,
     ) {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(async {
-                let result = self.vfs.write(ino, offset as u64, data).await;
+        crate::fs::runtime::block_on(async {
+                let result = self.vfs.write(ino.into(), offset, data).await;
                 match result {
                     Ok(len) => reply.written(len),
                     Err(e) => {
                         error!("write:{}", e);
-                        reply.error(ENOSYS);
+                        reply.error(Errno::ENOSYS);
                         return;
                     }
                 }
@@ -202,29 +190,25 @@ impl Filesystem for CloudFuseFS {
     //     todo!()
     // }
     fn readdir(
-        &mut self,
+        &self,
         _req: &Request,
-        ino: u64,
-        _fh: u64,
-        offset: i64,
+        ino: INodeNo,
+        _fh: FileHandle,
+        offset: u64,
         mut reply: ReplyDirectory,
     ) {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(async {
+        crate::fs::runtime::block_on(async {
                 if offset == 0 {
                     let _ = reply.add(ino, 0, FileType::Directory, ".");
                     let _ = reply.add(ino, 1, FileType::Directory, "..");
-                    let vec = self.vfs.list_by_parent(ino).await;
+                    let vec = self.vfs.list_by_parent(ino.into()).await;
                     if let Err(e) = vec {
                         error!("{}", e);
                         reply.ok();
                         return;
                     }
                     let vec = vec.unwrap();
-                    let mut index = 2;
+                    let mut index = 2u64;
                     for file in vec {
                         let kind;
                         if file.file_type == FILE.get_code() {
@@ -233,7 +217,7 @@ impl Filesystem for CloudFuseFS {
                             kind = FileType::Directory;
                         }
                         info!("readdir:{}:{}", ino, file.name);
-                        let _ = reply.add(file.id.unwrap() as u64, index, kind, file.name);
+                        let _ = reply.add(INodeNo(file.id.unwrap() as u64), index, kind, file.name);
                         index = index + 1;
                     }
                 }

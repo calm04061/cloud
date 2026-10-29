@@ -3,12 +3,16 @@ use crypto::digest::Digest;
 use crypto::md5::Md5;
 use log::{debug, error, info};
 use nfsserve::nfs::fileid3;
+use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::fs;
 use std::fs::File;
 use std::io::SeekFrom::Start;
 use std::io::{Read, Seek, Write};
 use std::path::Path;
+use std::sync::{Arc, OnceLock};
+
+use tokio::sync::{Mutex, RwLock};
 
 use api::error::ErrorInfo;
 use api::{ResponseResult, ROOT_FILE_ID};
@@ -21,6 +25,32 @@ use storage::STORAGE_FACADE;
 pub const DEFAULT_TEMP_PATH: &str = "/var/lib/storage/temp";
 
 pub const CLOUD_FILE_BLOCK_SIZE: usize = 4194304 * 4;
+
+type FileLockMap = RwLock<HashMap<i64, Arc<Mutex<()>>>>;
+
+static FILE_LOCKS: OnceLock<FileLockMap> = OnceLock::new();
+
+fn file_locks() -> &'static FileLockMap {
+    FILE_LOCKS.get_or_init(Default::default)
+}
+
+async fn file_lock(file_meta_id: i64) -> Arc<Mutex<()>> {
+    let lock = file_locks()
+        .read()
+        .await
+        .get(&file_meta_id)
+        .cloned();
+    match lock {
+        Some(lock) => lock,
+        None => {
+            let mut locks = file_locks().write().await;
+            locks
+                .entry(file_meta_id)
+                .or_insert_with(|| Arc::new(Mutex::new(())))
+                .clone()
+        }
+    }
+}
 
 // 16384 * 256; //1024k
 #[derive(Clone, Debug)]
@@ -136,15 +166,7 @@ impl VirtualFileSystem {
             .new_file(parent_id, name.as_str(), FileMetaType::FILE)
             .await
     }
-    pub(crate) fn del_file(&self, parent: u64, name: &str) -> ResponseResult<()> {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()?
-            .block_on(async {
-                self.del_file_sync(parent, name).await
-            })
-    }
-    pub(crate) async fn del_file_sync(&self, parent: u64, name: &str) -> ResponseResult<()> {
+    pub(crate) async fn del_file(&self, parent: u64, name: &str) -> ResponseResult<()> {
         info!("del_file {:?}@{}", name, parent);
         let option = CONTEXT
             .file_manager
@@ -181,7 +203,8 @@ impl VirtualFileSystem {
     ///
     /// 循环写入多个文件块
     ///
-    pub(crate) async fn write(&mut self, ino: u64, offset: u64, data: &[u8]) -> ResponseResult<u32> {
+    pub(crate) async fn write(&self, ino: u64, offset: u64, data: &[u8]) -> ResponseResult<u32> {
+        let _write_lock = file_lock(ino as i64).await;
         let mut start = 0;
         loop {
             let temp = &data[start..];
@@ -272,15 +295,7 @@ impl VirtualFileSystem {
     }
 
 
-    pub(crate) fn lookup(&self, parent: u64, name: &str) -> ResponseResult<FileMeta> {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()?
-            .block_on(async {
-                self.lookup_sync(parent, name).await
-            })
-    }
-    pub(crate) async fn lookup_sync(&self, parent: u64, name: &str) -> ResponseResult<FileMeta> {
+    pub(crate) async fn lookup(&self, parent: u64, name: &str) -> ResponseResult<FileMeta> {
         let result = CONTEXT
             .file_manager
             .info_by_parent_and_name(parent as i64, name)
@@ -290,13 +305,7 @@ impl VirtualFileSystem {
         }
         Err(ErrorInfo::new_string(3, format!("文件[{}]不存在", name)))
     }
-    pub(crate) fn file_info(&self, id: u64) -> ResponseResult<FileMeta> {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()?
-            .block_on(async { self.file_info_sync(id).await })
-    }
-    pub(crate) async fn file_info_sync(&self, id: u64) -> ResponseResult<FileMeta> {
+    pub(crate) async fn file_info(&self, id: u64) -> ResponseResult<FileMeta> {
         CONTEXT.file_manager.info_by_id(id as i64).await
     }
     pub(crate) async fn update_file_meta(&self, f: FileMeta) -> ResponseResult<FileMeta> {
@@ -347,26 +356,21 @@ impl VirtualFileSystem {
         CONTEXT.file_manager.list_by_parent_page(dirid as i64, ino as i64, max_entries).await
     }
 
-    pub(crate) fn setattr(
-        &mut self,
+    pub(crate) async fn setattr(
+        &self,
         ino: u64,
         size: Option<u64>,
     ) -> ResponseResult<FileMeta> {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()?
-            .block_on(async {
-                let result = CONTEXT.file_manager.info_by_id(ino as i64).await;
-                if let Err(e) = result {
-                    return Err(e);
-                }
-                let mut f = result?;
+        let result = CONTEXT.file_manager.info_by_id(ino as i64).await;
+        if let Err(e) = result {
+            return Err(e);
+        }
+        let mut f = result?;
 
-                if let Some(size_value) = size {
-                    f.file_length = size_value as i64;
-                }
-                CONTEXT.file_manager.update_meta(f).await
-            })
+        if let Some(size_value) = size {
+            f.file_length = size_value as i64;
+        }
+        CONTEXT.file_manager.update_meta(f).await
     }
 }
 
@@ -461,7 +465,7 @@ impl Inner {
     async fn read_content_from_cloud(&self, file_block_id: i32) -> ResponseResult<Vec<u8>> {
         // let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
         info!("read from file_block_id:{}", file_block_id);
-        let result = STORAGE_FACADE.write().await.content(file_block_id).await;
+        let result = STORAGE_FACADE.content(file_block_id).await;
 
         let a = match result {
             Ok(result) => {
@@ -473,7 +477,7 @@ impl Inner {
         info!("read from :{} end", file_block_id);
         a
     }
-    pub(crate) async fn write(&mut self, ino: u64, offset: u64, data: &[u8]) -> ResponseResult<u32> {
+    pub(crate) async fn write(&self, ino: u64, offset: u64, data: &[u8]) -> ResponseResult<u32> {
         let mut f = CONTEXT.file_manager.info_by_id(ino as i64).await?;
 
         let block_index = (offset as usize) / CLOUD_FILE_BLOCK_SIZE;
@@ -497,7 +501,7 @@ impl Inner {
             Ok(data.len() as u32)
         }
     }
-    async fn upload_block_content(&mut self, file_meta_id: i64, block_index: i64, seek: u64, data: &[u8]) -> ResponseResult<()> {
+    async fn upload_block_content(&self, file_meta_id: i64, block_index: i64, seek: u64, data: &[u8]) -> ResponseResult<()> {
         let file_block_meta_opt = CONTEXT
             .file_manager
             .file_block_meta_index(file_meta_id, block_index)
@@ -537,7 +541,7 @@ impl Inner {
             .await?;
         Ok(())
     }
-    fn write_block(&mut self, file_block_meta: &FileBlockMeta, body: &[u8], seek: u64) {
+    fn write_block(&self, file_block_meta: &FileBlockMeta, body: &[u8], seek: u64) {
         let local_cache_file = format!("{}/{}", self.cache_file, file_block_meta.file_part_id);
         let result = self.write_local_file(local_cache_file, body, seek);
         match result {

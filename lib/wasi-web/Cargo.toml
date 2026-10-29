@@ -1,0 +1,14 @@
+[package]
+name = "wasi-web"
+version = "0.1.0-SNAPSHOT"
+edition = "2021"
+license = "MFT"
+description = "WASI web plugin for cloud"
+
+[dependencies]
+api = { path = "../api" }
+wasmtime = { workspace = true }
+log = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+anyhow = { workspace = true }

@@ -554,3 +554,6 @@ impl Inner {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -1,5 +1,4 @@
 use crate::meta::FileMetaType;
-use crate::meta::FileMetaType::DIR;
 use crate::DbPool;
 use api::error::ErrorInfo;
 use api::util::IntoOne;
@@ -66,15 +65,6 @@ impl SimpleFileMetaManager {
         }
     }
 
-    pub(crate) async fn list_by_parent(&self, parent_id: i64) -> ResponseResult<Vec<FileMeta>> {
-        let vec = sqlx::query_as("select * from file_meta where parent_id=?")
-            .bind(parent_id)
-            .fetch_all(&self.db_pool).await?;
-        Ok(vec)
-        // Ok(FileMeta::select_by_parent(&self.batis.clone(), parent_id)
-        //     .await?)
-    }
-
     pub(crate) async fn info_by_parent_and_name(
         &self,
         parent_id: i64,
@@ -92,26 +82,41 @@ impl SimpleFileMetaManager {
         }
         // return if vec.is_empty() { None } else { vec.into_one() };
     }
-    #[async_recursion]
     pub(crate) async fn delete_file_meta(&self, id: i64) -> ResponseResult<FileMeta> {
         // info!("delete file:{}", id);
         let file_meta = self.info_by_id(id).await?;
 
-        let file_meta_type = file_meta.clone().file_type;
-        if file_meta_type == DIR.get_code() {
-            let vec = self.list_by_parent(file_meta.id.unwrap().into()).await?;
-            for file_me in vec {
-                let _result1 = self.delete_file_meta(file_me.id.unwrap().into()).await?;
-            }
+        let mut ids = vec![id];
+        self.collect_sub_ids(id, &mut ids).await?;
+
+        let mut transaction = self.db_pool.begin().await?;
+        for file_id in ids.iter() {
+            sqlx::query("update file_meta set deleted = 1, update_time = ? where id = ?")
+                .bind(Local::now())
+                .bind(file_id)
+                .execute(&mut *transaction)
+                .await?;
         }
+        transaction.commit().await?;
+
         let mut file_meta = file_meta.clone();
         file_meta.deleted = 1;
         file_meta.update_time = Local::now();
-        self.update(&file_meta).await?;
-        // FileMeta::update_by_column(&self.batis.clone(), &file_meta, "id")
-        //     .await?;
-
         Ok(file_meta)
+    }
+
+    #[async_recursion]
+    async fn collect_sub_ids(&self, id: i64, ids: &mut Vec<i64>) -> ResponseResult<()> {
+        let vec: Vec<FileMeta> = sqlx::query_as("select * from file_meta where parent_id = ? and deleted = 0")
+            .bind(id)
+            .fetch_all(&self.db_pool)
+            .await?;
+        for meta in vec {
+            let sub_id = meta.id.unwrap();
+            ids.push(sub_id);
+            self.collect_sub_ids(sub_id, ids).await?;
+        }
+        Ok(())
     }
 
     pub(crate) async fn delete_one_file_meta(&self, id: i64) -> ResponseResult<FileMeta> {

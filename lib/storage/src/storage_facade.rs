@@ -435,3 +435,6 @@ impl StorageFacade {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

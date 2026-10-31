@@ -16,3 +16,6 @@ pub(crate) fn block_on<F: Future>(future: F) -> F::Output {
         })
         .block_on(future)
 }
+
+#[cfg(test)]
+mod tests;

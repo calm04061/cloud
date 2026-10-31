@@ -29,3 +29,6 @@ service = { path = "../service" }
 http = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "signal", "rt", "macros"] }
 urlencoding = { workspace = true }
+
+[dev-dependencies]
+chrono = { workspace = true }

@@ -13,3 +13,5 @@ data_backup
 .env
 *.env
 lib/cloud/.env
+# 本地插件目录（运行时产物）
+wasi-plugins/

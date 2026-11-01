@@ -38,7 +38,7 @@ At agent startup, check `.codegraph/codegraph.db`:
 
 ## Config / DB gotchas
 
-- DB URL is compiled in from `lib/persistence/application.yml` (`include_str!`), **not** `.env` `DATABASE_URL`. The default DB path is relative to CWD.
+- DB URL: `DATABASE_URL` env wins over the compiled-in `lib/persistence/application.yml` default (`sqlite://./data/file.db?mode=rwc`). The default path is relative to CWD; set `DATABASE_URL` to point tests or a second instance at another DB.
 - `TEMP_PATH` priority: `.env` > DB `config` table > built-in default (`/var/lib/storage/temp`); all FUSE/DAV/NFS/scan/clean paths read it via `cloud::fs::config::temp_path()`. `MOUNT_PATH` is DB-only (required for FUSE). `MAX_NUMBER_OF_SHARD` reads env with DB fallback. Startup logs an effective-config summary and panics if `TEMP_PATH` cannot be created.
 - Local block cache eviction: `CACHE_MAX_GB` (default 20) with `CACHE_WATERMARK_PERCENT` (default 80) runs in the `evict_cache` cron task; blocks whose replica rows still lack `cloud_file_id` are never evicted.
 - Tokio worker threads: `TOKIO_WORKER_THREADS` env, default CPU count (was fixed 50).

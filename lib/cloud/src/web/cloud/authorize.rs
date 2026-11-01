@@ -5,7 +5,7 @@ use log::error;
 use storage::model::AuthMethod;
 
 use storage::web::auth::Callback;
-use storage::STORAGE_FACADE;
+use storage::storage_facade;
 
 #[get("/authorize/storage/{id}")]
 pub(crate) async fn authorize(
@@ -14,10 +14,10 @@ pub(crate) async fn authorize(
 ) -> impl Responder {
     let server = server_base_url(request.headers());
     let id = id.into_inner();
-    let vec = STORAGE_FACADE.get_auth_methods(id).await;
+    let vec = storage_facade().get_auth_methods(id).await;
     let mut target = String::from("/cloud");
     if vec.contains(&AuthMethod::OAuth2) {
-        target = match STORAGE_FACADE.authorize(&server, id).await {
+        target = match storage_facade().authorize(&server, id).await {
             Ok(t) => t,
             Err(e) => {
                 error!("Failed to authorize: {:?}", e);
@@ -36,7 +36,7 @@ pub(crate) async fn callback(state: Query<Callback>, request: HttpRequest) -> im
     let server = server_base_url(request.headers());
 
     let url = "/cloud".to_string();
-    let result = STORAGE_FACADE.callback(&server, &state.into_inner()).await;
+    let result = storage_facade().callback(&server, &state.into_inner()).await;
     if let Err(e) = result {
         error!("{:?}", e);
     }

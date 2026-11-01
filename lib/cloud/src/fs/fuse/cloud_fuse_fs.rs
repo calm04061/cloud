@@ -64,8 +64,11 @@ impl CloudFuseFS {
         reply: ReplyEntry,
         file_type: FileMetaType,
     ) {
+        let Some(name_str) = name.to_str() else {
+            reply.error(Errno::EINVAL);
+            return;
+        };
         crate::fs::runtime::block_on(async {
-            let name_str = name.to_str().unwrap();
                 let result = self.vfs.create_file(parent, name_str, file_type).await;
                 if let Err(e) = result {
                     if let ErrorInfo::FileAlreadyExist(name) = e {
@@ -88,7 +91,11 @@ impl CloudFuseFS {
     }
 
     pub(crate) fn del_file(&self, parent: u64, name: &OsStr, reply: ReplyEmpty) {
-        let result = crate::fs::runtime::block_on(self.vfs.del_file(parent, name.to_str().unwrap()));
+        let Some(name_str) = name.to_str() else {
+            reply.error(Errno::EINVAL);
+            return;
+        };
+        let result = crate::fs::runtime::block_on(self.vfs.del_file(parent, name_str));
         if let Err(e) = result {
             if let ErrorInfo::FileNotFound(name) = e {
                 error!("文件不存在:{}", name);

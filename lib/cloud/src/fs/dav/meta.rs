@@ -5,7 +5,7 @@ use std::time::SystemTime;
 
 use bytes::{Buf, BufMut, Bytes};
 use chrono::{Local, TimeZone};
-use dav_server::fs::{DavDirEntry, DavFile, DavMetaData, FsFuture, FsResult};
+use dav_server::fs::{DavDirEntry, DavFile, DavMetaData, FsError, FsFuture, FsResult};
 use futures_util::{future, FutureExt};
 use log::{debug, info};
 use persistence::FileMetaType;
@@ -99,39 +99,32 @@ impl DavFile for CloudDavFile {
         }.boxed()
     }
 
-    fn write_buf(&mut self, _buf: Box<dyn Buf + Send>) -> FsFuture<'_,()> {
+    fn write_buf(&mut self, mut buf: Box<dyn Buf + Send>) -> FsFuture<'_,()> {
         info!("write_buf,{},pos:{}", self.file_meta.name,self.pos);
-        todo!()
+        async move {
+            let remaining = buf.remaining();
+            let bytes = buf.copy_to_bytes(remaining);
+            self.write_chunk(bytes).await
+        }.boxed()
     }
 
     fn write_bytes(&mut self, buf: Bytes) -> FsFuture<'_,()> {
         async move {
-            let id = self.file_meta.id.unwrap();
-
-            self.temp_buf.put_slice(buf.as_ref());
-            let temp_size = self.temp_buf.len();
-            if temp_size > BLOCK_SIZE {
-                debug!("write_block_bytes,{}:{},pos:{},len:{}", id,self.file_meta.name,self.temp_pos,self.temp_buf.len());
-                self.fs.write(id as u64, self.temp_pos as u64, self.temp_buf.as_ref()).await.unwrap();
-                self.temp_buf.clear();
-                self.pos += buf.len();
-                self.temp_pos = self.pos;
-            } else {
-                let pre_pos = self.pos;
-                self.pos += buf.len();
-                debug!("write_bytes,{}:{},pos:{} + len:{} = {}", id, self.file_meta.name, pre_pos, buf.len(), self.pos);
-            }
-            Ok(())
+            self.write_chunk(buf).await
         }.boxed()
     }
 
     fn read_bytes(&mut self, count: usize) -> FsFuture<'_,Bytes> {
         async move {
-            let id = self.file_meta.id.unwrap();
+            let id = match self.file_meta.id {
+                Some(id) => id,
+                None => return Err(FsError::NotFound),
+            };
             debug!("read_bytes,{}:{},pos:{},count:{}", id ,self.file_meta.name ,self.pos,count);
-            let result = self.fs.read(id as u64, self.pos as u64, count as u32).await.unwrap();
+            let result = self.fs.read(id as u64, self.pos as u64, count as u32).await
+                .map_err(crate::fs::dav::cloud_dav_filesystem::to_fs_error)?;
             let bytes = Bytes::copy_from_slice(result.as_slice());
-            self.pos += count;
+            self.pos += bytes.len();
             Ok(bytes)
         }.boxed()
     }
@@ -164,16 +157,46 @@ impl DavFile for CloudDavFile {
 
     fn flush(&mut self) -> FsFuture<'_,()> {
         async move {
-            info!("{}:flush",self.file_meta.id.unwrap());
-            let id = self.file_meta.id.unwrap();
+            let id = match self.file_meta.id {
+                Some(id) => id,
+                None => return Err(FsError::NotFound),
+            };
+            info!("{}:flush", id);
             let temp_size = self.temp_buf.len();
             if temp_size > 0 {
-                self.fs.write(id as u64, self.temp_pos as u64, self.temp_buf.as_ref()).await.unwrap();
+                self.fs.write(id as u64, self.temp_pos as u64, self.temp_buf.as_ref()).await
+                    .map_err(crate::fs::dav::cloud_dav_filesystem::to_fs_error)?;
                 self.temp_buf.clear();
             }
             self.pos = 0;
             self.temp_pos = 0;
             Ok(())
         }.boxed()
+    }
+}
+
+impl CloudDavFile {
+    /// 缓冲写入：攒够一个块后再落盘，更新读/写位置。
+    async fn write_chunk(&mut self, buf: Bytes) -> Result<(), FsError> {
+        let id = match self.file_meta.id {
+            Some(id) => id,
+            None => return Err(FsError::NotFound),
+        };
+
+        self.temp_buf.put_slice(buf.as_ref());
+        let temp_size = self.temp_buf.len();
+        if temp_size > BLOCK_SIZE {
+            debug!("write_chunk,{}:{},pos:{},len:{}", id, self.file_meta.name, self.temp_pos, self.temp_buf.len());
+            self.fs.write(id as u64, self.temp_pos as u64, self.temp_buf.as_ref()).await
+                .map_err(crate::fs::dav::cloud_dav_filesystem::to_fs_error)?;
+            self.temp_buf.clear();
+            self.pos += buf.len();
+            self.temp_pos = self.pos;
+        } else {
+            let pre_pos = self.pos;
+            self.pos += buf.len();
+            debug!("write_chunk,{}:{},pos:{} + len:{} = {}", id, self.file_meta.name, pre_pos, buf.len(), self.pos);
+        }
+        Ok(())
     }
 }

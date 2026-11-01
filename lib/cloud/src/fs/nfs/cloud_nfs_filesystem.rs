@@ -19,16 +19,6 @@ impl NFSFileSystem for CloudNFS {
     }
 
     fn root_dir(&self) -> fileid3 {
-        // let root_id = tokio::runtime::Builder::new_multi_thread()
-        //     .enable_all()
-        //     .build()
-        //     .unwrap()
-        //     .block_on(async {
-        //         let vfs = &self.vfs;
-        //         let option = vfs.path_meta("/").await.unwrap();
-        //         option.unwrap().id.unwrap() as fileid3
-        //     });
-        // root_id
         ROOT_FILE_ID
     }
 
@@ -44,20 +34,29 @@ impl NFSFileSystem for CloudNFS {
             return Err(nfsstat3::NFS3ERR_NOENT);
         }
         let result = result.unwrap();
-        Ok(result.id.unwrap() as fileid3)
+        let Some(id) = result.id else {
+            return Err(nfsstat3::NFS3ERR_IO);
+        };
+        Ok(id as fileid3)
     }
 
     async fn getattr(&self, id: fileid3) -> Result<fattr3, nfsstat3> {
         // info!("getattr: {}", id);
         let vfs = &self.vfs;
-        let meta = vfs.file_info(id as u64).await.unwrap();
+        let meta = vfs.file_info(id as u64).await.map_err(|x| {
+            error!("getattr: {}", x);
+            nfsstat3::NFS3ERR_NOENT
+        })?;
         Ok(Self::convert_fattr3(&meta))
     }
 
     async fn setattr(&self, id: fileid3, setattr: sattr3) -> Result<fattr3, nfsstat3> {
         // info!("setattr: {}", id);
         let vfs = &self.vfs;
-        let mut meta = vfs.file_info(id as u64).await.unwrap();
+        let mut meta = vfs.file_info(id as u64).await.map_err(|x| {
+            error!("setattr: {}", x);
+            nfsstat3::NFS3ERR_NOENT
+        })?;
         if let mode(mode_value) = setattr.mode {
             meta.mode = mode_value as i32;
         }
@@ -76,11 +75,16 @@ impl NFSFileSystem for CloudNFS {
                 meta.update_time = Local::now();
             }
             SET_TO_CLIENT_TIME(time) => {
-                let option = DateTime::from_timestamp(time.seconds as i64, time.nseconds).unwrap();
-                meta.update_time = option.into();
+                match DateTime::from_timestamp(time.seconds as i64, time.nseconds) {
+                    Some(time) => meta.update_time = time.into(),
+                    None => return Err(nfsstat3::NFS3ERR_INVAL),
+                }
             }
         }
-        let meta = vfs.update_file_meta(meta).await.unwrap();
+        let meta = vfs.update_file_meta(meta).await.map_err(|x| {
+            error!("setattr: {}", x);
+            nfsstat3::NFS3ERR_IO
+        })?;
         Ok(Self::convert_fattr3(&meta))
     }
 
@@ -96,7 +100,7 @@ impl NFSFileSystem for CloudNFS {
         let vec = vfs.read(id, offset, count).await;
         if let Err(x) = vec {
             error!("read: {}", x);
-            return Err(nfsstat3::NFS3ERR_NOENT);
+            return Err(nfsstat3::NFS3ERR_IO);
         }
         let vec = vec.unwrap();
         let end = meta.file_length <= (offset + (count as u64)) as i64;
@@ -106,23 +110,58 @@ impl NFSFileSystem for CloudNFS {
     async fn write(&self, id: fileid3, offset: u64, data: &[u8]) -> Result<fattr3, nfsstat3> {
         // info!("write: {}", id);
         let vfs = &self.vfs;
-        vfs.write(id, offset, data).await.unwrap();
-        let meta = vfs.file_info(id).await.unwrap();
+        vfs.write(id, offset, data).await.map_err(|x| {
+            error!("write: {}", x);
+            nfsstat3::NFS3ERR_IO
+        })?;
+        let meta = vfs.file_info(id).await.map_err(|x| {
+            error!("write: {}", x);
+            nfsstat3::NFS3ERR_NOENT
+        })?;
         Ok(Self::convert_fattr3(&meta))
     }
 
     async fn create(&self, dirid: fileid3, filename: &filename3, _attr: sattr3) -> Result<(fileid3, fattr3), nfsstat3> {
         // info!("create: {}", dirid);
         let vfs = &self.vfs;
-        let parent_file = vfs.file_info(dirid as u64).await.unwrap();
+        let parent_file = vfs.file_info(dirid as u64).await.map_err(|x| {
+            error!("create: {}", x);
+            nfsstat3::NFS3ERR_NOENT
+        })?;
         let name = Self::convert_name2string(&filename);
-        let meta = vfs.create_file(parent_file.id.unwrap() as u64, &name, FileMetaType::FILE).await.unwrap();
-        Ok((meta.id.unwrap() as fileid3, Self::convert_fattr3(&meta)))
+        let meta = vfs.create_file(parent_file.id.unwrap_or(0) as u64, &name, FileMetaType::FILE).await
+            .map_err(|x| {
+                error!("create: {}", x);
+                if matches!(x, api::error::ErrorInfo::FileAlreadyExist(_)) {
+                    return nfsstat3::NFS3ERR_EXIST;
+                }
+                nfsstat3::NFS3ERR_IO
+            })?;
+        let Some(id) = meta.id else {
+            return Err(nfsstat3::NFS3ERR_IO);
+        };
+        Ok((id as fileid3, Self::convert_fattr3(&meta)))
     }
 
-    async fn create_exclusive(&self, _dirid: fileid3, _filename: &filename3) -> Result<fileid3, nfsstat3> {
-        info!("create_exclusive: {}", _dirid);
-        todo!()
+    async fn create_exclusive(&self, dirid: fileid3, filename: &filename3) -> Result<fileid3, nfsstat3> {
+        info!("create_exclusive: {}", dirid);
+        let name = Self::convert_name2string(filename);
+        let name = name.as_str();
+        let vfs = &self.vfs;
+        if vfs.lookup(dirid, name).await.is_ok() {
+            return Err(nfsstat3::NFS3ERR_EXIST);
+        }
+        let meta = vfs.create_file(dirid, name, FileMetaType::FILE).await.map_err(|x| {
+            error!("create_exclusive: {}", x);
+            if matches!(x, api::error::ErrorInfo::FileAlreadyExist(_)) {
+                return nfsstat3::NFS3ERR_EXIST;
+            }
+            nfsstat3::NFS3ERR_IO
+        })?;
+        let Some(id) = meta.id else {
+            return Err(nfsstat3::NFS3ERR_IO);
+        };
+        Ok(id as fileid3)
     }
 
     async fn mkdir(&self, dirid: fileid3, dirname: &filename3) -> Result<(fileid3, fattr3), nfsstat3> {
@@ -130,9 +169,18 @@ impl NFSFileSystem for CloudNFS {
         let vfs = &self.vfs;
         let name = Self::convert_name2string(dirname);
         let name = name.as_str();
-        let meta = vfs.create_file(dirid, name, FileMetaType::DIR).await.unwrap();
+        let meta = vfs.create_file(dirid, name, FileMetaType::DIR).await.map_err(|x| {
+            error!("mkdir: {}", x);
+            if matches!(x, api::error::ErrorInfo::FileAlreadyExist(_)) {
+                return nfsstat3::NFS3ERR_EXIST;
+            }
+            nfsstat3::NFS3ERR_IO
+        })?;
+        let Some(id) = meta.id else {
+            return Err(nfsstat3::NFS3ERR_IO);
+        };
         let fattr = Self::convert_fattr3(&meta);
-        Ok((meta.id.unwrap() as fileid3, fattr))
+        Ok((id as fileid3, fattr))
     }
 
     async fn remove(&self, dirid: fileid3, filename: &filename3) -> Result<(), nfsstat3> {
@@ -140,7 +188,13 @@ impl NFSFileSystem for CloudNFS {
         let vfs = &self.vfs;
         let name = Self::convert_name2string(filename);
         let name = name.as_str();
-        vfs.del_file(dirid, name).await.unwrap();
+        vfs.del_file(dirid, name).await.map_err(|x| {
+            error!("remove: {}", x);
+            if matches!(x, api::error::ErrorInfo::FileNotFound(_)) {
+                return nfsstat3::NFS3ERR_NOENT;
+            }
+            nfsstat3::NFS3ERR_IO
+        })?;
         Ok(())
     }
 
@@ -151,7 +205,14 @@ impl NFSFileSystem for CloudNFS {
         let from_name = from_name.as_str();
         let to_filename = Self::convert_name2string(to_filename);
         let to_filename = to_filename.as_str();
-        vfs.rename(from_dirid, from_name, to_dirid, to_filename).await.unwrap();
+        vfs.rename(from_dirid, from_name, to_dirid, to_filename).await.map_err(|x| {
+            error!("rename: {}", x);
+            match x {
+                api::error::ErrorInfo::FileNotFound(_) => nfsstat3::NFS3ERR_NOENT,
+                api::error::ErrorInfo::FileAlreadyExist(_) => nfsstat3::NFS3ERR_EXIST,
+                _ => nfsstat3::NFS3ERR_IO,
+            }
+        })?;
         Ok(())
     }
 
@@ -169,8 +230,11 @@ impl NFSFileSystem for CloudNFS {
         for item in list {
             let fattr3 = Self::convert_fattr3(&item);
             let filename = Self::convert_name2filename(&item.name);
+            let Some(id) = item.id else {
+                return Err(nfsstat3::NFS3ERR_IO);
+            };
             let entry = DirEntry {
-                fileid: item.id.unwrap() as fileid3,
+                fileid: id as fileid3,
                 name: filename,
                 attr: fattr3,
             };
@@ -182,13 +246,14 @@ impl NFSFileSystem for CloudNFS {
         })
     }
 
-    async fn symlink(&self, _dirid: fileid3, _linkname: &filename3, _symlink: &nfspath3, _attr: &sattr3) -> Result<(fileid3, fattr3), nfsstat3> {
-        info!("symlink: {}", _dirid);
-        todo!()
+    async fn symlink(&self, dirid: fileid3, linkname: &filename3, symlink: &nfspath3, _attr: &sattr3) -> Result<(fileid3, fattr3), nfsstat3> {
+        info!("symlink: {} {:?} -> {:?}", dirid, linkname, symlink);
+        // 元数据模型暂无 symlink 目标存储列，先显式返回不支持
+        Err(nfsstat3::NFS3ERR_NOTSUPP)
     }
 
-    async fn readlink(&self, _id: fileid3) -> Result<nfspath3, nfsstat3> {
-        info!("readlink: {}", _id);
-        todo!()
+    async fn readlink(&self, id: fileid3) -> Result<nfspath3, nfsstat3> {
+        info!("readlink: {}", id);
+        Err(nfsstat3::NFS3ERR_NOTSUPP)
     }
 }

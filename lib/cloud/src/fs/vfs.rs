@@ -1,4 +1,4 @@
-use chrono::{Local};
+use chrono::{Local, TimeZone};
 use crypto::digest::Digest;
 use crypto::md5::Md5;
 use log::{debug, error, info};
@@ -10,6 +10,7 @@ use std::fs::File;
 use std::io::SeekFrom::Start;
 use std::io::{Read, Seek, Write};
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use tokio::sync::{Mutex, RwLock};
@@ -20,11 +21,24 @@ use persistence::meta::{FileBlockMeta, FileMeta};
 use persistence::{FileMetaType, FileStatus};
 use service::meta::FileManager;
 use service::CONTEXT;
-use storage::STORAGE_FACADE;
+use storage::storage_facade;
 
 pub const DEFAULT_TEMP_PATH: &str = "/var/lib/storage/temp";
 
 pub const CLOUD_FILE_BLOCK_SIZE: usize = 4194304 * 4;
+
+static CACHE_HITS: AtomicU64 = AtomicU64::new(0);
+static CACHE_MISSES: AtomicU64 = AtomicU64::new(0);
+/// 正在进行的 VFS 写入数（含未上传完成的块）
+pub static IN_FLIGHT_WRITES: AtomicU64 = AtomicU64::new(0);
+
+/// 本地缓存命中率统计：(命中, 未命中)
+pub fn cache_stats() -> (u64, u64) {
+    (
+        CACHE_HITS.load(Ordering::SeqCst),
+        CACHE_MISSES.load(Ordering::SeqCst),
+    )
+}
 
 type FileLockMap = RwLock<HashMap<i64, Arc<Mutex<()>>>>;
 
@@ -148,12 +162,11 @@ impl VirtualFileSystem {
     }
     pub(crate) async fn create_dir(&self, path: &str) -> ResponseResult<FileMeta> {
         let (parent, name) = self.path_info(path).await?;
-        let option = CONTEXT
+        let parent_id = parent.id.ok_or_else(|| ErrorInfo::new(0, "parent id missing"))?;
+        CONTEXT
             .file_manager
-            .new_file(parent.id.unwrap(), name.as_str(), FileMetaType::DIR)
-            .await.ok().unwrap();
-
-        Ok(option)
+            .new_file(parent_id, name.as_str(), FileMetaType::DIR)
+            .await
     }
     pub(crate) async fn create_path_file(
         &self,
@@ -205,6 +218,13 @@ impl VirtualFileSystem {
     ///
     pub(crate) async fn write(&self, ino: u64, offset: u64, data: &[u8]) -> ResponseResult<u32> {
         let _write_lock = file_lock(ino as i64).await;
+        IN_FLIGHT_WRITES.fetch_add(1, Ordering::SeqCst);
+        let result = self.write_inner(ino, offset, data).await;
+        IN_FLIGHT_WRITES.fetch_sub(1, Ordering::SeqCst);
+        result
+    }
+
+    async fn write_inner(&self, ino: u64, offset: u64, data: &[u8]) -> ResponseResult<u32> {
         let mut start = 0;
         loop {
             let temp = &data[start..];
@@ -290,8 +310,7 @@ impl VirtualFileSystem {
     pub(crate) async fn rename_path(&self, from_full_path: &str, to_full_path: &str) -> ResponseResult<()> {
         let (parent_from, name_from) = self.path_info(from_full_path).await?;
         let (parent_to, name_to) = self.path_info(to_full_path).await?;
-        self.rename(parent_from.id.unwrap() as u64, name_from.as_str(), parent_to.id.unwrap() as u64, name_to.as_str()).await.ok();
-        Ok(())
+        self.rename(parent_from.id.unwrap() as u64, name_from.as_str(), parent_to.id.unwrap() as u64, name_to.as_str()).await
     }
 
 
@@ -356,10 +375,15 @@ impl VirtualFileSystem {
         CONTEXT.file_manager.list_by_parent_page(dirid as i64, ino as i64, max_entries).await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn setattr(
         &self,
         ino: u64,
         size: Option<u64>,
+        mode: Option<u32>,
+        uid: Option<u32>,
+        gid: Option<u32>,
+        mtime_millis: Option<i64>,
     ) -> ResponseResult<FileMeta> {
         let result = CONTEXT.file_manager.info_by_id(ino as i64).await;
         if let Err(e) = result {
@@ -369,6 +393,20 @@ impl VirtualFileSystem {
 
         if let Some(size_value) = size {
             f.file_length = size_value as i64;
+        }
+        if let Some(mode_value) = mode {
+            f.mode = mode_value as i32;
+        }
+        if let Some(uid_value) = uid {
+            f.uid = uid_value as i32;
+        }
+        if let Some(gid_value) = gid {
+            f.gid = gid_value as i32;
+        }
+        if let Some(mtime_value) = mtime_millis {
+            if let Some(time) = Local.timestamp_millis_opt(mtime_value).single() {
+                f.update_time = time;
+            }
         }
         CONTEXT.file_manager.update_meta(f).await
     }
@@ -411,8 +449,10 @@ impl Inner {
         // 本地已尽存在直接返回
         let result = self.read_local_file(local_cache_file.clone(), seek);
         if let Ok(body) = result {
+            CACHE_HITS.fetch_add(1, Ordering::SeqCst);
             return Ok(body);
         }
+        CACHE_MISSES.fetch_add(1, Ordering::SeqCst);
         //本地没有读取云端数据
         let result = self
             .read_content_from_cloud(file_block_meta.id.unwrap())
@@ -465,7 +505,7 @@ impl Inner {
     async fn read_content_from_cloud(&self, file_block_id: i32) -> ResponseResult<Vec<u8>> {
         // let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
         info!("read from file_block_id:{}", file_block_id);
-        let result = STORAGE_FACADE.content(file_block_id).await;
+        let result = storage_facade().content(file_block_id).await;
 
         let a = match result {
             Ok(result) => {

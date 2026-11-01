@@ -24,6 +24,11 @@ pub trait TokenManager {
     fn refresh_token(&self);
 }
 
+/// 授权成功后默认写入 data_root 的目录，可通过 `.env` 的 `DEFAULT_DATA_ROOT` 覆盖。
+pub fn default_data_root() -> String {
+    dotenvy::var("DEFAULT_DATA_ROOT").unwrap_or_else(|_| "/app/share-desk".to_string())
+}
+
 #[async_trait::async_trait]
 pub trait Storage {
     ///
@@ -62,7 +67,7 @@ pub trait Storage {
     fn authorize(&self, server: &str, id: i32) -> ResponseResult<String>;
     async fn callback(&self, _server: String, code: String, cloud_meta: &mut CloudMeta) -> ResponseResult<String>;
     async fn after_callback(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<()> {
-        cloud_meta.data_root = Some("/app/share-desk".to_string());
+        cloud_meta.data_root = Some(default_data_root());
         cloud_meta.status = MetaStatus::Enable.into();
         Ok(())
     }
@@ -78,7 +83,7 @@ pub trait ExtraStorage: Storage {
     async fn after_callback(&mut self, cloud_meta: &mut CloudMeta) -> ResponseResult<()> {
         let extra = self.build_extra(cloud_meta).await?;
         cloud_meta.extra = Some(extra);
-        cloud_meta.data_root = Some("/app/share-desk".to_string());
+        cloud_meta.data_root = Some(default_data_root());
         cloud_meta.status = MetaStatus::Enable.into();
         Ok(())
     }

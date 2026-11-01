@@ -10,12 +10,9 @@ use persistence::Config;
 use service::meta::CloudMetaManager;
 use service::CONTEXT;
 
+use crate::fs::config::{temp_path, MOUNT_PATH};
 use crate::fs::fuse::cloud_fuse_fs::CloudFuseFS;
-use crate::fs::vfs::DEFAULT_TEMP_PATH;
 use crate::web::common::WebResult;
-
-const MOUNT_PATH: &str = "MOUNT_PATH";
-pub(crate) const TEMP_PATH: &str = "TEMP_PATH";
 
 pub(crate) struct FsManager {
     session_holder: Mutex<Option<BackgroundSession>>,
@@ -47,11 +44,7 @@ pub(crate) async fn mount(fs_manager: Data<FsManager>) -> Result<impl Responder>
         return Ok(Json(WebResult::<Config>::fail(1, "没有配置挂在路径")));
     }
     let mount_path = mount_path_config.clone().unwrap();
-    let temp_path_config = CONTEXT.config_manager.info(TEMP_PATH).await;
-    let cache_file = match temp_path_config {
-        None => String::from(DEFAULT_TEMP_PATH),
-        Some(config) => config.value.clone(),
-    };
+    let cache_file = temp_path().await;
     let mut config = FuseConfig::default();
     config.mount_options = vec![
         MountOption::FSName("CloudFs".to_string()),

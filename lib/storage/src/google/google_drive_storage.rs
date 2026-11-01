@@ -6,19 +6,19 @@ use log::info;
 use reqwest::multipart::Part;
 use reqwest::{multipart, Client};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use urlencoding::encode;
 
 use crate::google::google_drive_authorization_middleware::GoogleDriveAuthMiddleware;
 use crate::google::vo::{About, AuthorizationToken, Files, GoogleDriveExtra, GoogleDriveFile};
 use crate::model::Quota;
+use crate::repository::CloudMetaRepository;
 use crate::storage::{ExtraStorage, Network, Storage};
 use api::error::ErrorInfo;
 use api::ResponseResult;
 use persistence::meta::{CloudMeta, FileBlockMeta};
 use persistence::CloudFileBlock;
-use service::meta::CloudMetaManager;
-use service::CONTEXT;
 
 fn get_google_drive_app_secret() -> String {
     dotenvy::var("GOOGLE_DRIVE_APP_SECRET").expect("GOOGLE_DRIVE_APP_SECRET not set in environment")
@@ -36,10 +36,11 @@ struct Inner {
 pub(crate) struct GoogleDriveStorage {
     inner: Inner,
     root: String,
+    meta_persister: Arc<dyn CloudMetaRepository>,
 }
 
 impl GoogleDriveStorage {
-    pub fn new(root: &str) -> Self {
+    pub fn new(root: &str, meta_persister: Arc<dyn CloudMetaRepository>) -> Self {
         let auth_middleware = GoogleDriveAuthMiddleware::new();
         let client = Client::builder()
             // .proxy(Proxy::https("http://127.0.0.1:9988").unwrap())
@@ -54,6 +55,7 @@ impl GoogleDriveStorage {
                 api_client,
             },
             root: root.to_string(),
+            meta_persister,
         }
     }
     async fn meta(&self, cloud_meta: &CloudMeta, cloud_file_id: &str) -> ResponseResult<GoogleDriveFile> {
@@ -131,7 +133,7 @@ impl Storage for GoogleDriveStorage {
             extra.root_file_id = Some(root_file_id.clone());
             let mut meta = cloud_meta.to_owned();
             meta.extra = Some(serde_json::to_string(&extra)?);
-            CONTEXT.cloud_meta_manager.update_meta(&meta).await?;
+            self.meta_persister.update_meta(&meta).await?;
         } else {
             root_file_id = extra.root_file_id.clone().unwrap();
         }

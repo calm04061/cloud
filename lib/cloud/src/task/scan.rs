@@ -10,7 +10,7 @@ use api::ResponseResult;
 use persistence::{CloudFileBlock, EventMessage, EventType, FileStatus, MetaStatus, TempCloudFile};
 use service::meta::{CloudMetaManager, FileManager};
 use service::CONTEXT;
-use storage::STORAGE_FACADE;
+use storage::storage_facade;
 
 pub(crate) async fn scan(semaphore: Arc<Semaphore>) -> ResponseResult<()> {
     // info!("scan");
@@ -77,7 +77,7 @@ async fn do_execute_one_block(cloud_file_block: &mut CloudFileBlock) -> Response
         .file_block_meta_info_by_id(cloud_file_block.file_block_id)
         .await?;
     let mut file_block_meta = file_block_meta.unwrap();
-    let cache_file = dotenvy::var("TEMP_PATH").unwrap_or(String::from("/var/lib/storage/temp"));
+    let cache_file = crate::fs::config::temp_path().await;
 
     let cache_file = format!("{cache_file}/{}", file_block_meta.file_part_id);
     info!("upload {}", cache_file);
@@ -119,7 +119,7 @@ async fn do_execute_one_block(cloud_file_block: &mut CloudFileBlock) -> Response
         };
     }
 
-    let result = STORAGE_FACADE
+    let result = storage_facade()
         .upload_content(&file_block_meta, &mut cloud_file_block.clone(), &cloud_meta, &body)
         .await;
     let res = match result {

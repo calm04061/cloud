@@ -5,6 +5,7 @@ use reqwest::{Body, Client};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use serde::Serialize;
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use urlencoding::encode;
 
@@ -12,10 +13,9 @@ use api::error::ErrorInfo;
 use api::ResponseResult;
 use persistence::meta::{CloudMeta, FileBlockMeta};
 use persistence::{CloudFileBlock, MetaStatus};
-use service::meta::CloudMetaManager;
-use service::CONTEXT;
 
 use crate::ali::ali_authorization_middleware::AliAuthMiddleware;
+use crate::repository::CloudMetaRepository;
 use crate::ali::vo::{AliAuthToken, AliExtra, CompleteRequest, CreateFile, DevicePersonalInfo, DownloadUrl, DriveFile, DriveInfo, ErrorMessage, FileInfo, PartInfo, UploadPreResult};
 use crate::model::Quota;
 use crate::storage::{ExtraStorage, Network, Storage, TokenProvider};
@@ -38,6 +38,7 @@ struct Inner {
 pub struct AliStorage {
     inner: Inner,
     root: String,
+    meta_persister: Arc<dyn CloudMetaRepository>,
 }
 
 impl AliStorage {
@@ -50,7 +51,7 @@ impl AliStorage {
 }
 
 impl AliStorage {
-    pub(crate) fn new(root: &str) -> AliStorage {
+    pub(crate) fn new(root: &str, meta_persister: Arc<dyn CloudMetaRepository>) -> AliStorage {
         let client = Client::builder()
             // .proxy(reqwest::Proxy::https("http://127.0.0.1:8888").unwrap())
             .timeout(Duration::from_secs(60))
@@ -63,6 +64,7 @@ impl AliStorage {
                 api_client,
             },
             root: root.to_string(),
+            meta_persister,
         }
     }
 
@@ -135,7 +137,7 @@ impl Storage for AliStorage {
             extra.root_file_id = Some(root_file_id.clone());
             let mut meta = cloud_meta.to_owned();
             meta.extra = Some(serde_json::to_string(&extra)?);
-            CONTEXT.cloud_meta_manager.update_meta(&meta).await?;
+            self.meta_persister.update_meta(&meta).await?;
         } else {
             root_file_id = extra.root_file_id.unwrap();
         }
@@ -181,7 +183,7 @@ impl Storage for AliStorage {
             extra.root_file_id = Some(parent_file_id.clone());
             let mut meta = cloud_meta.to_owned();
             meta.extra = Some(serde_json::to_string(&extra)?);
-            CONTEXT.cloud_meta_manager.update_meta(&meta).await?;
+            self.meta_persister.update_meta(&meta).await?;
             create_file.parent_file_id = parent_file_id;
             result = self.create_file(&create_file, &meta).await;
         }

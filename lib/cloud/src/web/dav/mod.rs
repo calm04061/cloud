@@ -4,7 +4,6 @@ use dav_server::fakels::FakeLs;
 use dav_server::{DavConfig, DavHandler};
 
 use crate::fs::dav::cloud_dav_filesystem::{CloudDavFs, DAV_PREFIX};
-use crate::fs::vfs::DEFAULT_TEMP_PATH;
 
 pub async fn dav_handler(req: DavRequest, dav_handler: web::Data<DavHandler>) -> DavResponse {
     if let Some(prefix) = req.prefix() {
@@ -15,9 +14,8 @@ pub async fn dav_handler(req: DavRequest, dav_handler: web::Data<DavHandler>) ->
     }
 }
 
-pub(crate) fn config(cfg: &mut web::ServiceConfig) {
-    let cache_file = String::from(DEFAULT_TEMP_PATH);
-    let dav_fs = CloudDavFs::new(cache_file.as_str(), DAV_PREFIX);
+pub(crate) fn config(cfg: &mut web::ServiceConfig, cache_file: &str) {
+    let dav_fs = CloudDavFs::new(cache_file, DAV_PREFIX);
     let dav_server = DavHandler::builder()
         .filesystem(Box::new(dav_fs))
         .locksystem(FakeLs::new())

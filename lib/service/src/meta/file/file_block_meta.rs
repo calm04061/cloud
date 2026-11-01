@@ -190,6 +190,20 @@ impl SimpleFileBlockMetaManager {
             .await?)
     }
 
+    /// 尚未上传成功的块的本地缓存是唯一副本，不可被缓存淘汰任务删除。
+    /// 判定：file_block_meta 存在 cloud_file_id 为空的存活副本行。
+    pub async fn protected_part_ids(&self) -> ResponseResult<Vec<String>> {
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "select distinct fbm.file_part_id \
+             from file_block_meta fbm \
+             join cloud_file_block cfb on cfb.file_block_id = fbm.id \
+             where fbm.deleted = 0 and cfb.deleted = 0 and cfb.cloud_file_id is null",
+        )
+        .fetch_all(&self.db_pool)
+        .await?;
+        Ok(rows.into_iter().map(|r| r.0).collect())
+    }
+
     pub(crate) async fn modified_blocks(&self, _before: i64) -> ResponseResult<Vec<FileBlockMeta>> {
         let vec = sqlx::query_as("select * from file_block_meta where (part_hash <> cloud_file_hash or cloud_file_hash is null ) and deleted = 0 order by update_time,id")
             .fetch_all(&self.db_pool).await?;

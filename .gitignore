@@ -8,10 +8,8 @@ dist
 /cargo
 /cloud/config/file.db*
 /data
-cloud-ui/web/package-lock.json
 callback/package-lock.json
 data_backup
-Cargo.lock
 .env
 *.env
 lib/cloud/.env

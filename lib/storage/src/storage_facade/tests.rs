@@ -1,7 +1,43 @@
 use super::*;
 use crate::model::Quota;
+use crate::repository::{CloudFileBlockRepository, CloudMetaRepository, ConfigRepository};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
+
+struct MockCloudMetaRepository;
+
+#[async_trait::async_trait]
+impl CloudMetaRepository for MockCloudMetaRepository {
+    async fn info(&self, id: i32) -> ResponseResult<CloudMeta> {
+        Ok(mock_cloud_meta(id))
+    }
+
+    async fn update_meta(&self, cloud_meta: &CloudMeta) -> ResponseResult<CloudMeta> {
+        Ok(cloud_meta.clone())
+    }
+
+    async fn select_by_status(&self, _status: i8) -> ResponseResult<Vec<CloudMeta>> {
+        Ok(Vec::new())
+    }
+}
+
+struct MockCloudFileBlockRepository;
+
+#[async_trait::async_trait]
+impl CloudFileBlockRepository for MockCloudFileBlockRepository {
+    async fn select_by_file_block_id(&self, _file_block_id: i32) -> ResponseResult<Vec<CloudFileBlock>> {
+        Ok(Vec::new())
+    }
+}
+
+struct MockConfigRepository;
+
+#[async_trait::async_trait]
+impl ConfigRepository for MockConfigRepository {
+    async fn info(&self, _property: &str) -> Option<String> {
+        None
+    }
+}
 
 /// 记录同时处于临界区的请求数与历史最大并发
 struct ConcurrencyTracker {
@@ -144,6 +180,9 @@ fn facade_with_accounts(
         root: OnceCell::new(),
         plugin_holder: HashMap::new(),
         account_holder: RwLock::new(account_holder),
+        cloud_meta_repository: Arc::new(MockCloudMetaRepository),
+        cloud_file_block_repository: Arc::new(MockCloudFileBlockRepository),
+        config_repository: Arc::new(MockConfigRepository),
     }
 }
 

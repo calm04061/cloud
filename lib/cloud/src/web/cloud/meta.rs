@@ -13,17 +13,15 @@ use crate::web::common::WebResult;
 use crate::web::vo::cloud::CloudMetaVo;
 
 #[get("/storage/meta")]
-pub(crate) async fn list() -> Json<WebResult<Vec<CloudMeta>>> {
-    match CONTEXT.cloud_meta_manager.list().await {
-        Ok(meta) => Json(WebResult::success(meta)),
-        Err(_) => Json(WebResult::empty()),
-    }
+pub(crate) async fn list() -> Result<impl Responder> {
+    let meta = CONTEXT.cloud_meta_manager.list().await?;
+    Ok(Json(WebResult::success(meta)))
 }
 
 #[post("/storage/meta")]
 pub(crate) async fn new(
     meta: Json<CloudMetaVo>,
-) -> Json<WebResult<Option<i32>>> {
+) -> Result<impl Responder> {
     let vo = meta.0.clone();
     let mut meta = CloudMeta::from(vo);
     let cloud_type: CloudType = meta.cloud_type.into();
@@ -37,10 +35,8 @@ pub(crate) async fn new(
         }
         _ => {}
     }
-    match CONTEXT.cloud_meta_manager.add(&meta).await {
-        Ok(m) => Json(WebResult::success(m.id)),
-        Err(_) => Json(WebResult::empty()),
-    }
+    let m = CONTEXT.cloud_meta_manager.add(&meta).await?;
+    Ok(Json(WebResult::success(m.id)))
 }
 
 #[get("/storage/meta/{id}")]

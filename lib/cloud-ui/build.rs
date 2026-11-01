@@ -23,7 +23,12 @@ fn main() -> std::io::Result<()> {
     let version = get_git_version();
     let mut f = File::create(Path::new(&env::var("OUT_DIR").unwrap()).join("VERSION")).unwrap();
     f.write_all(version.trim().as_bytes()).unwrap();
-    let npm = NpmBuild::new("web").install()?.run("build")?;
-    let _npm = npm.change_detection();
+    if Path::new("web/dist/index.html").exists() {
+        println!("cargo:warning=web/dist 已存在，跳过 npm 构建（如需重新构建请运行 make build-ui）");
+    } else {
+        println!("cargo:warning=web/dist 不存在，执行 npm install && npm run build（可先运行 make build-ui 预构建以解耦 Node 工具链）");
+        let npm = NpmBuild::new("web").install()?.run("build")?;
+        let _npm = npm.change_detection();
+    }
     static_files::resource_dir("web/dist").build()
 }

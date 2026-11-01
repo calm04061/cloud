@@ -25,6 +25,7 @@ mod common;
 pub(crate) mod vo;
 mod dav;
 mod rate_limit;
+mod health;
 use actix_web::dev::Service;
 
 async fn validator(
@@ -81,6 +82,7 @@ pub async fn run_web(plugin_arc: Arc<Vec<PluginMetaInfo>>) -> Server {
         .unwrap_or("8088".into())
         .parse::<u16>()
         .unwrap_or(8088);
+    let cache_file = crate::fs::config::temp_path().await;
     let server = HttpServer::new({
         move || {
             let basic_auth = HttpAuthentication::basic(validator);
@@ -104,6 +106,9 @@ pub async fn run_web(plugin_arc: Arc<Vec<PluginMetaInfo>>) -> Server {
             let mut app = App::new()
                 .wrap(middleware::Logger::default())
                 .wrap(cors)
+                // 探针端点无需认证，供负载均衡/K8s 探测
+                .service(health::health)
+                .service(health::ready)
                 .service(
                     scope("api")
                         .wrap(basic_auth.clone())
@@ -125,7 +130,7 @@ pub async fn run_web(plugin_arc: Arc<Vec<PluginMetaInfo>>) -> Server {
                             }
                         })
                         .wrap(basic_auth)
-                        .configure(dav::config)
+                        .configure(|cfg| dav::config(cfg, cache_file.as_str()))
                 );
 
             for p in plugin_arc.iter() {

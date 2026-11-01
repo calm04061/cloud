@@ -1,4 +1,4 @@
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::time::SystemTime;
 
 use fuser::{
@@ -20,7 +20,11 @@ impl Filesystem for CloudFuseFS {
 
     fn lookup(&self, _req: &Request, parent: INodeNo, name: &OsStr, reply: ReplyEntry) {
         // debug!("lookup");
-        let result = crate::fs::runtime::block_on(self.vfs.lookup(parent.into(), name.to_str().unwrap()));
+        let Some(name_str) = name.to_str() else {
+            reply.error(Errno::EINVAL);
+            return;
+        };
+        let result = crate::fs::runtime::block_on(self.vfs.lookup(parent.into(), name_str));
         match result {
             Ok(f) => {
                 let attr = self.convert_attr(f);
@@ -46,13 +50,27 @@ impl Filesystem for CloudFuseFS {
             }
         }
     }
-    fn setattr(&self, _req: &Request, ino: INodeNo, _mode: Option<u32>,
-               _uid: Option<u32>, _gid: Option<u32>, size: Option<u64>, _atime: Option<TimeOrNow>,
-               _mtime: Option<TimeOrNow>, _ctime: Option<SystemTime>, _fh: Option<FileHandle>, _crtime: Option<SystemTime>,
+    fn setattr(&self, _req: &Request, ino: INodeNo, mode: Option<u32>,
+               uid: Option<u32>, gid: Option<u32>, size: Option<u64>, _atime: Option<TimeOrNow>,
+               mtime: Option<TimeOrNow>, _ctime: Option<SystemTime>, _fh: Option<FileHandle>, _crtime: Option<SystemTime>,
                _chgtime: Option<SystemTime>, _bkuptime: Option<SystemTime>, _flags: Option<BsdFileFlags>,
                reply: ReplyAttr,
     ) {
-        let result = crate::fs::runtime::block_on(self.vfs.setattr(ino.into(), size));
+        let mtime_millis = mtime.map(|t| match t {
+            TimeOrNow::SpecificTime(time) => time
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .map(|d| d.as_millis() as i64)
+                .unwrap_or(0),
+            TimeOrNow::Now => chrono::Local::now().timestamp_millis(),
+        });
+        let result = crate::fs::runtime::block_on(self.vfs.setattr(
+            ino.into(),
+            size,
+            mode,
+            uid,
+            gid,
+            mtime_millis,
+        ));
         match result {
             Ok(f) => {
                 let attr = self.convert_attr(f);
@@ -109,13 +127,17 @@ impl Filesystem for CloudFuseFS {
         _flags: RenameFlags,
         reply: ReplyEmpty,
     ) {
+        let (Some(name_str), Some(new_name_str)) = (name.to_str(), new_name.to_str()) else {
+            reply.error(Errno::EINVAL);
+            return;
+        };
         crate::fs::runtime::block_on(async {
                 info!("rename");
                 let result = self.vfs.rename(
                     parent.into(),
-                    name.to_str().unwrap(),
+                    name_str,
                     new_parent.into(),
-                    new_name.to_str().unwrap(),
+                    new_name_str,
                 ).await;
                 if let Err(e) = result {
                     let out = match e {
@@ -198,27 +220,36 @@ impl Filesystem for CloudFuseFS {
         mut reply: ReplyDirectory,
     ) {
         crate::fs::runtime::block_on(async {
-                if offset == 0 {
-                    let _ = reply.add(ino, 0, FileType::Directory, ".");
-                    let _ = reply.add(ino, 1, FileType::Directory, "..");
-                    let vec = self.vfs.list_by_parent(ino.into()).await;
-                    if let Err(e) = vec {
+                let list = self.vfs.list_by_parent(ino.into()).await;
+                let children = match list {
+                    Ok(v) => v,
+                    Err(e) => {
                         error!("{}", e);
                         reply.ok();
                         return;
                     }
-                    let vec = vec.unwrap();
-                    let mut index = 2u64;
-                    for file in vec {
-                        let kind;
-                        if file.file_type == FILE.get_code() {
-                            kind = FileType::RegularFile;
-                        } else {
-                            kind = FileType::Directory;
-                        }
-                        info!("readdir:{}:{}", ino, file.name);
-                        let _ = reply.add(INodeNo(file.id.unwrap() as u64), index, kind, file.name);
-                        index = index + 1;
+                };
+                // 位置 0/1 保留给 "." 和 ".."，其后为子项；offset 为客户端上次消费到的位置
+                let mut entries: Vec<(INodeNo, FileType, OsString)> = Vec::with_capacity(children.len() + 2);
+                entries.push((ino, FileType::Directory, OsString::from(".")));
+                entries.push((ino, FileType::Directory, OsString::from("..")));
+                for file in children {
+                    let kind;
+                    if file.file_type == FILE.get_code() {
+                        kind = FileType::RegularFile;
+                    } else {
+                        kind = FileType::Directory;
+                    }
+                    let Some(child_ino) = file.id else {
+                        continue;
+                    };
+                    entries.push((INodeNo(child_ino as u64), kind, OsString::from(file.name)));
+                }
+                for (index, (entry_ino, kind, name)) in entries.iter().enumerate().skip(offset as usize) {
+                    info!("readdir:{}:{}:{}", ino, index, name.to_string_lossy());
+                    // add 返回 true 表示客户端缓冲区已满，客户端会携带下一次 offset 继续调用
+                    if reply.add(*entry_ino, (index as u64) + 1, *kind, name) {
+                        break;
                     }
                 }
                 reply.ok();

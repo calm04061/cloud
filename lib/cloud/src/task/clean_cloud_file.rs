@@ -9,7 +9,7 @@ use service::CONTEXT;
 use std::io::ErrorKind;
 use std::ops::Sub;
 use std::sync::Arc;
-use storage::STORAGE_FACADE;
+use storage::storage_facade;
 use tokio::sync::Mutex;
 
 pub async fn clean_cloud_file(worker_id: Arc<Mutex<Option<i64>>>) {
@@ -19,7 +19,7 @@ pub async fn clean_cloud_file(worker_id: Arc<Mutex<Option<i64>>>) {
         error!("Failed to retrieve deleted files: {}", e);
         return;
     }
-    let cache_file = dotenvy::var("TEMP_PATH").unwrap_or_else(|_| String::from("/var/lib/storage/temp"));
+    let cache_file = crate::fs::config::temp_path().await;
 
     let result = result.unwrap();
     for file_meta in result {
@@ -133,7 +133,7 @@ async fn do_clean_cloud_file(cloud_file_block: &mut CloudFileBlock) -> ResponseR
     if count == 0 {
         return Err(ErrorInfo::OTHER(1003, format!("云文件块{}抢占失败", cloud_file_block.id.unwrap())));
     }
-    let result = STORAGE_FACADE.delete(&cloud_file_block).await;
+    let result = storage_facade().delete(&cloud_file_block).await;
     if let Ok(()) = result {
         debug!("删除云文件成功");
         return CONTEXT.cloud_file_block_manager.delete_by_id(cloud_file_block.id.unwrap()).await;

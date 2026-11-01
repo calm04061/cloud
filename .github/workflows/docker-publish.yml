@@ -23,6 +23,24 @@ env:
 
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libfuse3-dev libssl-dev
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+      - name: cargo check
+        run: cargo check --workspace --exclude cloud-ui
+      - name: cargo test
+        run: cargo test -p persistence -p service -p storage -p cloud
+
   build:
 
     runs-on: ubuntu-latest

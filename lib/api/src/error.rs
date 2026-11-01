@@ -1,11 +1,8 @@
 use std::error::Error;
-use std::fmt::{Display, Formatter, Write};
+use std::fmt::{Display, Formatter};
 
 use actix_web::body::BoxBody;
-use actix_web::http::header;
-use actix_web::http::header::TryIntoHeaderValue;
 use actix_web::{error, HttpResponse};
-use bytes::BytesMut;
 
 #[derive(Debug, PartialEq, Clone, serde_derive::Serialize)]
 pub enum ErrorInfo {
@@ -30,51 +27,79 @@ impl ErrorInfo {
     pub fn new_string(code: i32, message: String) -> Self {
         ErrorInfo::OTHER(code, message)
     }
+
+    /// 稳定的业务错误码，所有错误响应体统一为 `{message, code, data}`。
+    pub fn code(&self) -> i32 {
+        match self {
+            ErrorInfo::Retry => 3000,
+            ErrorInfo::FileNotFound(_) => 4000,
+            ErrorInfo::FileAlreadyExist(_) => 4001,
+            ErrorInfo::Http302(_) => 5302,
+            ErrorInfo::Http401(_) => 5401,
+            ErrorInfo::Http402(_) => 5402,
+            ErrorInfo::Http404(_) => 5404,
+            ErrorInfo::Http(code) => 5000 + code,
+            ErrorInfo::OTHER(code, _) => 6000 + code,
+            ErrorInfo::NoneCloudFileId(_) | ErrorInfo::NoneCloudMeta(_) => 7000,
+            ErrorInfo::NoSuchTable(_) => 8000,
+        }
+    }
+
+    pub fn message(&self) -> String {
+        match self {
+            ErrorInfo::Retry => String::from("retry"),
+            ErrorInfo::FileNotFound(f) => f.clone(),
+            ErrorInfo::FileAlreadyExist(f) => f.clone(),
+            ErrorInfo::Http302(url) => url.clone(),
+            ErrorInfo::Http401(url) => url.clone(),
+            ErrorInfo::Http402(msg) => msg.clone(),
+            ErrorInfo::Http404(url) => url.clone(),
+            ErrorInfo::Http(_) => String::from(""),
+            ErrorInfo::OTHER(_, msg) => msg.clone(),
+            ErrorInfo::NoneCloudFileId(cloud_meta_id) => format!("未找到云文件ID:{}", cloud_meta_id),
+            ErrorInfo::NoneCloudMeta(cloud_meta_id) => format!("云配置：{},没有找到", cloud_meta_id),
+            ErrorInfo::NoSuchTable(table) => format!("表：{},没有找到", table),
+        }
+    }
 }
 
 unsafe impl Send for ErrorInfo {}
 
 impl Display for ErrorInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let (code, message) = match self {
-            ErrorInfo::Retry => (3000, String::from("retry")),
-            ErrorInfo::FileNotFound(f) => (4000, f.clone()),
-            ErrorInfo::FileAlreadyExist(f) => (4001, f.clone()),
-            ErrorInfo::Http302(url) => (5302, url.clone()),
-            ErrorInfo::Http401(url) => (5401, String::from(url.as_str())),
-            ErrorInfo::Http402(msg) => (5402, String::from(msg.as_str())),
-            ErrorInfo::Http404(url) => (5404, String::from(url.as_str())),
-            ErrorInfo::Http(code) => (5000 + code, String::from("")),
-            ErrorInfo::OTHER(code, msg) => (6000 + code, msg.clone()),
-            ErrorInfo::NoneCloudFileId(cloud_meta_id) => {
-                (7000, format!("未找到云文件ID:{}", cloud_meta_id))
-            }
-            ErrorInfo::NoneCloudMeta(cloud_meta_id) => {
-                (7000, format!("云配置：{},没有找到", cloud_meta_id))
-            }
-            // _ => (8000, "系统错误".to_string()),
-            ErrorInfo::NoSuchTable(table) => (8000, format!("表：{},没有找到", table)),
-        };
-        let string = format!("{}:{}", code, message);
+        let string = format!("{}:{}", self.code(), self.message());
         f.write_str(string.as_str())
     }
 }
 
 impl Error for ErrorInfo {}
 
+/// 统一错误响应体，与成功响应 `{message, code, data}` 结构一致。
+#[derive(serde_derive::Serialize)]
+struct ErrorEnvelope {
+    message: String,
+    code: i32,
+    data: Option<()>,
+}
+
 impl error::ResponseError for ErrorInfo {
+    fn status_code(&self) -> actix_web::http::StatusCode {
+        use actix_web::http::StatusCode;
+        match self {
+            ErrorInfo::FileNotFound(_) | ErrorInfo::Http404(_) => StatusCode::NOT_FOUND,
+            ErrorInfo::FileAlreadyExist(_) => StatusCode::CONFLICT,
+            ErrorInfo::Http401(_) | ErrorInfo::Http402(_) => StatusCode::UNAUTHORIZED,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+
     fn error_response(&self) -> HttpResponse<BoxBody> {
-        let mut res = HttpResponse::new(self.status_code());
-
-        let mut buf = BytesMut::new();
-        let result = serde_json::to_string(&self).unwrap();
-        buf.write_str(result.as_str()).ok();
-        // let _ = write!(helpers::MutWriter(&mut buf), "{}", result);
-        let mime = mime::APPLICATION_JSON.try_into_value().unwrap();
-
-        res.headers_mut().insert(header::CONTENT_TYPE, mime);
-
-        res.set_body(BoxBody::new(buf))
+        let body = ErrorEnvelope {
+            message: self.message(),
+            code: self.code(),
+            data: None,
+        };
+        HttpResponse::build(self.status_code()).json(body)
     }
 }
 

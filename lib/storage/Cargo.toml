@@ -25,7 +25,6 @@ rust-crypto = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_derive = { workspace = true }
 serde_json = { workspace = true }
-service = { path = "../service" }
 http = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "signal", "rt", "macros"] }
 urlencoding = { workspace = true }

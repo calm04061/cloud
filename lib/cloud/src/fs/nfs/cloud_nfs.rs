@@ -41,8 +41,8 @@ impl CloudNFS {
         };
         fattr.mode = meta.mode as mode3;
         fattr.nlink = 1;
-        fattr.gid = 1000;
-        fattr.uid = 1000;
+        fattr.gid = meta.gid as u32;
+        fattr.uid = meta.uid as u32;
         fattr.size = meta.file_length as size3;
         fattr.used = 0;
         fattr.rdev = specdata3::default();

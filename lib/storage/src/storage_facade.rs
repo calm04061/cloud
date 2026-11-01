@@ -13,8 +13,6 @@ use api::{Capacity, PluginInstance, ResponseResult, CLOUD_FILE_ROOT};
 use persistence::meta::{CloudMeta, FileBlockMeta};
 use persistence::{CloudFileBlock, CloudType, MetaStatus, TempCloudFile};
 use plugin_manager::PLUGIN_MANAGER;
-use service::meta::CloudMetaManager;
-use service::CONTEXT;
 
 use crate::ali::ali_storage::AliStorage;
 use crate::baidu::baidu_storage::BaiduStorage;
@@ -22,6 +20,7 @@ use crate::google::google_drive_storage::GoogleDriveStorage;
 use crate::local::local_storage::LocalStorage;
 use crate::model::AuthMethod;
 use crate::onedrive::onedrive_storage::OneDriveStorage;
+use crate::repository::{CloudFileBlockRepository, CloudMetaRepository, ConfigRepository};
 #[cfg(not(windows))]
 use crate::sftp::sftp_storage::SftpStorage;
 use crate::storage::Storage;
@@ -33,10 +32,17 @@ pub struct StorageFacade {
     root: OnceCell<String>,
     plugin_holder: HashMap<CloudType, CloudStorage>,
     account_holder: RwLock<HashMap<i32, CloudStorage>>,
+    cloud_meta_repository: Arc<dyn CloudMetaRepository>,
+    cloud_file_block_repository: Arc<dyn CloudFileBlockRepository>,
+    config_repository: Arc<dyn ConfigRepository>,
 }
 
 impl StorageFacade {
-    pub fn new() -> StorageFacade {
+    pub fn new(
+        cloud_meta_repository: Arc<dyn CloudMetaRepository>,
+        cloud_file_block_repository: Arc<dyn CloudFileBlockRepository>,
+        config_repository: Arc<dyn ConfigRepository>,
+    ) -> StorageFacade {
         let mut plugin_holder = HashMap::<CloudType, CloudStorage>::new();
         let plugins = PLUGIN_MANAGER.get_plugins();
         for plugin in plugins.iter() {
@@ -64,6 +70,9 @@ impl StorageFacade {
             root: OnceCell::new(),
             plugin_holder,
             account_holder: RwLock::new(HashMap::new()),
+            cloud_meta_repository,
+            cloud_file_block_repository,
+            config_repository,
         }
     }
 
@@ -71,8 +80,8 @@ impl StorageFacade {
         let root = self
             .root
             .get_or_try_init(|| async {
-                match CONTEXT.config_manager.info(CLOUD_FILE_ROOT).await {
-                    Some(config) => Ok(config.value.clone()),
+                match self.config_repository.info(CLOUD_FILE_ROOT).await {
+                    Some(config) => Ok(config),
                     None => Err(ErrorInfo::new(0, "CLOUD_FILE_ROOT config not found")),
                 }
             })
@@ -105,12 +114,13 @@ impl StorageFacade {
 
     async fn create_cloud(&self, cloud_type: CloudType) -> ResponseResult<CloudStorage> {
         let root = self.root().await?;
+        let meta_persister: Arc<dyn CloudMetaRepository> = self.cloud_meta_repository.clone();
         let cloud: CloudStorage = match cloud_type {
-            CloudType::AliYun => Arc::new(Mutex::new(AliStorage::new(root))),
+            CloudType::AliYun => Arc::new(Mutex::new(AliStorage::new(root, meta_persister))),
             CloudType::Baidu => Arc::new(Mutex::new(BaiduStorage::new(&root.to_string()))),
             CloudType::Local => Arc::new(Mutex::new(LocalStorage::new(root))),
             CloudType::OneDrive => Arc::new(Mutex::new(OneDriveStorage::new(root))),
-            CloudType::GoogleDrive => Arc::new(Mutex::new(GoogleDriveStorage::new(root))),
+            CloudType::GoogleDrive => Arc::new(Mutex::new(GoogleDriveStorage::new(root, meta_persister))),
             #[cfg(not(windows))]
             CloudType::Sftp => Arc::new(Mutex::new(SftpStorage::new(root))),
         };
@@ -118,12 +128,11 @@ impl StorageFacade {
     }
 
     async fn get_meta_info(&self, id: i32) -> ResponseResult<CloudMeta> {
-        CONTEXT.cloud_meta_manager.info(id).await
+        self.cloud_meta_repository.info(id).await
     }
 
     async fn update_meta_info(&self, cloud_meta: &CloudMeta) -> ResponseResult<CloudMeta> {
-        CONTEXT.cloud_meta_manager.update_meta(cloud_meta).await?;
-        Ok(cloud_meta.clone())
+        self.cloud_meta_repository.update_meta(cloud_meta).await
     }
 
     ///
@@ -308,8 +317,8 @@ impl StorageFacade {
     /// 读取文件内容
     ///
     pub async fn content(&self, file_block_id: i32) -> ResponseResult<Bytes> {
-        let cloud_file_block = CONTEXT
-            .cloud_file_block_manager
+        let cloud_file_block = self
+            .cloud_file_block_repository
             .select_by_file_block_id(file_block_id)
             .await?
             .into_one();
@@ -349,7 +358,7 @@ impl StorageFacade {
     ///
     pub async fn refresh_quota(&self) -> ResponseResult<()> {
         let status: i8 = MetaStatus::Enable.into();
-        let all = CONTEXT.cloud_meta_manager.select_by_status(status).await?;
+        let all = self.cloud_meta_repository.select_by_status(status).await?;
         for meta in all {
             let result = self.refresh_one_quota(&meta).await;
             if result.is_ok() {
@@ -378,13 +387,13 @@ impl StorageFacade {
         meta.used_quota = Some(result.used);
         meta.total_quota = Some(result.total);
         meta.remaining_quota = Some(result.remaining);
-        CONTEXT.cloud_meta_manager.update_meta(&meta).await?;
+        self.cloud_meta_repository.update_meta(&meta).await?;
         Ok(())
     }
 
     async fn refresh_meta_token(&self, cloud_meta: &CloudMeta) -> ResponseResult<CloudMeta> {
-        let mut cloud_meta = CONTEXT
-            .cloud_meta_manager
+        let mut cloud_meta = self
+            .cloud_meta_repository
             .info(cloud_meta.id.unwrap())
             .await?;
         let cloud = self.get_cloud(&cloud_meta).await?;

@@ -6,7 +6,7 @@ use tokio::sync::{Mutex, Semaphore};
 use tokio_cron_scheduler::{Job, JobScheduler};
 
 use persistence::FileStatus;
-use storage::STORAGE_FACADE;
+use storage::storage_facade;
 
 use crate::task::clean_cloud_file::clean_cloud_file;
 use crate::task::clean_temp_cloud_file::{clean_temp_cloud_file, reset_status};
@@ -15,12 +15,13 @@ use crate::task::refresh_token::refresh_token;
 use crate::task::reset::reset;
 use crate::task::scan::scan;
 
-pub mod clean_cloud_file;
+pub(crate) mod clean_cloud_file;
 mod scan;
 mod reset;
 mod re_balance;
 mod refresh_token;
 mod clean_temp_cloud_file;
+mod evict_cache;
 
 pub async fn task(sched: &JobScheduler) {
     let file_worker_id: Arc<Mutex<Option<i64>>> = Arc::new(Mutex::new(None));
@@ -45,6 +46,8 @@ pub async fn task(sched: &JobScheduler) {
     let locked = Job::new_async("0/10 * * * * *", move |_uuid, _l| refresh_token_task()).unwrap();
     sched.add(locked).await.unwrap();
     let locked = Job::new_async("*/20 * * * * *", move |_uuid, _l| clean_temp_cloud_file_task(temp_file_worker_id.clone())).unwrap();
+    sched.add(locked).await.unwrap();
+    let locked = Job::new_async("0 0/5 * * * *", |_uuid, _l| evict_cache_task()).unwrap();
     sched.add(locked).await.unwrap();
 }
 
@@ -102,7 +105,7 @@ fn reset_task() -> Pin<Box<impl Future<Output=()> + Sized>> {
 fn refresh_quota_task() -> Pin<Box<impl Future<Output=()> + Sized>> {
     Box::pin({
         async move {
-            let result = STORAGE_FACADE.refresh_quota().await;
+            let result = storage_facade().refresh_quota().await;
             if let Err(e) = result {
                 log::error!("refresh_quota error: {}", e);
             }
@@ -136,6 +139,12 @@ fn clean_temp_cloud_file_task(worker_id: Arc<Mutex<Option<i64>>>) -> Pin<Box<imp
         async move {
             clean_temp_cloud_file(worker_id).await;
         }
+    })
+}
+
+fn evict_cache_task() -> Pin<Box<impl Future<Output=()> + Sized>> {
+    Box::pin(async {
+        crate::task::evict_cache::evict_cache().await;
     })
 }
 

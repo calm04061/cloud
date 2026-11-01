@@ -14,7 +14,7 @@ use tokio::sync::Mutex;
 
 pub async fn clean_cloud_file(worker_id: Arc<Mutex<Option<i64>>>) {
     debug!("start clean");
-    let result = query_file(worker_id).await;
+    let result = query_file(worker_id.clone()).await;
     if let Err(e) = result {
         error!("Failed to retrieve deleted files: {}", e);
         return;
@@ -22,18 +22,32 @@ pub async fn clean_cloud_file(worker_id: Arc<Mutex<Option<i64>>>) {
     let cache_file = crate::fs::config::temp_path().await;
 
     let result = result.unwrap();
+    let mut failed = false;
     for file_meta in result {
         let result = do_clean_file_meta(&file_meta, &cache_file).await;
         if let Err(e) = result {
             error!("Failed to clean file meta: {}", e);
-            continue;
+            // 释放抢占锁并回置 CleanFail，保证下一轮（游标归零后）可以重试，
+            // 否则失败的文件永远停在 Cleaning，云端副本会永久残留
+            let _ = CONTEXT
+                .file_meta_manager
+                .update_status_by_id(file_meta.id.unwrap(), FileStatus::CleanFail)
+                .await;
+            failed = true;
         }
+    }
+    // 本轮存在失败文件时，把游标归零，避免失败行落在游标之前被跳过
+    if failed {
+        let mut guard = worker_id.lock().await;
+        *guard = Some(0);
     }
     debug!("clean finish");
 }
 async fn query_file(worker_id: Arc<Mutex<Option<i64>>>) -> ResponseResult<Vec<FileMeta>> {
     let delta = TimeDelta::seconds(60);
     let ten = Utc::now().sub(delta);
+    // 抢占中的文件超过 10 分钟视为上一轮崩溃遗留，允许重新抢占
+    let reclaim = Utc::now().sub(TimeDelta::minutes(10));
     let mut guard = worker_id.lock().await;
     let pre_id;
     if guard.is_none() {
@@ -42,14 +56,14 @@ async fn query_file(worker_id: Arc<Mutex<Option<i64>>>) -> ResponseResult<Vec<Fi
         pre_id = guard.unwrap();
     }
 
-    let result = CONTEXT.file_manager.list_deleted_file(ten, pre_id).await;
+    let result = CONTEXT.file_manager.list_deleted_file(ten, pre_id, reclaim).await;
     if let Err(e) = result {
         error!("Failed to retrieve deleted files: {}", e);
         return Err(e);
     }
     let mut list = result?;
     if pre_id > 0 && list.is_empty() {
-        let result = CONTEXT.file_manager.list_deleted_file(ten, 0).await;
+        let result = CONTEXT.file_manager.list_deleted_file(ten, 0, reclaim).await;
         if let Err(e) = result {
             error!("Failed to retrieve deleted files: {}", e);
             return Err(e);

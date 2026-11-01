@@ -16,7 +16,12 @@ pub trait CloudMetaManager {
 }
 
 pub trait FileManager {
-    fn list_deleted_file(&self, update_time: DateTime<Utc>, pre_id: i64) -> impl Future<Output=ResponseResult<Vec<FileMeta>>> + Send;
+    /// 捞取待清理的软删除文件。
+    ///
+    /// - update_time：宽限期截止（早于该时间的才处理，避免 VFS 删除尚未落库完成）
+    /// - pre_id：游标分页
+    /// - stale_time：抢占中的文件（status=Cleaning）超过该时间的视为死锁，允许重新抢占
+    fn list_deleted_file(&self, update_time: DateTime<Utc>, pre_id: i64, stale_time: DateTime<Utc>) -> impl Future<Output=ResponseResult<Vec<FileMeta>>> + Send;
 
     fn list_by_parent(&self, parent_id: i64) -> impl Future<Output=ResponseResult<Vec<FileMeta>>> + Send;
 

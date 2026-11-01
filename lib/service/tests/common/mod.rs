@@ -63,29 +63,33 @@ pub async fn count(pool: &DbPool, sql: &'static str) -> i64 {
 }
 
 pub async fn insert_file_meta(pool: &DbPool, name: &str, parent_id: i64, file_type: i8) -> i64 {
+    // 必须在同一连接上取 last_insert_rowid：连接池会复用任意连接，
+    // 跨连接读取会拿到其他语句的插入 id
+    let mut conn = pool.acquire().await.unwrap();
     sqlx::query("insert into file_meta (name, parent_id, file_type, mode, gid, uid, file_length, status, deleted, create_time, update_time) values (?, ?, ?, 644, 1000, 1000, 0, 0, 0, datetime(), datetime())")
         .bind(name)
         .bind(parent_id)
         .bind(file_type)
-        .execute(pool)
+        .execute(&mut *conn)
         .await
         .unwrap();
     let (id,): (i64,) = sqlx::query_as("select last_insert_rowid()")
-        .fetch_one(pool)
+        .fetch_one(&mut *conn)
         .await
         .unwrap();
     id
 }
 
 pub async fn insert_enabled_cloud_meta(pool: &DbPool, name: &str) -> i32 {
+    let mut conn = pool.acquire().await.unwrap();
     sqlx::query("insert into cloud_meta (name, auth, status, deleted, cloud_type) values (?, null, ?, 0, 0)")
         .bind(name)
         .bind::<i8>(MetaStatus::Enable.into())
-        .execute(pool)
+        .execute(&mut *conn)
         .await
         .unwrap();
     let (id,): (i32,) = sqlx::query_as("select last_insert_rowid()")
-        .fetch_one(pool)
+        .fetch_one(&mut *conn)
         .await
         .unwrap();
     id

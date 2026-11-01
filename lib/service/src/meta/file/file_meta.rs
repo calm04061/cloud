@@ -36,6 +36,16 @@ impl SimpleFileMetaManager {
             .execute(&self.db_pool).await?;
         Ok(x.rows_affected())
     }
+
+    /// 无条件按 id 写状态，用于清理失败后释放抢占锁，
+    /// 避免 Cleaning 软锁永久卡死导致云端残留。
+    pub async fn update_status_by_id(&self, id: i64, target_status: FileStatus) -> ResponseResult<u64> {
+        let x = sqlx::query("update file_meta set status = ? where id = ?")
+            .bind::<i8>(target_status.into())
+            .bind(id)
+            .execute(&self.db_pool).await?;
+        Ok(x.rows_affected())
+    }
     pub async fn update_meta(&self, meta: &FileMeta) -> ResponseResult<FileMeta> {
         self.update(&meta).await?;
 

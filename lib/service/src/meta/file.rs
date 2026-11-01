@@ -48,10 +48,11 @@ impl SimpleFileManager {
 }
 
 impl FileManager for SimpleFileManager {
-    async fn list_deleted_file(&self, update_time: DateTime<Utc>, pre_id: i64) -> ResponseResult<Vec<FileMeta>> {
-        let vec = sqlx::query_as("select * from file_meta where id> ? and update_time <= ? and deleted = 1 and status <> 7 order by id limit 30")
+    async fn list_deleted_file(&self, update_time: DateTime<Utc>, pre_id: i64, stale_time: DateTime<Utc>) -> ResponseResult<Vec<FileMeta>> {
+        let vec = sqlx::query_as("select * from file_meta where id > ? and update_time <= ? and deleted = 1 and (status <> 7 or update_time <= ?) order by id limit 30")
             .bind(pre_id)
             .bind(update_time)
+            .bind(stale_time)
             .fetch_all(&self.db_pool)
             .await?;
         Ok(vec)

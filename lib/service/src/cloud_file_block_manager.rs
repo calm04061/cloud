@@ -162,6 +162,16 @@ impl CloudFileBlockManager {
             .fetch_all(&self.db_pool)
             .await?)
     }
+
+    /// 按状态统计未删除的副本块行数（/metrics 用）。
+    pub async fn status_counts(&self) -> ResponseResult<Vec<(i8, i64)>> {
+        let rows: Vec<(i8, i64)> = sqlx::query_as(
+            "select status, count(*) from cloud_file_block where deleted = 0 group by status",
+        )
+        .fetch_all(&self.db_pool)
+        .await?;
+        Ok(rows)
+    }
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, sqlx::FromRow)]

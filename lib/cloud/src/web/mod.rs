@@ -26,6 +26,7 @@ pub(crate) mod vo;
 mod dav;
 mod rate_limit;
 mod health;
+mod metrics;
 use actix_web::dev::Service;
 
 async fn validator(
@@ -109,6 +110,7 @@ pub async fn run_web(plugin_arc: Arc<Vec<PluginMetaInfo>>) -> Server {
                 // 探针端点无需认证，供负载均衡/K8s 探测
                 .service(health::health)
                 .service(health::ready)
+                .service(metrics::metrics)
                 .service(
                     scope("api")
                         .wrap(basic_auth.clone())

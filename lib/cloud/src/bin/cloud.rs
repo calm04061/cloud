@@ -1,8 +1,11 @@
 extern crate core;
 
 use std::error::Error;
+use std::sync::atomic::Ordering;
+use std::time::Duration;
 
 use cloud::fs::nfs::cloud_nfs::CloudNFS;
+use cloud::fs::vfs::IN_FLIGHT_WRITES;
 use cloud::fs::{log_effective_config, temp_path};
 use dotenvy::dotenv;
 use log::info;
@@ -80,5 +83,26 @@ async fn run() -> Result<(), Box<dyn Error>> {
     nfs_handle.abort();
     let _ = nfs_handle.await;
     info!("nfs server stopped");
+    // 等待在途 VFS 写入排空，避免退出时把未上传完成的块静默丢弃
+    drain_in_flight_writes(Duration::from_secs(30)).await;
     Ok(())
+}
+
+/// 等待所有在途 VFS 写入完成；超时则记录剩余数量后退出，
+/// 未完成的块行停留在 Uploading/Init，下次启动由 reset/scan 任务接续。
+async fn drain_in_flight_writes(timeout: Duration) {
+    let deadline = tokio::time::Instant::now() + timeout;
+    while IN_FLIGHT_WRITES.load(Ordering::SeqCst) > 0 {
+        if tokio::time::Instant::now() >= deadline {
+            let remaining = IN_FLIGHT_WRITES.load(Ordering::SeqCst);
+            log::warn!(
+                "shutdown timeout: {} in-flight writes not drained; \
+                 their blocks stay queued and will be re-uploaded on next start",
+                remaining
+            );
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    info!("all in-flight writes drained");
 }

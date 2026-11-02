@@ -29,18 +29,18 @@ impl CloudFileBlockManager {
 
     pub async fn update_by_status(&self, block: &CloudFileBlock, status: FileStatus) -> ResponseResult<u64> {
         let sql = String::from("update cloud_file_block set ");
-        let sql = sql.add(" id = ? ,\
-            cloud_meta_id =?,\
+        let sql = sql.add(" cloud_meta_id =?,\
             cloud_file_hash =?,\
             cloud_file_id =?,\
             status =?,\
             deleted =?,\
             create_time =?,\
-            update_time =?");
+            update_time =?,\
+            retry_count =?,\
+            next_retry_time =?");
         let sql = sql.add(" where id=? and status=?");
 
         let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-            .bind(&block.id)
             .bind(&block.cloud_meta_id)
             .bind(&block.cloud_file_hash)
             .bind(&block.cloud_file_id)
@@ -48,11 +48,12 @@ impl CloudFileBlockManager {
             .bind(&block.deleted)
             .bind(&block.create_time)
             .bind(&block.update_time)
+            .bind(&block.retry_count)
+            .bind(&block.next_retry_time)
             .bind(&block.id)
             .bind::<i8>(status.into())
             .execute(&self.db_pool).await?;
         Ok(result.rows_affected())
-        // Ok(CloudFileBlock::update_by_status(&self.batis.clone(), block, block.id.unwrap(), status.into()).await?.rows_affected)
     }
     pub async fn select_by_file_block_id(&self, file_block_id: i32) -> ResponseResult<Vec<CloudFileBlock>> {
         let vec = sqlx::query_as("select * from cloud_file_block where file_block_id =? order by cloud_file_hash")
@@ -71,7 +72,9 @@ impl CloudFileBlockManager {
             status =?, \
             deleted =?,\
             create_time =?, \
-            update_time =?\
+            update_time =?,\
+            retry_count =?,\
+            next_retry_time =?\
              where id=?";
         Ok(sqlx::query(sql)
             .bind(&block.cloud_meta_id)
@@ -80,16 +83,15 @@ impl CloudFileBlockManager {
             .bind(&block.status)
             .bind(&block.deleted)
             .bind(&block.create_time)
-            .bind(&block.create_time)
+            .bind(&block.update_time)
+            .bind(&block.retry_count)
+            .bind(&block.next_retry_time)
             .bind(&block.id)
             .execute(&self.db_pool)
             .await?.rows_affected())
-        // Ok(CloudFileBlock::update_by_column(&self.batis.clone(), block, "id")
-        //     .await
-        //     ?.rows_affected)
     }
     pub async fn insert(&self, block: &CloudFileBlock) -> ResponseResult<i64> {
-        let sql = String::from("insert into cloud_file_block (file_block_id, cloud_meta_id,cloud_file_hash, cloud_file_id, status, deleted, create_time, update_time) values (?,?,?,?,?,?,?,?)");
+        let sql = String::from("insert into cloud_file_block (file_block_id, cloud_meta_id,cloud_file_hash, cloud_file_id, status, deleted, create_time, update_time, retry_count, next_retry_time) values (?,?,?,?,?,?,?,?,?,?)");
         Ok(sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
             .bind(&block.file_block_id)
             .bind(&block.cloud_meta_id)
@@ -99,17 +101,31 @@ impl CloudFileBlockManager {
             .bind(&block.deleted)
             .bind(&block.create_time)
             .bind(&block.update_time)
+            .bind(&block.retry_count)
+            .bind(&block.next_retry_time)
             .execute(&self.db_pool)
             .await?.last_insert_rowid())
-        // Ok(CloudFileBlock::insert(&self.batis.clone(), block).await?)
     }
     pub async fn delete_by_id(&self, id: i32) -> ResponseResult<u64> {
         Ok(sqlx::query("delete from cloud_file_block where id =?")
             .bind(id)
             .execute(&self.db_pool).await?.rows_affected())
     }
-    pub async fn select_to_upload(&self) -> ResponseResult<Vec<CloudFileBlock>> {
-        Ok(sqlx::query_as("select cfb.* from cloud_file_block cfb left join file_block_meta fbm on cfb.file_block_id = fbm.id and cfb.cloud_file_hash = fbm.part_hash where cfb.status = 1 or (fbm.id is null and cfb.status = 3) order by cfb.update_time limit 8")
+    /// 捞取待上传/待重试的副本块。
+    ///
+    /// - now：退避窗口基准（只处理 next_retry_time 已到期的行）
+    ///
+    /// 选取范围：
+    /// - status=1 (Init)：新入队
+    /// - status=4 (UploadFail)：退避到期后重试
+    /// - status=3 (UploadSuccess) 且对应 file_block_meta 哈希已不匹配：部件内容已变化，重新上传收敛副本
+    ///
+    /// status=2 (Uploading) 的中断行不在这里回收，由 reset 任务超时重置回 Init，
+    /// 保证抢占始终是不同状态间的 CAS，多实例不会重复处理同一行。
+    /// 状态 10 (Dead) 为死信，永不自动重试。
+    pub async fn select_to_upload(&self, now: chrono::DateTime<Local>) -> ResponseResult<Vec<CloudFileBlock>> {
+        Ok(sqlx::query_as("select cfb.* from cloud_file_block cfb left join file_block_meta fbm on cfb.file_block_id = fbm.id and cfb.cloud_file_hash = fbm.part_hash where cfb.deleted = 0 and (cfb.status = 1 or cfb.status = 4 or (fbm.id is null and cfb.status = 3)) and (cfb.next_retry_time is null or cfb.next_retry_time <= ?) order by cfb.update_time limit 8")
+            .bind(now)
             .fetch_all(&self.db_pool)
             .await?)
     }

@@ -15,6 +15,8 @@ impl CloudFileBlock {
             deleted: 0,
             create_time: Local::now(),
             update_time: Local::now(),
+            retry_count: 0,
+            next_retry_time: None,
         }
     }
 }
@@ -31,6 +33,8 @@ impl Default for CloudFileBlock {
             deleted: 0,
             create_time: Local::now(),
             update_time: Local::now(),
+            retry_count: 0,
+            next_retry_time: None,
         }
     }
 }

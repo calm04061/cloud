@@ -74,14 +74,13 @@ fn scan_task(semaphore: Arc<Semaphore>) -> Pin<Box<impl Future<Output=()> + Size
 fn reset_task() -> Pin<Box<impl Future<Output=()> + Sized>> {
     Box::pin({
         async move {
+            // Uploading 租约过期回收：上传中断的崩溃遗留，重置回 Init 由扫描重做
             let result = reset(FileStatus::Uploading, FileStatus::Init, 60 * 10).await;
             if let Err(e) = result {
                 log::error!("reset error: {}", e);
             }
-            let result = reset(FileStatus::UploadFail, FileStatus::Init, 60 * 10).await;
-            if let Err(e) = result {
-                log::error!("reset error: {}", e);
-            }
+            // UploadFail 不再重置回 Init：扫描按 next_retry_time 退避重试并计数，
+            // 达到上限进入死信（#15）。这里保留固定重置会把退避窗口旁路掉。
             let result = reset(FileStatus::Cleaning, FileStatus::WaitClean, 60 * 10).await;
             if let Err(e) = result {
                 log::error!("reset error: {}", e);

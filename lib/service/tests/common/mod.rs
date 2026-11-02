@@ -49,6 +49,10 @@ pub async fn apply_migrations(pool: &DbPool) {
         .execute(pool)
         .await
         .unwrap();
+    sqlx::raw_sql(include_str!("../../src/migrate/version/0.0.4.sql"))
+        .execute(pool)
+        .await
+        .unwrap();
 }
 
 pub async fn cleanup(path: &std::path::PathBuf) {

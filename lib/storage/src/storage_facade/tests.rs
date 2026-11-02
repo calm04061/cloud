@@ -160,6 +160,8 @@ fn mock_cloud_file_block(cloud_meta_id: i32) -> CloudFileBlock {
         deleted: 0,
         create_time: chrono::Local::now(),
         update_time: chrono::Local::now(),
+        retry_count: 0,
+        next_retry_time: None,
     }
 }
 

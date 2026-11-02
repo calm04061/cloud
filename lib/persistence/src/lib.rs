@@ -64,6 +64,10 @@ pub struct CloudFileBlock {
     pub deleted: i8,
     pub create_time: DateTime<Local>,
     pub update_time: DateTime<Local>,
+    /// 上传连续失败次数（成功后清零）
+    pub retry_count: i32,
+    /// 退避到期时间；为空表示立即可重试
+    pub next_retry_time: Option<DateTime<Local>>,
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct TempCloudFile {
@@ -86,6 +90,8 @@ pub enum FileStatus {
     WaitClean,
     Cleaning,
     CleanFail,
+    /// 上传重试达到上限的死信，仅人工/运维介入后重置
+    Dead,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, sqlx::FromRow)]

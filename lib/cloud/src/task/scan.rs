@@ -1,8 +1,9 @@
-use log::{error, info};
+use log::{error, info, warn};
 use std::fs::File;
 use std::io::{ErrorKind, Read};
 use std::sync::Arc;
-use chrono::Local;
+use std::time::Duration;
+use chrono::{Local, TimeDelta};
 use tokio::sync::Semaphore;
 
 use api::error::ErrorInfo;
@@ -12,19 +13,39 @@ use service::meta::{CloudMetaManager, FileManager};
 use service::CONTEXT;
 use storage::storage_facade;
 
+/// 上传连续失败达到该次数后进入死信（FileStatus::Dead）
+const UPLOAD_MAX_ATTEMPTS: i32 = 10;
+/// 退避基数（秒）：第 n 次失败后等待 base * 2^(n-1)，封顶 1 小时
+const UPLOAD_BACKOFF_BASE_SECONDS: i64 = 60;
+
+/// 指数退避 + 抖动：base * 2^(attempt-1)，封顶 1 小时，加 0..base/2 随机抖动
+fn backoff_after(attempt: i32) -> TimeDelta {
+    let exp = (attempt - 1).clamp(0, 6) as i64;
+    let base = dotenvy::var("UPLOAD_BACKOFF_BASE_SECONDS")
+        .ok()
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(UPLOAD_BACKOFF_BASE_SECONDS)
+        .max(1);
+    let mut seconds = base.saturating_mul(1 << exp);
+    seconds = seconds.min(3600);
+    let jitter = (seconds / 2).max(1);
+    TimeDelta::seconds(seconds) + TimeDelta::seconds(rand::random::<i64>() % jitter)
+}
+
 pub(crate) async fn scan(semaphore: Arc<Semaphore>) -> ResponseResult<()> {
-    // info!("scan");
-    let cloud_file_block_result = CONTEXT.cloud_file_block_manager.select_to_upload().await;
+    let now = Local::now();
+    let cloud_file_block_result = CONTEXT.cloud_file_block_manager.select_to_upload(now).await;
     if let Err(e) = cloud_file_block_result {
         error!("select_to_upload error {:?}", e);
         return Ok(());
     }
     let cloud_file_blocks = cloud_file_block_result?;
-    // info!("{} block to upload", cloud_file_blocks.len());
     for file_block in cloud_file_blocks {
         let semaphore = semaphore.clone();
         tokio::spawn(async move {
-            process_block(file_block, semaphore.clone()).await.unwrap();
+            if let Err(e) = process_block(file_block, semaphore.clone()).await {
+                error!("process_block failed: {}", e);
+            }
         });
     }
     Ok(())
@@ -60,6 +81,36 @@ async fn process_block(mut file_block: CloudFileBlock, semaphore: Arc<Semaphore>
     };
     CONTEXT.event_message_manager.insert(&message).await?;
     Ok(())
+}
+
+/// 上传失败后的重试治理：指数退避，达到上限进入死信。
+async fn mark_upload_failure(cloud_file_block: &mut CloudFileBlock) {
+    let max_attempts = dotenvy::var("UPLOAD_MAX_ATTEMPTS")
+        .ok()
+        .and_then(|v| v.parse::<i32>().ok())
+        .unwrap_or(UPLOAD_MAX_ATTEMPTS)
+        .max(1);
+    let next_attempt = cloud_file_block.retry_count + 1;
+    cloud_file_block.retry_count = next_attempt;
+    if next_attempt >= max_attempts {
+        warn!(
+            "block {} dead-lettered after {} attempts",
+            cloud_file_block.id.unwrap(),
+            next_attempt
+        );
+        cloud_file_block.status = FileStatus::Dead.into();
+        cloud_file_block.next_retry_time = None;
+    } else {
+        cloud_file_block.status = FileStatus::UploadFail.into();
+        let next = Local::now() + backoff_after(next_attempt);
+        info!(
+            "block {} retry {} after backoff until {}",
+            cloud_file_block.id.unwrap(),
+            next_attempt,
+            next
+        );
+        cloud_file_block.next_retry_time = Some(next);
+    }
 }
 
 async fn do_execute_one_block(cloud_file_block: &mut CloudFileBlock) -> ResponseResult<()> {
@@ -127,10 +178,12 @@ async fn do_execute_one_block(cloud_file_block: &mut CloudFileBlock) -> Response
             cloud_file_block.status = FileStatus::UploadSuccess.into();
             cloud_file_block.cloud_file_id = cr.cloud_file_id;
             cloud_file_block.cloud_file_hash = Some(file_block_meta.part_hash);
+            cloud_file_block.retry_count = 0;
+            cloud_file_block.next_retry_time = None;
             Ok(())
         }
         Err(e) => {
-            cloud_file_block.status = FileStatus::UploadFail.into();
+            mark_upload_failure(cloud_file_block).await;
             Err(ErrorInfo::OTHER(0, format!("上传文件{cache_file}:{}", e.to_string())))
         }
     };
